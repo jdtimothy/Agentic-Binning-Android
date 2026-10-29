@@ -6,6 +6,14 @@ import android.os.Environment
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.preferencesDataStore
+import com.agentic.binning.analysis.ActionEntry
+import com.agentic.binning.analysis.AnalysisPrompt
+import com.agentic.binning.analysis.AnalysisResult
+import com.agentic.binning.analysis.MediaPreparer
+import com.agentic.binning.analysis.PreparedMedia
+import com.agentic.binning.db.AnalysisEntity
+import com.agentic.binning.db.ItemEntity
+import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.db.ProjectDatabase
 import com.agentic.binning.db.ProjectMetaEntity
 import com.agentic.binning.db.openProjectDatabase
@@ -18,6 +26,20 @@ import com.agentic.binning.media.ProjectItemLookup
 import com.agentic.binning.media.Registrar
 import com.agentic.binning.media.RegistrationProgress
 import com.agentic.binning.media.RegistrationSummary
+import com.agentic.binning.model.DownloadState
+import com.agentic.binning.model.GenieXVisionModel
+import com.agentic.binning.model.ModelCatalog
+import com.agentic.binning.model.ModelDownloader
+import com.agentic.binning.model.VisionModel
+import com.agentic.binning.model.VisionModelException
+import com.agentic.binning.model.VisionProfile
+import com.agentic.binning.pipeline.AnalysisEngine
+import com.agentic.binning.pipeline.AnalysisService
+import com.agentic.binning.pipeline.AnalysisStore
+import com.agentic.binning.pipeline.BatchCompleteHandler
+import com.agentic.binning.pipeline.ItemCounts
+import com.agentic.binning.pipeline.PipelineController
+import com.agentic.binning.pipeline.Preparer
 import com.agentic.binning.project.OpenProject
 import com.agentic.binning.project.ProjectFolders
 import com.agentic.binning.project.ProjectMissingException
@@ -26,8 +48,11 @@ import com.agentic.binning.project.ProjectRegistry
 import com.agentic.binning.project.requireProjectFolder
 import com.agentic.binning.settings.SettingsStore
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +60,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 
 private val Context.settingsDataStore by preferencesDataStore(
     name = "settings",
@@ -55,6 +82,98 @@ class AppGraph(val context: Context) {
     val currentProject: StateFlow<OpenProject?> = _currentProject.asStateFlow()
     private val openLock = Mutex()
 
+    /** Outlives activities; the analysis pipeline runs here (kept alive by [AnalysisService]). */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    val modelDownloader: ModelDownloader by lazy { ModelDownloader(context) }
+
+    val visionModel: VisionModel by lazy { GenieXVisionModel(ModelCatalog.LFM3_VL_2B) }
+
+    /** Frames and padded images go to the app's own cache, never next to the user's files. */
+    private val mediaPreparer by lazy { MediaPreparer(context, File(context.cacheDir, "frames")) }
+
+    /** The open project's database; the pipeline is stopped before a switch closes it (see [openProject]). */
+    private fun pipelineProject(): OpenProject = checkNotNull(_currentProject.value) { "No project is open" }
+
+    private val analysisStore = object : AnalysisStore {
+        override suspend fun nextPending(): ItemEntity? = pipelineProject().db.items().nextPending()
+
+        override suspend fun setStatus(id: Long, status: ItemStatus, reason: String?) =
+            pipelineProject().db.items().setStatus(id, status, reason)
+
+        override suspend fun resetStatus(from: ItemStatus, to: ItemStatus): Int =
+            pipelineProject().db.items().resetStatus(from, to)
+
+        override suspend fun save(itemId: Long, result: AnalysisResult, raw: String, modelId: String, profile: VisionProfile) {
+            val entity = AnalysisEntity(
+                itemId = itemId,
+                description = result.description,
+                actionsJson = Json.encodeToString(ListSerializer(ActionEntry.serializer()), result.actions),
+                suggestedName = result.suggestedName,
+                shotType = result.shotType,
+                rawJson = raw,
+                modelId = modelId,
+                promptVersion = AnalysisPrompt.PROMPT_VERSION,
+                stopReason = profile.stopReason,
+                ttftMs = profile.ttftMs,
+                generatedTokens = profile.generatedTokens,
+                analyzedAt = System.currentTimeMillis(),
+            )
+            pipelineProject().db.analyses().saveAnalysis(entity, result.tags)
+        }
+
+        override suspend fun counts(): ItemCounts {
+            val items = pipelineProject().db.items()
+            val by = ItemStatus.entries.associateWith { items.countByStatus(it) }
+            return ItemCounts(
+                pending = by.getValue(ItemStatus.Pending) + by.getValue(ItemStatus.Analyzing),
+                analyzed = by.getValue(ItemStatus.Analyzed) + by.getValue(ItemStatus.Sorted) + by.getValue(ItemStatus.Binned),
+                total = by.values.sum(),
+            )
+        }
+    }
+
+    private val preparer = object : Preparer {
+        override fun prepare(item: ItemEntity): PreparedMedia = mediaPreparer.prepare(
+            item,
+            ProjectFolders.thumbsDir(File(pipelineProject().ref.path)),
+            visionModel.imageEdge,
+        )
+
+        override fun cleanup(itemId: Long) = mediaPreparer.cleanup(itemId)
+    }
+
+    /** Analyzes the open project's Pending items; drive it through [startAnalysis] so it runs in the foreground service. */
+    val pipeline: PipelineController by lazy {
+        PipelineController(
+            scope = appScope,
+            engineFactory = { AnalysisEngine(visionModel, preparer, analysisStore, Dispatchers.IO) },
+            model = visionModel,
+            store = analysisStore,
+            batchComplete = BatchCompleteHandler { }, // Plan 2 sorts the batch here.
+            ensureModel = ::ensureVisionModel,
+        )
+    }
+
+    /** Starts (or resumes) analysis of [ref] in [AnalysisService]. */
+    fun startAnalysis(ref: ProjectRef) = AnalysisService.start(context, ref)
+
+    /** Downloads the vision model if it is not on the phone yet. */
+    private suspend fun ensureVisionModel(onProgress: (Float) -> Unit) {
+        val spec = ModelCatalog.LFM3_VL_2B
+        if (modelDownloader.isReady(spec)) return
+        var last: DownloadState? = null
+        modelDownloader.pull(spec).collect { state ->
+            last = state
+            if (state is DownloadState.Downloading) onProgress(state.fraction)
+        }
+        when (val end = last) {
+            DownloadState.Ready -> Unit
+            is DownloadState.Failed -> throw VisionModelException(end.message)
+            else -> throw VisionModelException("${spec.displayName} download did not finish")
+        }
+    }
+
     /**
      * Opens [ref]'s database (writing its [ProjectMetaEntity] on first open), makes it the registry's
      * current project and closes the previously open project's database.
@@ -65,6 +184,8 @@ class AppGraph(val context: Context) {
     suspend fun openProject(ref: ProjectRef): OpenProject = openLock.withLock {
         withContext(Dispatchers.IO) { requireProjectFolder(ref) }
         _currentProject.value?.takeIf { it.ref == ref }?.let { return it }
+        // The pipeline works on the open database, which is about to be closed.
+        if (_currentProject.value != null) stopAnalysisAndWait()
         val db = openProjectDatabase(context, ProjectFolders.databaseFile(File(ref.path)))
         try {
             if (db.meta().get() == null) {
@@ -88,6 +209,11 @@ class AppGraph(val context: Context) {
         opened
     }
 
+    private suspend fun stopAnalysisAndWait() {
+        pipeline.stop()
+        pipeline.state.first { !it.phase.isRunning }
+    }
+
     /**
      * Reopens the registry's current project; call once storage permission has been granted.
      * A current project whose folder no longer exists is cleared instead of opened.
@@ -104,14 +230,15 @@ class AppGraph(val context: Context) {
     /**
      * Registers every supported photo and video under the folder behind [treeUri] with the current
      * project. Other projects' folders and the current project's `.binning` folder are not entered.
-     * [onProgress] is called once per file; [onRegistered] after the run completes.
+     * [onProgress] is called once per file; [onRegistered] after the run completes (by default it
+     * starts analysis of the project's Pending items).
      *
      * @throws IllegalStateException if no project is open.
      */
     suspend fun addFolder(
         treeUri: Uri,
         onProgress: (RegistrationProgress) -> Unit,
-        onRegistered: (OpenProject) -> Unit = {},
+        onRegistered: (OpenProject) -> Unit = { startAnalysis(it.ref) },
     ): RegistrationSummary {
         val project = checkNotNull(_currentProject.value) { "No project is open" }
         val (candidates, skipped) = withContext(Dispatchers.IO) {
@@ -135,7 +262,7 @@ class AppGraph(val context: Context) {
     suspend fun addFiles(
         uris: List<Uri>,
         onProgress: (RegistrationProgress) -> Unit,
-        onRegistered: (OpenProject) -> Unit = {},
+        onRegistered: (OpenProject) -> Unit = { startAnalysis(it.ref) },
     ): RegistrationSummary {
         val project = checkNotNull(_currentProject.value) { "No project is open" }
         val (candidates, skipped) = withContext(Dispatchers.IO) {

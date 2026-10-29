@@ -91,9 +91,11 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             var screen by remember { mutableStateOf(Screen.Start) }
 
-            // The pipeline-running condition arrives in Task 11; until then the setting alone decides.
-            LaunchedEffect(settings.keepScreenOn) {
-                if (settings.keepScreenOn) {
+            val pipelineState by graph.pipeline.state.collectAsState()
+            // Keep the screen on only while analysis runs (Paused counts), and only if the setting allows it.
+            val keepScreenOn = settings.keepScreenOn && pipelineState.phase.isRunning
+            LaunchedEffect(keepScreenOn) {
+                if (keepScreenOn) {
                     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 } else {
                     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

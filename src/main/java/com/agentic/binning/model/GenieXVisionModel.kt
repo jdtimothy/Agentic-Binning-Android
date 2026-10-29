@@ -18,8 +18,15 @@ import com.geniex.sdk.bean.VlmContent
 import com.geniex.sdk.bean.VlmCreateInput
 import java.io.File
 import java.util.Locale
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * LFM3-VL on the Hexagon NPU through GenieX's llama.cpp runtime. Each [generate] is a fresh
@@ -42,8 +49,10 @@ class GenieXVisionModel(
     @Volatile
     private var wrapper: VlmWrapper? = null
 
-    override suspend fun load() = lock.withLock {
-        if (wrapper != null) return@withLock
+    override suspend fun load() = lock.withLock { withContext(Dispatchers.IO) { loadLocked() } }
+
+    private suspend fun loadLocked() {
+        if (wrapper != null) return
         val paths = ModelManagerWrapper.getPaths(spec.repo)
             ?: throw VisionModelException("${spec.displayName} is not downloaded")
         val mmproj = paths.mmproj_path?.takeIf { it.isNotEmpty() }
@@ -68,7 +77,14 @@ class GenieXVisionModel(
         Log.d(TAG, "loaded $modelId on $COMPUTE_UNIT (runtime ${input.runtime_id}, nCtx $N_CTX)")
     }
 
-    override suspend fun generate(media: PreparedMedia, onToken: (String) -> Unit): VisionReply = lock.withLock {
+    override suspend fun generate(media: PreparedMedia, onToken: (String) -> Unit): VisionReply =
+        lock.withLock { withContext(Dispatchers.IO) { generateLocked(media, onToken) } }
+
+    /**
+     * @throws IllegalStateException if the prompt cannot be assembled or its media markers do not
+     * match the images.
+     */
+    private suspend fun generateLocked(media: PreparedMedia, onToken: (String) -> Unit): VisionReply {
         val vlm = wrapper ?: throw VisionModelException("$modelId is not loaded")
         vlm.reset()
 
@@ -112,15 +128,30 @@ class GenieXVisionModel(
         val text = StringBuilder()
         var profile: ProfilingData? = null
         var failure: Throwable? = null
-        vlm.generateStreamFlow(prompt, config).collect { result ->
-            when (result) {
-                is LlmStreamResult.Token -> {
-                    text.append(result.text)
-                    onToken(result.text)
+        coroutineScope {
+            // The SDK's callbackFlow blocks in native generate, and a cancelled collect waits for it to
+            // return, so a catch after collect would come too late. This child sees the cancellation
+            // at once and stops the native stream; the lock is held until generate really returns.
+            var streaming = true
+            val stopOnCancel = launch(start = CoroutineStart.UNDISPATCHED) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    if (streaming) withContext(NonCancellable) { vlm.stopStream() }
                 }
-                is LlmStreamResult.Completed -> profile = result.profile
-                is LlmStreamResult.Error -> failure = result.throwable
             }
+            vlm.generateStreamFlow(prompt, config).collect { result ->
+                when (result) {
+                    is LlmStreamResult.Token -> {
+                        text.append(result.text)
+                        onToken(result.text)
+                    }
+                    is LlmStreamResult.Completed -> profile = result.profile
+                    is LlmStreamResult.Error -> failure = result.throwable
+                }
+            }
+            streaming = false
+            stopOnCancel.cancel()
         }
         failure?.let { throw VisionModelException("Generation failed: ${it.message}", it) }
         val p = profile ?: throw VisionModelException("Generation ended without a result")
@@ -132,7 +163,7 @@ class GenieXVisionModel(
                 p.stopReason, p.ttftMs, p.mediaMs, p.promptTokens, p.prefillSpeed, p.generatedTokens, p.decodingSpeed,
             ),
         )
-        VisionReply(
+        return VisionReply(
             text = text.toString(),
             profile = VisionProfile(
                 stopReason = p.stopReason,
@@ -151,8 +182,10 @@ class GenieXVisionModel(
     override suspend fun release() {
         wrapper?.stopStream()
         lock.withLock {
-            wrapper?.destroy()
+            val vlm = wrapper ?: return@withLock
             wrapper = null
+            withContext(Dispatchers.IO + NonCancellable) { vlm.destroy() }
+            Log.d(TAG, "released $modelId")
         }
     }
 

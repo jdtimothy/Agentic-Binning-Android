@@ -1,0 +1,160 @@
+package com.agentic.binning.pipeline
+
+import com.agentic.binning.analysis.AnalysisResult
+import com.agentic.binning.analysis.MediaDecodeException
+import com.agentic.binning.analysis.PreparedMedia
+import com.agentic.binning.db.ItemEntity
+import com.agentic.binning.db.ItemKind
+import com.agentic.binning.db.ItemStatus
+import com.agentic.binning.model.VisionModel
+import com.agentic.binning.model.VisionProfile
+import com.agentic.binning.model.VisionReply
+import java.io.FileNotFoundException
+import kotlinx.coroutines.CompletableDeferred
+
+const val VALID_JSON =
+    """{"description":"A red square on white.","actions":[],"tags":["red","square","graphic"],""" +
+        """"suggested_name":"Red square","shot_type":"close"}"""
+
+fun item(id: Long, status: ItemStatus = ItemStatus.Pending, kind: ItemKind = ItemKind.Photo) = ItemEntity(
+    id = id,
+    contentHash = "hash$id",
+    originalPath = "/sdcard/DCIM/$id.jpg",
+    originalName = "$id.jpg",
+    currentPath = "/sdcard/DCIM/$id.jpg",
+    kind = kind,
+    takenAt = null,
+    durationMs = null,
+    width = null,
+    height = null,
+    status = status,
+    addedAt = 0,
+)
+
+fun reply(text: String, stopReason: String = "eos") =
+    VisionReply(text, VisionProfile(stopReason, ttftMs = 500.0, promptTokens = 400, generatedTokens = 77, decodingSpeed = 45.0))
+
+/** One shared, ordered log of what the fakes were asked to do. */
+class Events {
+    val log = mutableListOf<String>()
+    operator fun plusAssign(e: String) {
+        log += e
+    }
+    fun count(e: String) = log.count { it == e }
+}
+
+class FakeStore(items: List<ItemEntity>, private val events: Events = Events()) : AnalysisStore {
+    val items = LinkedHashMap<Long, ItemEntity>().apply { items.forEach { put(it.id, it) } }
+    val saved = mutableMapOf<Long, AnalysisResult>()
+    val savedRaw = mutableMapOf<Long, String>()
+    val savedModelId = mutableMapOf<Long, String>()
+    val resets = mutableListOf<Pair<ItemStatus, ItemStatus>>()
+
+    fun status(id: Long) = items.getValue(id).status
+    fun reason(id: Long) = items.getValue(id).failureReason
+
+    override suspend fun nextPending(): ItemEntity? =
+        items.values.filter { it.status == ItemStatus.Pending }.minByOrNull { it.id }
+
+    override suspend fun setStatus(id: Long, status: ItemStatus, reason: String?) {
+        items[id] = items.getValue(id).copy(status = status, failureReason = reason)
+    }
+
+    override suspend fun resetStatus(from: ItemStatus, to: ItemStatus): Int {
+        events += "reset"
+        resets += from to to
+        val hits = items.values.filter { it.status == from }
+        hits.forEach { items[it.id] = it.copy(status = to) }
+        return hits.size
+    }
+
+    override suspend fun save(itemId: Long, result: AnalysisResult, raw: String, modelId: String, profile: VisionProfile) {
+        saved[itemId] = result
+        savedRaw[itemId] = raw
+        savedModelId[itemId] = modelId
+        items[itemId] = items.getValue(itemId).copy(status = ItemStatus.Analyzed, failureReason = null)
+    }
+
+    override suspend fun counts(): ItemCounts {
+        val all = items.values
+        return ItemCounts(
+            pending = all.count { it.status == ItemStatus.Pending || it.status == ItemStatus.Analyzing },
+            analyzed = all.count { it.status == ItemStatus.Analyzed },
+            total = all.size,
+        )
+    }
+}
+
+class FakePreparer(
+    private val missing: Set<Long> = emptySet(),
+    private val undecodable: Set<Long> = emptySet(),
+) : Preparer {
+    val prepared = mutableListOf<Long>()
+    val cleaned = mutableListOf<Long>()
+
+    override fun prepare(item: ItemEntity): PreparedMedia {
+        if (item.id in missing) throw FileNotFoundException(item.currentPath)
+        if (item.id in undecodable) throw MediaDecodeException("Cannot decode ${item.originalName}")
+        prepared += item.id
+        return PreparedMedia(item.kind, listOf("/work/${item.id}/image.jpg"), emptyList(), "/thumbs/${item.id}.jpg")
+    }
+
+    override fun cleanup(itemId: Long) {
+        cleaned += itemId
+    }
+}
+
+/**
+ * Answers each item from [replies] (item id → queue of replies, one per attempt), else with
+ * [VALID_JSON]. An item with a gate in [gates] blocks until the gate completes; `true` (as
+ * [cancel] does) makes it return a `user`-stopped partial reply.
+ */
+class FakeModel(private val events: Events = Events()) : VisionModel {
+    override val modelId = "Fake/VL:Q4_0"
+    override val imageEdge = 512
+    val replies = mutableMapOf<Long, ArrayDeque<VisionReply>>()
+    val gates = mutableMapOf<Long, CompletableDeferred<Boolean>>()
+    var failure: Throwable? = null
+    var loadFailure: Throwable? = null
+    var generateCalls = 0
+    private var waiting: CompletableDeferred<Boolean>? = null
+
+    fun script(id: Long, vararg r: VisionReply) {
+        replies[id] = ArrayDeque(r.toList())
+    }
+
+    fun gate(id: Long) = CompletableDeferred<Boolean>().also { gates[id] = it }
+
+    override suspend fun load() {
+        events += "load"
+        loadFailure?.let { throw it }
+    }
+
+    override suspend fun generate(media: PreparedMedia, onToken: (String) -> Unit): VisionReply {
+        val id = media.imagePaths.first().split('/')[2].toLong()
+        generateCalls++
+        events += "generate:$id"
+        failure?.let { throw it }
+        gates.remove(id)?.let { gate ->
+            waiting = gate
+            val cancelled = try {
+                gate.await()
+            } finally {
+                waiting = null
+            }
+            if (cancelled) return reply("""{"description":"A re""", "user").also { onToken(it.text) }
+        }
+        val r = replies[id]?.removeFirstOrNull() ?: reply(VALID_JSON)
+        r.text.chunked(16).forEach(onToken)
+        return r
+    }
+
+    override suspend fun cancel() {
+        events += "cancel"
+        waiting?.complete(true)
+    }
+
+    override suspend fun release() {
+        events += "release"
+    }
+}
