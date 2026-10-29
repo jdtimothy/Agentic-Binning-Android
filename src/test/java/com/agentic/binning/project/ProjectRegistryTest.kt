@@ -61,4 +61,17 @@ class ProjectRegistryTest {
         assertEquals(b, ProjectRegistry(registryFile, root).current())
         assertEquals(listOf(a, b), ProjectRegistry(registryFile, root).list())
     }
+
+    @Test fun clearCurrent_keepsProjects_butForgetsCurrent() {
+        val a = registry.create("A").getOrThrow(); registry.setCurrent(a)
+        registry.clearCurrent()
+        assertNull(ProjectRegistry(registryFile, root).current())
+        assertEquals(listOf(a), ProjectRegistry(registryFile, root).list())
+    }
+
+    @Test fun clearCurrent_withNoCurrent_isNoOp() {
+        registry.clearCurrent()
+        assertNull(registry.current())
+        assertEquals(emptyList<ProjectRef>(), registry.list())
+    }
 }

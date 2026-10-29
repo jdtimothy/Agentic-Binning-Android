@@ -13,11 +13,13 @@ import com.agentic.binning.project.ProjectRef
 import com.agentic.binning.project.ProjectRegistry
 import com.agentic.binning.settings.SettingsStore
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 private val Context.settingsDataStore by preferencesDataStore(
     name = "settings",
@@ -67,9 +69,19 @@ class AppGraph(val context: Context) {
         opened
     }
 
-    /** Reopens the registry's current project; call once storage permission has been granted. */
+    /**
+     * Reopens the registry's current project; call once storage permission has been granted.
+     * A current project whose folder no longer exists is cleared instead of opened, because
+     * opening would recreate the folder.
+     */
     suspend fun restoreCurrentProject() {
-        registry.current()?.let { openProject(it) }
+        val ref = withContext(Dispatchers.IO) {
+            val current = registry.current() ?: return@withContext null
+            if (File(current.path).isDirectory) return@withContext current
+            registry.clearCurrent()
+            null
+        } ?: return
+        openProject(ref)
     }
 
     private companion object {

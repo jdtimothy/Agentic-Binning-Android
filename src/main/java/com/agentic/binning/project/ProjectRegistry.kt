@@ -42,6 +42,13 @@ class ProjectRegistry(private val registryFile: File, private val projectsRoot: 
         write(RegistryData(projects, ref.path))
     }
 
+    /** Forgets the current project (e.g. its folder disappeared) without removing it from [list]. */
+    @Synchronized
+    fun clearCurrent() {
+        val data = read()
+        if (data.current != null) write(data.copy(current = null))
+    }
+
     @Synchronized
     fun create(name: String): Result<ProjectRef> = runCatching {
         val trimmed = name.trim()
