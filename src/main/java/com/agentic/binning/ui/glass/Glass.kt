@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -98,6 +99,7 @@ fun GlassIconButton(
     GlassSurface(
         modifier = modifier
             .size(44.dp)
+            .clip(CircleShape)
             .semantics { this.contentDescription = contentDescription }
             .clickable(role = Role.Button, onClick = onClick),
         shape = CircleShape,
@@ -145,7 +147,7 @@ private fun BoxScope.Blob(
             .offset(x, y)
             .size(size)
             .alpha(alpha)
-            .blur(blurRadius)
+            .blur(blurRadius, BlurredEdgeTreatment.Unbounded)
             .background(color, CircleShape),
     )
 }
