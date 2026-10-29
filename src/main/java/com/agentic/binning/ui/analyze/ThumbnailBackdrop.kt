@@ -3,12 +3,8 @@ package com.agentic.binning.ui.analyze
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -42,6 +38,7 @@ import java.io.File
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Decoded edge of the backdrop image: tiny, since it is blurred to abstract colour anyway. */
@@ -53,20 +50,32 @@ private const val BLUR_RADIUS_PX = 3
 private const val BLUR_PASSES = 3
 private const val CROSSFADE_MILLIS = 2300
 private const val DRIFT_MILLIS = 20_000
+private const val SETTLE_MILLIS = 1500
+
+/** Scale at rest; it covers the ±3 % pan. The drift breathes up to [DRIFT_SCALE]. */
+private const val REST_SCALE = 1.08f
+private const val DRIFT_SCALE = 1.16f
 
 /**
  * The screen's backdrop: [thumbnail] scaled up to fill the screen, heavily blurred and covered by a
- * theme scrim so the glass on top stays legible. A new thumbnail crossfades in slowly, and the image
- * drifts and breathes while one item is processed. The last image stays until the next one has
- * loaded; before any thumbnail exists the colour-orb backdrop shows instead. It is the Haze source
- * that the glass panels blur.
+ * theme scrim so the glass on top stays legible. A new thumbnail crossfades in slowly. While
+ * [moving] (items are being analyzed) the image drifts and breathes; otherwise it eases back to rest
+ * and stays still, so the glass panels blurring it are not redrawn every frame. Between items the
+ * last image stays until the next one has loaded. With no centre card ([hasFocus] false), or before
+ * any thumbnail of the project ([projectKey]) has loaded, the colour-orb backdrop shows instead.
+ * It is the Haze source that the glass panels blur.
  */
 @Composable
-fun ThumbnailBackdrop(thumbnail: File?, hazeState: HazeState) {
+fun ThumbnailBackdrop(projectKey: String?, hasFocus: Boolean, thumbnail: File?, moving: Boolean, hazeState: HazeState) {
     val context = LocalContext.current
     val tokens = LocalGlassTokens.current
-    var shown by remember { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(thumbnail) {
+    // A new project starts from the orbs: its first thumbnail replaces them.
+    var shown by remember(projectKey) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(projectKey, hasFocus, thumbnail) {
+        if (!hasFocus) {
+            shown = null
+            return@LaunchedEffect
+        }
         val file = thumbnail ?: return@LaunchedEffect
         try {
             val request = ImageRequest.Builder(context)
@@ -89,19 +98,27 @@ fun ThumbnailBackdrop(thumbnail: File?, hazeState: HazeState) {
         return
     }
 
-    val drift = rememberInfiniteTransition(label = "drift")
-    val scale by drift.animateFloat(
-        initialValue = 1.08f,
-        targetValue = 1.16f,
-        animationSpec = infiniteRepeatable(tween(DRIFT_MILLIS, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "scale",
-    )
-    val pan by drift.animateFloat(
-        initialValue = -1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(DRIFT_MILLIS * 3 / 2, easing = LinearEasing), RepeatMode.Reverse),
-        label = "pan",
-    )
+    val scale = remember { Animatable(REST_SCALE) }
+    val pan = remember { Animatable(0f) }
+    LaunchedEffect(moving) {
+        if (moving) {
+            launch {
+                while (true) {
+                    scale.animateTo(DRIFT_SCALE, tween(DRIFT_MILLIS, easing = FastOutSlowInEasing))
+                    scale.animateTo(REST_SCALE, tween(DRIFT_MILLIS, easing = FastOutSlowInEasing))
+                }
+            }
+            launch {
+                while (true) {
+                    pan.animateTo(1f, tween(DRIFT_MILLIS * 3 / 4, easing = FastOutSlowInEasing))
+                    pan.animateTo(-1f, tween(DRIFT_MILLIS * 3 / 2, easing = FastOutSlowInEasing))
+                }
+            }
+        } else {
+            launch { scale.animateTo(REST_SCALE, tween(SETTLE_MILLIS)) }
+            launch { pan.animateTo(0f, tween(SETTLE_MILLIS)) }
+        }
+    }
     // Dark: darken towards the background; light: wash towards it.
     val scrim = tokens.bg.copy(alpha = if (tokens.bg.luminance() < 0.5f) 0.5f else 0.42f)
 
@@ -120,10 +137,10 @@ fun ThumbnailBackdrop(thumbnail: File?, hazeState: HazeState) {
                     .fillMaxSize()
                     // Read in the draw phase, so the drift does not recompose.
                     .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = pan * size.width * 0.03f
-                        translationY = -pan * size.height * 0.02f
+                        scaleX = scale.value
+                        scaleY = scale.value
+                        translationX = pan.value * size.width * 0.03f
+                        translationY = -pan.value * size.height * 0.02f
                     },
                 // Bilinear upscaling of the tiny blurred bitmap keeps it smooth.
                 filterQuality = FilterQuality.High,

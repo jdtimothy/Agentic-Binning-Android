@@ -1,7 +1,6 @@
 package com.agentic.binning.ui.analyze
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -24,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.agentic.binning.ui.glass.LocalHazeState
 import com.agentic.binning.ui.theme.LocalGlassTokens
 import dev.chrisbanes.haze.HazeState
+import kotlinx.coroutines.flow.StateFlow
 
 /** Width of the mockup frame; the layout's dp values scale with the window width relative to it. */
 private const val MOCKUP_WIDTH_DP = 390f
@@ -44,8 +45,8 @@ private const val MOCKUP_WIDTH_DP = 390f
 fun AnalyzeScreen(vm: AnalyzeViewModel, onOpenSettings: () -> Unit, onOpenProjectSheet: () -> Unit) {
     val header by vm.header.collectAsState()
     val carousel by vm.carousel.collectAsState()
-    val progress by vm.progress.collectAsState()
-    val output by vm.output.collectAsState()
+    // Read only where needed, so a streamed token recomposes the output card and the live card alone.
+    val progress = vm.progress.collectAsState()
     val controls by vm.controls.collectAsState()
     val hazeState = remember { HazeState() }
 
@@ -53,7 +54,14 @@ fun AnalyzeScreen(vm: AnalyzeViewModel, onOpenSettings: () -> Unit, onOpenProjec
     val textStyle = LocalTextStyle.current.copy(lineHeight = TextUnit.Unspecified, letterSpacing = 0.sp)
     CompositionLocalProvider(LocalHazeState provides hazeState, LocalTextStyle provides textStyle) {
         Box(Modifier.fillMaxSize()) {
-            ThumbnailBackdrop(carousel.focus?.thumbnail, hazeState)
+            ThumbnailBackdrop(
+                projectKey = carousel.projectPath,
+                hasFocus = carousel.focus != null,
+                thumbnail = carousel.focus?.thumbnail,
+                // Drift only while items are being analyzed: a moving backdrop re-blurs every panel.
+                moving = controls.canStop && !controls.showResume,
+                hazeState = hazeState,
+            )
             MockupScale {
                 Column(
                     Modifier
@@ -68,13 +76,20 @@ fun AnalyzeScreen(vm: AnalyzeViewModel, onOpenSettings: () -> Unit, onOpenProjec
                     Spacer(Modifier.height(14.dp))
                     CardCarousel(carousel, progress, onOpenProjectSheet, Modifier.fillMaxWidth().height(290.dp))
                     Spacer(Modifier.height(12.dp))
-                    OutputCard(output, Modifier.padding(horizontal = 16.dp).fillMaxWidth().weight(1f))
+                    LiveOutputCard(vm.output, Modifier.padding(horizontal = 16.dp).fillMaxWidth().weight(1f))
                     Spacer(Modifier.height(14.dp))
                     BottomBar(controls, vm::stop, vm::togglePause, Modifier.padding(horizontal = 16.dp))
                 }
             }
         }
     }
+}
+
+/** Collects the per-token output state in its own scope. */
+@Composable
+private fun LiveOutputCard(output: StateFlow<OutputState>, modifier: Modifier) {
+    val state by output.collectAsState()
+    OutputCard(state, modifier)
 }
 
 /** Scales dp and sp so the 390 dp mockup frame fills the window's width. */
@@ -97,17 +112,45 @@ private fun StatusRow(header: HeaderState, modifier: Modifier = Modifier) {
         StatusTone.Paused -> tokens.warn
         StatusTone.Quiet -> tokens.sub
     }
-    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(7.dp).background(dot, CircleShape))
-        Text(
-            header.statusText,
-            modifier = Modifier.padding(start = 7.dp, end = 12.dp).weight(1f),
-            color = tokens.text,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(header.countText, color = tokens.sub, style = TextStyle(fontSize = 12.sp, fontFeatureSettings = "tnum"))
+    val numbers = TextStyle(fontSize = 12.sp, fontFeatureSettings = "tnum")
+    Layout(
+        modifier = modifier.fillMaxWidth(),
+        content = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(7.dp).background(dot, CircleShape))
+                Text(
+                    header.statusText,
+                    modifier = Modifier.padding(start = 7.dp).weight(1f, fill = false),
+                    color = tokens.text,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(header.speedText, color = tokens.sub, style = numbers, maxLines = 1)
+            Text(header.countText, color = tokens.sub, style = numbers, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        },
+    ) { measurables, constraints ->
+        val (status, speed, count) = measurables
+        val width = constraints.maxWidth
+        val gap = 10.dp.roundToPx()
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val countP = count.measure(loose.copy(maxWidth = width / 2))
+        val speedP = speed.measure(loose)
+        // The speed sits in the middle of the row, nudged left if the count reaches past the middle;
+        // the phase text takes what is left and ellipsizes.
+        val speedX = if (speedP.width == 0) {
+            width - countP.width
+        } else {
+            minOf((width - speedP.width) / 2, width - countP.width - gap - speedP.width)
+        }
+        val statusP = status.measure(loose.copy(maxWidth = (speedX - gap).coerceAtLeast(0)))
+        val height = maxOf(statusP.height, speedP.height, countP.height)
+        layout(width, height) {
+            statusP.place(0, (height - statusP.height) / 2)
+            speedP.place(speedX, (height - speedP.height) / 2)
+            countP.place(width - countP.width, (height - countP.height) / 2)
+        }
     }
 }

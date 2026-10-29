@@ -26,6 +26,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -81,7 +83,8 @@ private fun cardImageRequest(context: Context, card: CardItem): ImageRequest =
 @Composable
 fun CardCarousel(
     state: CarouselState,
-    progress: CurrentProgress,
+    /** Changes with every token while a photo is described; read only by the live card. */
+    progress: State<CurrentProgress>,
     onAddMedia: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -96,9 +99,10 @@ fun CardCarousel(
         for (i in first..last) {
             val card = state.cards[i]
             key(card.id) {
-                val live = progress.takeIf { it.itemId == card.id }
+                // Only the card being analyzed sees its progress change, so only it recomposes.
+                val live = remember(card.id, progress) { derivedStateOf { progress.value.takeIf { it.itemId == card.id } } }
                 PosedCard(cardPose(i - state.current, state.cards.size, tokens)) {
-                    CardBody(card, live)
+                    CardBody(card, live.value)
                 }
             }
         }
@@ -190,7 +194,8 @@ private fun CardBody(card: CardItem, live: CurrentProgress?) {
                 )
                 Spacer(Modifier.height(10.dp))
                 if (card.kind == ItemKind.Video) {
-                    val ticks = card.frameCount
+                    // The preparer's own frame count once it reports one.
+                    val ticks = live?.framesTotal?.takeIf { it > 0 } ?: card.frameCount
                     when {
                         card.isAnalyzed || live?.stage == FrameStage.Read -> FrameStrip(ticks, ticks)
                         live?.stage == FrameStage.Encoding -> FrameStrip(ticks, ticks, shimmer = true)
@@ -280,26 +285,26 @@ private fun ProgressBar(fraction: Float) {
 @Composable
 private fun BoxScope.ScanLine() {
     val accent = LocalGlassTokens.current.accent
-    val t by rememberInfiniteTransition(label = "scan").animateFloat(
+    val sweep = rememberInfiniteTransition(label = "scan").animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing)),
         label = "scanT",
     )
-    val y = ScanEase.transform(t)
-    val alpha = when {
-        t < 0.15f -> t / 0.15f
-        t > 0.85f -> (1f - t) / 0.15f
-        else -> 1f
-    }
     Box(
         Modifier
             .align(Alignment.TopStart)
             .fillMaxWidth()
             .height(2.dp)
+            // The sweep is read in the draw phase, so the card does not recompose every frame.
             .graphicsLayer {
-                translationY = y * MediaHeight.toPx()
-                this.alpha = alpha
+                val t = sweep.value
+                translationY = ScanEase.transform(t) * MediaHeight.toPx()
+                alpha = when {
+                    t < 0.15f -> t / 0.15f
+                    t > 0.85f -> (1f - t) / 0.15f
+                    else -> 1f
+                }
             }
             .drawBehind {
                 val glow = 14.dp.toPx()

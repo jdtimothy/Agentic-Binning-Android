@@ -13,9 +13,8 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
@@ -23,7 +22,12 @@ import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.heading
@@ -44,19 +48,30 @@ import com.agentic.binning.ui.theme.LocalGlassTokens
 @Composable
 fun OutputCard(output: OutputState, modifier: Modifier = Modifier) {
     val tokens = LocalGlassTokens.current
+    // Each item starts at the top; a streaming reply is followed to the bottom unless the user has
+    // scrolled up (scrolling back to the bottom resumes following).
+    val scroll = remember(output.itemId) { ScrollState(0) }
+    var follow by remember(output.itemId) { mutableStateOf(true) }
+    LaunchedEffect(scroll) {
+        snapshotFlow { Pair(scroll.isScrollInProgress && scroll.lastScrolledBackward, !scroll.canScrollForward) }
+            .collect { (userScrolledUp, atBottom) ->
+                if (userScrolledUp) follow = false else if (atBottom) follow = true
+            }
+    }
+    LaunchedEffect(scroll, output.live) {
+        if (!output.live) return@LaunchedEffect
+        snapshotFlow { scroll.maxValue }.collect { bottom -> if (follow) scroll.scrollTo(bottom) }
+    }
     GlassSurface(modifier, shape = RoundedCornerShape(28.dp)) {
         Column(
             Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .padding(horizontal = 18.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column {
-                Row(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
-                    SectionLabel("Description", Modifier.weight(1f))
-                    Text(output.speed, color = tokens.sub, style = TextStyle(fontSize = 11.sp, fontFeatureSettings = "tnum"))
-                }
+                SectionLabel("Description", Modifier.padding(bottom = 6.dp))
                 when {
                     output.notice != null ->
                         Text(output.notice, color = tokens.sub, fontSize = 14.sp, lineHeight = 1.45.em)

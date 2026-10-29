@@ -42,16 +42,31 @@ class AnalysisService : LifecycleService() {
                 val name = intent.getStringExtra(EXTRA_NAME)
                 val path = intent.getStringExtra(EXTRA_PATH)
                 if (name != null && path != null) controller.start(ProjectRef(name, path))
+                stopIfNotRunning(startId)
             }
             ACTION_RESUME -> {
                 goForeground()
                 controller.resume()
+                stopIfNotRunning(startId)
             }
             ACTION_PAUSE -> controller.pause()
             ACTION_STOP -> controller.stop()
         }
         observe()
         return START_NOT_STICKY
+    }
+
+    /**
+     * A start the controller refused (another project is open, or a switch is in progress) or a
+     * resume with nothing to resume leaves the state unchanged, so the observer sees no new value
+     * and would leave the notification up: take it down here.
+     */
+    private fun stopIfNotRunning(startId: Int) {
+        if (controller.state.value.phase.isRunning) return
+        Log.d(TAG, "pipeline not running after start; stopping service")
+        releaseWakeLock()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf(startId)
     }
 
     private fun goForeground() {
