@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agentic.binning.project.ProjectExistsException
+import com.agentic.binning.project.ProjectMissingException
 import com.agentic.binning.project.ProjectRef
 import com.agentic.binning.settings.AppSettings
 import com.agentic.binning.ui.glass.AmbientBackdrop
@@ -109,6 +110,7 @@ class MainActivity : ComponentActivity() {
                     var projects by remember { mutableStateOf(emptyList<ProjectRef>()) }
                     var showSheet by remember { mutableStateOf(false) }
                     var createError by remember { mutableStateOf<String?>(null) }
+                    var switchError by remember { mutableStateOf<String?>(null) }
 
                     fun refreshProjects() {
                         scope.launch { projects = withContext(Dispatchers.IO) { graph.registry.list() } }
@@ -127,6 +129,7 @@ class MainActivity : ComponentActivity() {
                                 projectLabel = openProject?.ref?.name ?: "Create project",
                                 onOpenProjects = {
                                     createError = null
+                                    switchError = null
                                     refreshProjects()
                                     showSheet = true
                                 },
@@ -134,8 +137,9 @@ class MainActivity : ComponentActivity() {
                             )
                             if (showSheet) {
                                 ProjectSheet(
-                                    state = ProjectSheetState(projects, openProject?.ref, createError),
+                                    state = ProjectSheetState(projects, openProject?.ref, createError, switchError),
                                     onCreate = { name ->
+                                        switchError = null
                                         scope.launch {
                                             val result = withContext(Dispatchers.IO) { graph.registry.create(name) }
                                             result
@@ -153,19 +157,24 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     onSwitch = { ref ->
+                                        switchError = null
                                         scope.launch {
                                             try {
                                                 graph.openProject(ref)
                                                 showSheet = false
+                                            } catch (e: ProjectMissingException) {
+                                                switchError = "That project's folder is missing"
+                                                refreshProjects()
                                             } catch (e: Exception) {
                                                 Log.e("MainActivity", "Failed to open project", e)
-                                                createError = "Could not open that project"
+                                                switchError = "Could not open that project"
                                             }
                                         }
                                     },
                                     onAddFolder = { folderPicker.launch(null) },
                                     onAddFiles = { filesPicker.launch(arrayOf("image/*", "video/*")) },
                                     onDismiss = { showSheet = false },
+                                    onNameChange = { createError = null },
                                 )
                             }
                         }

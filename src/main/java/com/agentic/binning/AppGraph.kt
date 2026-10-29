@@ -9,8 +9,10 @@ import com.agentic.binning.db.ProjectMetaEntity
 import com.agentic.binning.db.openProjectDatabase
 import com.agentic.binning.project.OpenProject
 import com.agentic.binning.project.ProjectFolders
+import com.agentic.binning.project.ProjectMissingException
 import com.agentic.binning.project.ProjectRef
 import com.agentic.binning.project.ProjectRegistry
+import com.agentic.binning.project.requireProjectFolder
 import com.agentic.binning.settings.SettingsStore
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -43,8 +45,12 @@ class AppGraph(val context: Context) {
     /**
      * Opens [ref]'s database (writing its [ProjectMetaEntity] on first open), makes it the registry's
      * current project and closes the previously open project's database.
+     *
+     * @throws ProjectMissingException if the project folder no longer exists; nothing is touched on
+     * disk in that case, because opening the database would recreate the folder.
      */
     suspend fun openProject(ref: ProjectRef): OpenProject = openLock.withLock {
+        withContext(Dispatchers.IO) { requireProjectFolder(ref) }
         _currentProject.value?.takeIf { it.ref == ref }?.let { return it }
         val db = openProjectDatabase(context, ProjectFolders.databaseFile(File(ref.path)))
         try {
@@ -71,17 +77,15 @@ class AppGraph(val context: Context) {
 
     /**
      * Reopens the registry's current project; call once storage permission has been granted.
-     * A current project whose folder no longer exists is cleared instead of opened, because
-     * opening would recreate the folder.
+     * A current project whose folder no longer exists is cleared instead of opened.
      */
     suspend fun restoreCurrentProject() {
-        val ref = withContext(Dispatchers.IO) {
-            val current = registry.current() ?: return@withContext null
-            if (File(current.path).isDirectory) return@withContext current
-            registry.clearCurrent()
-            null
-        } ?: return
-        openProject(ref)
+        val ref = withContext(Dispatchers.IO) { registry.current() } ?: return
+        try {
+            openProject(ref)
+        } catch (_: ProjectMissingException) {
+            withContext(Dispatchers.IO) { registry.clearCurrent() }
+        }
     }
 
     private companion object {

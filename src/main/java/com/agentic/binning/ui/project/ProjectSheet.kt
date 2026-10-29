@@ -52,6 +52,8 @@ data class ProjectSheetState(
     val projects: List<ProjectRef>,
     val current: ProjectRef?,
     val createError: String?,
+    /** Shown under the project list when switching fails. */
+    val switchError: String? = null,
 )
 
 /**
@@ -67,6 +69,8 @@ fun ProjectSheet(
     onAddFolder: () -> Unit,
     onAddFiles: () -> Unit,
     onDismiss: () -> Unit,
+    /** Called whenever the user edits the project name, so the host can clear a stale create error. */
+    onNameChange: () -> Unit = {},
 ) {
     val tokens = LocalGlassTokens.current
     val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
@@ -98,7 +102,10 @@ fun ProjectSheet(
                         Section("Create project") {
                             OutlinedTextField(
                                 value = name,
-                                onValueChange = { name = it },
+                                onValueChange = {
+                                    name = it
+                                    onNameChange()
+                                },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 placeholder = { Text("Project name", color = tokens.sub) },
@@ -139,6 +146,7 @@ fun ProjectSheet(
                                     ProjectRow(ref, isCurrent = ref.path == state.current?.path) { onSwitch(ref) }
                                 }
                             }
+                            state.switchError?.let { Text(it, color = tokens.warn, fontSize = 13.sp) }
                         }
                     }
                 }
