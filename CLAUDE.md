@@ -48,3 +48,39 @@ scripting taps. Native crashes: `adb logcat -d -b crash`, then grep for
   com.agentic.binning.test/androidx.test.runner.AndroidJUnitRunner`.
 - The vision layer logs the prompt as sent and every reply's profile under the
   `VisionModel` tag (`adb logcat -s VisionModel:D`).
+
+## Test media and the end-to-end run
+
+`scripts/make-test-media.sh` builds the Plan 1 set in `build/test-media/`
+(square turning red at 5 s, 60 s bars, 0.3 s clip, 0-byte `empty.mp4`, "HELLO
+S26" still, red/blue still, 2 KB `still_truncated.jpg`) and one check frame per
+clip in `build/test-media-check/`; look at those before trusting the clips.
+
+```bash
+bash scripts/make-test-media.sh
+MSYS_NO_PATHCONV=1 adb push build/test-media /sdcard/Movies/avb-plan1
+adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Movies/avb-plan1
+```
+
+Expected: 7 added, then "7 already in this project" on a second add;
+`empty.mp4` and `still_truncated.jpg` end Failed with reason `decode`, the rest
+Analyzed with `stopReason` `eos`.
+
+- Projects live in `/storage/emulated/0/Agentic Binning/<name>/.binning/project.db`
+  (journal mode `delete`, so a plain `adb pull` of the `.db` is consistent).
+  Room columns are camelCase:
+  `sqlite3 build/project.db "select originalName,status,failureReason from item; select itemId,stopReason,generatedTokens from analysis;"`.
+- Caps to compare `generatedTokens` against: 400 for photos, 520 for videos
+  (`AnalysisPrompt.MAX_TOKENS_*`).
+- Drive the add-media flow with `uiautomator dump` + `input tap`: project button
+  opens the sheet, "Add a folder" opens the system picker (breadcrumbs work),
+  then "USE THIS FOLDER" and "ALLOW". Don't swipe on the sheet while the
+  keyboard is up: the swipe types into the name field.
+- `uiautomator dump` can fail with "could not get idle state" while the Analyze
+  screen animates; take a `screencap` instead.
+- `ffmpeg -qp 0` (lossless x264) writes High 4:4:4 Predictive, which the
+  phone's decoders can't read: such clips fail with `decode`, not a bug.
+- The device clock runs about 1.3 s ahead of the PC; compare logcat times with
+  `adb shell date`, not the host clock.
+- On Git Bash, `adb logcat | grep -m1 ...` never returns (adb.exe gets no
+  SIGPIPE). Capture logcat to a file in the background and poll the file.
