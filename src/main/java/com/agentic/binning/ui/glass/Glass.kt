@@ -17,7 +17,6 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
@@ -146,8 +145,9 @@ private fun BoxScope.Blob(
             .align(align)
             .offset(x, y)
             .size(size)
-            .alpha(alpha)
             .blur(blurRadius, BlurredEdgeTreatment.Unbounded)
-            .background(color, CircleShape),
+            // Alpha lives in the colour: Modifier.alpha() would add an offscreen layer that
+            // clips the blurred edge to the blob's square bounds.
+            .background(color.copy(alpha = color.alpha * alpha), CircleShape),
     )
 }
