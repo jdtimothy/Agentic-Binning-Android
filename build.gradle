@@ -68,7 +68,6 @@ dependencies {
     implementation 'androidx.exifinterface:exifinterface:1.4.1'
     implementation 'io.coil-kt.coil3:coil-compose:3.2.0'
     implementation 'io.coil-kt.coil3:coil-video:3.2.0'
-    implementation 'androidx.palette:palette-ktx:1.0.0'
     implementation 'dev.chrisbanes.haze:haze:1.6.4'
 
     // Kotlin

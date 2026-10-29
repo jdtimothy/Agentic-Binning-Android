@@ -51,6 +51,8 @@ data class CardItem(
     val image: File,
     /** True when [image] is the video file (not a thumbnail), so a frame has to be decoded. */
     val imageIsVideo: Boolean,
+    /** The prepared thumbnail, once the item has been through preparation. */
+    val thumbnail: File? = null,
     val failureReason: String? = null,
     /** Frames the model reads from a video (its frame-strip ticks); 0 for a photo. */
     val frameCount: Int = 0,
@@ -290,6 +292,7 @@ class AnalyzeViewModel(
             durationMs = item.durationMs,
             image = thumb ?: File(item.currentPath),
             imageIsVideo = thumb == null && video,
+            thumbnail = thumb,
             failureReason = item.failureReason,
             frameCount = if (video) VideoTiming.sampleTimesMs(item.durationMs ?: 0).size else 0,
         )

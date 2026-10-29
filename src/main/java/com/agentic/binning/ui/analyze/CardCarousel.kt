@@ -51,7 +51,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import coil3.request.allowHardware
 import coil3.request.crossfade
 import coil3.video.VideoFrameDecoder
 import com.agentic.binning.db.ItemKind
@@ -67,15 +66,12 @@ private val MediaWidth = 228.dp
 private val MediaHeight = 196.dp
 private val BadgeBg = Color(0x73000000) // rgba(0,0,0,0.45), both themes
 
-/** Coil request for a card's picture; [sizePx] limits the decode (the palette needs only a few pixels). */
-fun cardImageRequest(context: Context, card: CardItem, sizePx: Int? = null, forPixels: Boolean = false): ImageRequest =
+/** Coil request for a card's picture (a frame is decoded for a video without a thumbnail yet). */
+private fun cardImageRequest(context: Context, card: CardItem): ImageRequest =
     ImageRequest.Builder(context)
         .data(card.image)
-        .apply {
-            if (card.imageIsVideo) decoderFactory(VideoFrameDecoder.Factory())
-            if (sizePx != null) size(sizePx)
-            if (forPixels) allowHardware(false) else crossfade(true)
-        }
+        .apply { if (card.imageIsVideo) decoderFactory(VideoFrameDecoder.Factory()) }
+        .crossfade(true)
         .build()
 
 /**
