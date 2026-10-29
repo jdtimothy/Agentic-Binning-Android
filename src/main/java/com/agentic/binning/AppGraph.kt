@@ -3,6 +3,7 @@ package com.agentic.binning
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
+import android.util.Log
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.preferencesDataStore
@@ -39,6 +40,7 @@ import com.agentic.binning.pipeline.AnalysisStore
 import com.agentic.binning.pipeline.BatchCompleteHandler
 import com.agentic.binning.pipeline.ItemCounts
 import com.agentic.binning.pipeline.PipelineController
+import com.agentic.binning.pipeline.PipelineLog
 import com.agentic.binning.pipeline.Preparer
 import com.agentic.binning.project.OpenProject
 import com.agentic.binning.project.ProjectFolders
@@ -48,11 +50,12 @@ import com.agentic.binning.project.ProjectRegistry
 import com.agentic.binning.project.requireProjectFolder
 import com.agentic.binning.settings.SettingsStore
 import java.io.File
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -129,6 +132,7 @@ class AppGraph(val context: Context) {
                 pending = by.getValue(ItemStatus.Pending) + by.getValue(ItemStatus.Analyzing),
                 analyzed = by.getValue(ItemStatus.Analyzed) + by.getValue(ItemStatus.Sorted) + by.getValue(ItemStatus.Binned),
                 total = by.values.sum(),
+                failed = by.getValue(ItemStatus.Failed) + by.getValue(ItemStatus.Missing),
             )
         }
     }
@@ -147,21 +151,67 @@ class AppGraph(val context: Context) {
     val pipeline: PipelineController by lazy {
         PipelineController(
             scope = appScope,
-            engineFactory = { AnalysisEngine(visionModel, preparer, analysisStore, Dispatchers.IO) },
+            engineFactory = { AnalysisEngine(visionModel, preparer, analysisStore, Dispatchers.IO, pipelineLog) },
             model = visionModel,
             store = analysisStore,
             batchComplete = BatchCompleteHandler { }, // Plan 2 sorts the batch here.
             ensureModel = ::ensureVisionModel,
+            log = pipelineLog,
         )
     }
 
-    /** Starts (or resumes) analysis of [ref] in [AnalysisService]. */
-    fun startAnalysis(ref: ProjectRef) = AnalysisService.start(context, ref)
+    private val pipelineLog = PipelineLog { message, error -> Log.w(TAG, message, error) }
+
+    /** A start the system refused because the app was in the background; retried on the next resume. */
+    @Volatile
+    private var deferredStart: ProjectRef? = null
+
+    /**
+     * Starts (or resumes) analysis of [ref] in [AnalysisService]. Never throws: if the app is in the
+     * background the system refuses to start a foreground service, so the start waits for
+     * [onAppResumed]. Returns whether the service was started.
+     */
+    fun startAnalysis(ref: ProjectRef): Boolean = try {
+        AnalysisService.start(context, ref)
+        deferredStart = null
+        true
+    } catch (e: IllegalStateException) { // ForegroundServiceStartNotAllowedException
+        Log.w(TAG, "Analysis start deferred until the app is back in the foreground", e)
+        deferredStart = ref
+        false
+    } catch (e: SecurityException) {
+        Log.w(TAG, "Analysis start refused", e)
+        deferredStart = ref
+        false
+    }
+
+    /** Starts analysis of [project] if it has items waiting for it. */
+    private suspend fun startAnalysisIfPending(project: OpenProject) {
+        if (hasPendingItems(project)) startAnalysis(project.ref)
+    }
+
+    private suspend fun hasPendingItems(project: OpenProject): Boolean {
+        val items = project.db.items()
+        return items.countByStatus(ItemStatus.Pending) + items.countByStatus(ItemStatus.Analyzing) > 0
+    }
+
+    /** Call from the activity's onResume: retries a start that was refused while the app was in the background. */
+    fun onAppResumed() {
+        val ref = deferredStart ?: return
+        appScope.launch {
+            val open = _currentProject.value
+            try {
+                if (open?.ref == ref && hasPendingItems(open)) startAnalysis(ref) else deferredStart = null
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not retry the deferred analysis start", e)
+            }
+        }
+    }
 
     /** Downloads the vision model if it is not on the phone yet. */
     private suspend fun ensureVisionModel(onProgress: (Float) -> Unit) {
         val spec = ModelCatalog.LFM3_VL_2B
-        if (modelDownloader.isReady(spec)) return
+        if (withContext(Dispatchers.IO) { modelDownloader.isReady(spec) }) return
         var last: DownloadState? = null
         modelDownloader.pull(spec).collect { state ->
             last = state
@@ -184,8 +234,12 @@ class AppGraph(val context: Context) {
     suspend fun openProject(ref: ProjectRef): OpenProject = openLock.withLock {
         withContext(Dispatchers.IO) { requireProjectFolder(ref) }
         _currentProject.value?.takeIf { it.ref == ref }?.let { return it }
-        // The pipeline works on the open database, which is about to be closed.
-        if (_currentProject.value != null) stopAnalysisAndWait()
+        // The pipeline works on the open database, which is about to be closed: stop it, wait for its
+        // cleanup and make it forget the old project.
+        if (_currentProject.value != null) {
+            pipeline.stopAndReset()
+            deferredStart = null
+        }
         val db = openProjectDatabase(context, ProjectFolders.databaseFile(File(ref.path)))
         try {
             if (db.meta().get() == null) {
@@ -209,11 +263,6 @@ class AppGraph(val context: Context) {
         opened
     }
 
-    private suspend fun stopAnalysisAndWait() {
-        pipeline.stop()
-        pipeline.state.first { !it.phase.isRunning }
-    }
-
     /**
      * Reopens the registry's current project; call once storage permission has been granted.
      * A current project whose folder no longer exists is cleared instead of opened.
@@ -231,14 +280,14 @@ class AppGraph(val context: Context) {
      * Registers every supported photo and video under the folder behind [treeUri] with the current
      * project. Other projects' folders and the current project's `.binning` folder are not entered.
      * [onProgress] is called once per file; [onRegistered] after the run completes (by default it
-     * starts analysis of the project's Pending items).
+     * starts analysis if the project has Pending items; it never fails the registration).
      *
      * @throws IllegalStateException if no project is open.
      */
     suspend fun addFolder(
         treeUri: Uri,
         onProgress: (RegistrationProgress) -> Unit,
-        onRegistered: (OpenProject) -> Unit = { startAnalysis(it.ref) },
+        onRegistered: suspend (OpenProject) -> Unit = ::startAnalysisIfPending,
     ): RegistrationSummary {
         val project = checkNotNull(_currentProject.value) { "No project is open" }
         val (candidates, skipped) = withContext(Dispatchers.IO) {
@@ -262,7 +311,7 @@ class AppGraph(val context: Context) {
     suspend fun addFiles(
         uris: List<Uri>,
         onProgress: (RegistrationProgress) -> Unit,
-        onRegistered: (OpenProject) -> Unit = { startAnalysis(it.ref) },
+        onRegistered: suspend (OpenProject) -> Unit = ::startAnalysisIfPending,
     ): RegistrationSummary {
         val project = checkNotNull(_currentProject.value) { "No project is open" }
         val (candidates, skipped) = withContext(Dispatchers.IO) {
@@ -285,7 +334,7 @@ class AppGraph(val context: Context) {
         candidates: List<Candidate>,
         skipped: Int,
         onProgress: (RegistrationProgress) -> Unit,
-        onRegistered: (OpenProject) -> Unit,
+        onRegistered: suspend (OpenProject) -> Unit,
     ): RegistrationSummary {
         val opened = mutableListOf<ProjectDatabase>()
         try {
@@ -303,7 +352,14 @@ class AppGraph(val context: Context) {
                 summary += progress.last
                 onProgress(progress)
             }
-            onRegistered(project)
+            try {
+                onRegistered(project)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // The items are registered; a failed follow-up must not report the add as failed.
+                Log.w(TAG, "After-registration step failed", e)
+            }
             return summary
         } finally {
             withContext(NonCancellable + Dispatchers.IO) { opened.forEach { it.close() } }
@@ -321,6 +377,7 @@ class AppGraph(val context: Context) {
         }
 
     private companion object {
+        const val TAG = "AppGraph"
         const val PROJECT_SCHEMA_VERSION = 1
     }
 }

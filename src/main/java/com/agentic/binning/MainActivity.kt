@@ -60,6 +60,8 @@ import dev.chrisbanes.haze.HazeState
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -83,6 +85,12 @@ private fun createErrorMessage(t: Throwable): String = when (t) {
 }
 
 class MainActivity : ComponentActivity() {
+    override fun onResume() {
+        super.onResume()
+        // A start refused while the app was in the background (e.g. media finished registering then).
+        (application as BinningApp).graph.onAppResumed()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val graph = (application as BinningApp).graph
@@ -91,9 +99,12 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             var screen by remember { mutableStateOf(Screen.Start) }
 
-            val pipelineState by graph.pipeline.state.collectAsState()
+            // Only the running flag: the full state changes on every streamed token.
+            val pipelineRunning by remember {
+                graph.pipeline.state.map { it.phase.isRunning }.distinctUntilChanged()
+            }.collectAsState(initial = graph.pipeline.state.value.phase.isRunning)
             // Keep the screen on only while analysis runs (Paused counts), and only if the setting allows it.
-            val keepScreenOn = settings.keepScreenOn && pipelineState.phase.isRunning
+            val keepScreenOn = settings.keepScreenOn && pipelineRunning
             LaunchedEffect(keepScreenOn) {
                 if (keepScreenOn) {
                     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

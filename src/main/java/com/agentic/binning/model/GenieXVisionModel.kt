@@ -46,6 +46,12 @@ class GenieXVisionModel(
     /** Serialises load, generate and destroy; [cancel] and [release] stop the stream without it. */
     private val lock = Mutex()
 
+    /**
+     * Serialises stopStream with destroy, so a [cancel] can never reach a handle [release] is freeing.
+     * Order when both are held: [lock], then this.
+     */
+    private val nativeLock = Mutex()
+
     @Volatile
     private var wrapper: VlmWrapper? = null
 
@@ -137,7 +143,7 @@ class GenieXVisionModel(
                 try {
                     awaitCancellation()
                 } finally {
-                    if (streaming) withContext(NonCancellable) { vlm.stopStream() }
+                    if (streaming) withContext(NonCancellable) { nativeLock.withLock { vlm.stopStream() } }
                 }
             }
             vlm.generateStreamFlow(prompt, config).collect { result ->
@@ -175,17 +181,23 @@ class GenieXVisionModel(
         )
     }
 
-    override suspend fun cancel() {
-        wrapper?.stopStream()
-    }
+    override suspend fun cancel() = stopStream()
 
     override suspend fun release() {
-        wrapper?.stopStream()
+        stopStream()
         lock.withLock {
-            val vlm = wrapper ?: return@withLock
-            wrapper = null
-            withContext(Dispatchers.IO + NonCancellable) { vlm.destroy() }
-            Log.d(TAG, "released $modelId")
+            nativeLock.withLock {
+                val vlm = wrapper ?: return@withLock
+                wrapper = null
+                withContext(Dispatchers.IO + NonCancellable) { vlm.destroy() }
+                Log.d(TAG, "released $modelId")
+            }
+        }
+    }
+
+    private suspend fun stopStream() {
+        nativeLock.withLock {
+            withContext(Dispatchers.IO) { wrapper?.stopStream() }
         }
     }
 

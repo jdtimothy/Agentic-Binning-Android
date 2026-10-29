@@ -156,6 +156,9 @@ class AnalysisService : LifecycleService() {
             fun of(s: PipelineState): NotificationModel {
                 val name = s.project?.name ?: "project"
                 val download = s.downloadFraction
+                // Failed and Missing items are done too, so the bar can fill.
+                val done = s.analyzed + s.failed
+                val tally = "${s.analyzed} of ${s.total} analyzed" + if (s.failed > 0) " · ${s.failed} failed" else ""
                 return when {
                     download != null -> NotificationModel(
                         s.phase,
@@ -165,7 +168,7 @@ class AnalysisService : LifecycleService() {
                         100,
                     )
                     s.phase == PipelinePhase.Paused -> NotificationModel(
-                        s.phase, "Paused · $name · ${s.pending} left", "${s.analyzed} of ${s.total} analyzed", s.analyzed, s.total,
+                        s.phase, "Paused · $name · ${s.pending} left", tally, done, s.total,
                     )
                     else -> NotificationModel(
                         s.phase,
@@ -173,9 +176,9 @@ class AnalysisService : LifecycleService() {
                         when (s.phase) {
                             PipelinePhase.LoadingModel -> "Loading the vision model"
                             PipelinePhase.Releasing -> "Finishing up"
-                            else -> "${s.analyzed} of ${s.total} analyzed"
+                            else -> tally
                         },
-                        s.analyzed,
+                        done,
                         s.total,
                     )
                 }
