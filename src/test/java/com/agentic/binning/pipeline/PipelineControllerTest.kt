@@ -1,6 +1,7 @@
 package com.agentic.binning.pipeline
 
 import com.agentic.binning.db.ItemEntity
+import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.model.VisionModelException
 import com.agentic.binning.project.ProjectRef
@@ -33,6 +34,7 @@ class PipelineControllerTest {
         store: FakeStore,
         preparer: FakePreparer = this@PipelineControllerTest.preparer,
         batchComplete: BatchCompleteHandler = BatchCompleteHandler { events += "batchComplete"; batches += it },
+        isCurrent: (ProjectRef) -> Boolean = { true },
     ) = PipelineController(
         // Not backgroundScope: advanceUntilIdle() does not wait for background work.
         scope = CoroutineScope(StandardTestDispatcher(testScheduler)),
@@ -40,6 +42,7 @@ class PipelineControllerTest {
         model = model,
         store = store,
         batchComplete = batchComplete,
+        isCurrent = isCurrent,
     )
 
     private fun store(vararg items: ItemEntity) = FakeStore(items.toList(), events)
@@ -379,5 +382,78 @@ class PipelineControllerTest {
         advanceUntilIdle()
         (1L..3L).forEach { assertEquals(ItemStatus.Analyzed, store.status(it)) }
         assertEquals(1, events.count("batchComplete"))
+    }
+
+    /** Task 12 (a): a stale start (old service intent, deferred retry) must not run against another project's database. */
+    @Test
+    fun start_refusesAProjectThatIsNotOpen() = runTest {
+        val store = store(item(1))
+        var open: ProjectRef? = ProjectRef("Other", "/sdcard/Agentic Binning/Other")
+        val controller = controller(store, isCurrent = { it == open })
+
+        controller.start(project)
+        advanceUntilIdle()
+
+        assertTrue(events.log.isEmpty())
+        assertEquals(ItemStatus.Pending, store.status(1))
+        assertEquals(PipelinePhase.Idle, controller.state.value.phase)
+        assertNull(controller.state.value.project)
+
+        open = project
+        controller.start(project)
+        advanceUntilIdle()
+        assertEquals(ItemStatus.Analyzed, store.status(1))
+    }
+
+    /** Task 12 (a): a start that arrives while stopAndReset waits for cleanup is refused, not queued behind it. */
+    @Test
+    fun startDuringStopAndReset_isRefused() = runTest {
+        val store = store(item(1), item(2))
+        val controller = controller(store)
+        model.gate(1)
+        controller.start(project)
+        runCurrent()
+        val cleanup = CompletableDeferred<Unit>().also { model.releaseGate = it }
+        var returned = false
+        launch {
+            controller.stopAndReset()
+            returned = true
+        }
+        runCurrent()
+        assertFalse(returned)
+
+        controller.start(project)
+        cleanup.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(returned)
+        assertEquals(1, events.count("load"))
+        assertEquals(ItemStatus.Pending, store.status(1))
+        assertEquals(ItemStatus.Pending, store.status(2))
+        assertEquals(PipelinePhase.Idle, controller.state.value.phase)
+        assertNull(controller.state.value.project)
+    }
+
+    /** Task 12: the card's frame strip fills as the preparer extracts each frame, read from state. */
+    @Test
+    fun videoFrameProgress_reachesState() = runTest {
+        val store = store(item(1, kind = ItemKind.Video), item(2, kind = ItemKind.Video))
+        val controller = controller(store, preparer = FakePreparer(videoFrames = 3))
+        val seen = mutableMapOf<Long, MutableList<Pair<Int, Int>>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            controller.state.collect { s ->
+                val id = s.currentItemId ?: return@collect
+                if (s.phase == PipelinePhase.Preparing) seen.getOrPut(id) { mutableListOf() } += s.framesReady to s.framesTotal
+            }
+        }
+
+        controller.start(project)
+        advanceUntilIdle()
+
+        val expected = listOf(0 to 0, 1 to 3, 2 to 3, 3 to 3)
+        assertEquals(expected, seen.getValue(1L).distinct())
+        // The next clip starts again from no frames.
+        assertEquals(expected, seen.getValue(2L).distinct())
+        assertEquals(PipelinePhase.Idle, controller.state.value.phase)
     }
 }

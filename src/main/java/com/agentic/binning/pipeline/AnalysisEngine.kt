@@ -20,8 +20,9 @@ interface Preparer {
     /**
      * @throws FileNotFoundException if the item's file is gone.
      * @throws Exception (typically `MediaDecodeException`) if it cannot be decoded.
+     * [onFrame] reports each video frame as it is extracted (frames ready, frames to extract).
      */
-    fun prepare(item: ItemEntity): PreparedMedia
+    fun prepare(item: ItemEntity, onFrame: (ready: Int, total: Int) -> Unit = { _, _ -> }): PreparedMedia
 
     /** Deletes the work files [prepare] wrote for [itemId]; never touches the item's own file. */
     fun cleanup(itemId: Long)
@@ -69,15 +70,19 @@ class AnalysisEngine(
     suspend fun analyze(item: ItemEntity, onPartial: (PartialAnalysis) -> Unit): ItemOutcome =
         analyze(item, onDescribing = {}, onPartial = onPartial)
 
-    /** [onDescribing] is called once the media is prepared, just before the model starts. */
+    /**
+     * [onDescribing] is called once the media is prepared, just before the model starts; [onFrame]
+     * as each of a video's frames is extracted.
+     */
     suspend fun analyze(
         item: ItemEntity,
         onDescribing: () -> Unit,
+        onFrame: (ready: Int, total: Int) -> Unit = { _, _ -> },
         onPartial: (PartialAnalysis) -> Unit,
     ): ItemOutcome {
         try {
             val media = try {
-                withContext(prepareContext) { preparer.prepare(item) }
+                withContext(prepareContext) { preparer.prepare(item, onFrame) }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: FileNotFoundException) {

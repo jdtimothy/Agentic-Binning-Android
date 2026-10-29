@@ -41,6 +41,7 @@ import com.agentic.binning.pipeline.BatchCompleteHandler
 import com.agentic.binning.pipeline.ItemCounts
 import com.agentic.binning.pipeline.PipelineController
 import com.agentic.binning.pipeline.PipelineLog
+import com.agentic.binning.pipeline.PipelinePhase
 import com.agentic.binning.pipeline.Preparer
 import com.agentic.binning.project.OpenProject
 import com.agentic.binning.project.ProjectFolders
@@ -138,10 +139,11 @@ class AppGraph(val context: Context) {
     }
 
     private val preparer = object : Preparer {
-        override fun prepare(item: ItemEntity): PreparedMedia = mediaPreparer.prepare(
+        override fun prepare(item: ItemEntity, onFrame: (ready: Int, total: Int) -> Unit): PreparedMedia = mediaPreparer.prepare(
             item,
             ProjectFolders.thumbsDir(File(pipelineProject().ref.path)),
             visionModel.imageEdge,
+            onFrame,
         )
 
         override fun cleanup(itemId: Long) = mediaPreparer.cleanup(itemId)
@@ -157,8 +159,16 @@ class AppGraph(val context: Context) {
             batchComplete = BatchCompleteHandler { }, // Plan 2 sorts the batch here.
             ensureModel = ::ensureVisionModel,
             log = pipelineLog,
+            isCurrent = { it == pipelineTarget },
         )
     }
+
+    /**
+     * The project the pipeline may run for: the open project, but null from the moment a switch
+     * begins until the new project's database is in place, so a stale start is refused.
+     */
+    @Volatile
+    private var pipelineTarget: ProjectRef? = null
 
     private val pipelineLog = PipelineLog { message, error -> Log.w(TAG, message, error) }
 
@@ -190,20 +200,35 @@ class AppGraph(val context: Context) {
         if (hasPendingItems(project)) startAnalysis(project.ref)
     }
 
+    /**
+     * Picks up [project]'s Pending or Analyzing items on launch, after a switch and on resume (a run is
+     * not persisted, so a process death would otherwise leave them waiting). Leaves a run alone that
+     * is already going, or that the user stopped.
+     */
+    private suspend fun resumeAnalysisIfPending(project: OpenProject) {
+        val state = pipeline.state.value
+        if (state.project == project.ref && (state.phase.isRunning || state.phase == PipelinePhase.Stopped)) return
+        startAnalysisIfPending(project)
+    }
+
     private suspend fun hasPendingItems(project: OpenProject): Boolean {
         val items = project.db.items()
         return items.countByStatus(ItemStatus.Pending) + items.countByStatus(ItemStatus.Analyzing) > 0
     }
 
-    /** Call from the activity's onResume: retries a start that was refused while the app was in the background. */
+    /**
+     * Call from the activity's onResume: retries a start that was refused while the app was in the
+     * background, and otherwise picks up Pending items that nothing is analyzing.
+     */
     fun onAppResumed() {
-        val ref = deferredStart ?: return
         appScope.launch {
-            val open = _currentProject.value
+            val open = _currentProject.value ?: return@launch
             try {
-                if (open?.ref == ref && hasPendingItems(open)) startAnalysis(ref) else deferredStart = null
+                val deferred = deferredStart == open.ref
+                deferredStart = null
+                if (deferred) startAnalysisIfPending(open) else resumeAnalysisIfPending(open)
             } catch (e: Exception) {
-                Log.w(TAG, "Could not retry the deferred analysis start", e)
+                Log.w(TAG, "Could not start analysis on resume", e)
             }
         }
     }
@@ -228,15 +253,37 @@ class AppGraph(val context: Context) {
      * Opens [ref]'s database (writing its [ProjectMetaEntity] on first open), makes it the registry's
      * current project and closes the previously open project's database.
      *
+     * Then starts analysis if the project has items waiting.
+     *
      * @throws ProjectMissingException if the project folder no longer exists; nothing is touched on
      * disk in that case, because opening the database would recreate the folder.
      */
-    suspend fun openProject(ref: ProjectRef): OpenProject = openLock.withLock {
+    suspend fun openProject(ref: ProjectRef): OpenProject {
+        val opened = openLock.withLock {
+            try {
+                openLocked(ref)
+            } finally {
+                // Whatever happened, the pipeline may run for exactly the project that is open now.
+                pipelineTarget = _currentProject.value?.ref
+            }
+        }
+        try {
+            resumeAnalysisIfPending(opened)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not start analysis of ${ref.name}", e)
+        }
+        return opened
+    }
+
+    private suspend fun openLocked(ref: ProjectRef): OpenProject {
         withContext(Dispatchers.IO) { requireProjectFolder(ref) }
         _currentProject.value?.takeIf { it.ref == ref }?.let { return it }
-        // The pipeline works on the open database, which is about to be closed: stop it, wait for its
-        // cleanup and make it forget the old project.
+        // The pipeline works on the open database, which is about to be closed: refuse new starts,
+        // stop it, wait for its cleanup and make it forget the old project.
         if (_currentProject.value != null) {
+            pipelineTarget = null
             pipeline.stopAndReset()
             deferredStart = null
         }
@@ -260,7 +307,7 @@ class AppGraph(val context: Context) {
         val opened = OpenProject(ref, db)
         _currentProject.value = opened
         previous?.db?.close()
-        opened
+        return opened
     }
 
     /**

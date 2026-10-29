@@ -32,10 +32,17 @@ class MediaPreparer(
     private val workDir: File,
 ) {
     /**
+     * [onFrame] is called after each video frame is written: (frames written, frames to sample).
+     *
      * @throws FileNotFoundException if [item]'s file is gone.
      * @throws MediaDecodeException if it cannot be decoded.
      */
-    fun prepare(item: ItemEntity, thumbsDir: File, targetEdge: Int): PreparedMedia {
+    fun prepare(
+        item: ItemEntity,
+        thumbsDir: File,
+        targetEdge: Int,
+        onFrame: (ready: Int, total: Int) -> Unit = { _, _ -> },
+    ): PreparedMedia {
         val source = File(item.currentPath)
         if (!source.isFile) throw FileNotFoundException(item.currentPath)
         val dir = File(workDir, item.id.toString())
@@ -45,7 +52,7 @@ class MediaPreparer(
         val thumb = File(thumbsDir, "${item.id}.jpg")
         return when (item.kind) {
             ItemKind.Photo -> preparePhoto(source, dir, thumb, targetEdge)
-            ItemKind.Video -> prepareVideo(source, item.durationMs, dir, thumb, targetEdge)
+            ItemKind.Video -> prepareVideo(source, item.durationMs, dir, thumb, targetEdge, onFrame)
         }
     }
 
@@ -80,7 +87,14 @@ class MediaPreparer(
         }
     }
 
-    private fun prepareVideo(source: File, durationMs: Long?, dir: File, thumb: File, targetEdge: Int): PreparedMedia {
+    private fun prepareVideo(
+        source: File,
+        durationMs: Long?,
+        dir: File,
+        thumb: File,
+        targetEdge: Int,
+        onFrame: (ready: Int, total: Int) -> Unit,
+    ): PreparedMedia {
         val retriever = MediaMetadataRetriever()
         try {
             try {
@@ -93,7 +107,8 @@ class MediaPreparer(
                 ?: 0L
             val paths = ArrayList<String>()
             val times = ArrayList<Long>()
-            for (t in VideoTiming.sampleTimesMs(duration)) {
+            val sampleTimes = VideoTiming.sampleTimesMs(duration)
+            for (t in sampleTimes) {
                 // OPTION_CLOSEST decodes the exact frame; CLOSEST_SYNC snaps to keyframes and can
                 // collapse every sample onto frame 0.
                 val frame = try {
@@ -107,6 +122,7 @@ class MediaPreparer(
                     saveSquare(frame, targetEdge, file)
                     paths += file.absolutePath
                     times += t
+                    onFrame(paths.size, sampleTimes.size)
                 } finally {
                     frame.recycle()
                 }

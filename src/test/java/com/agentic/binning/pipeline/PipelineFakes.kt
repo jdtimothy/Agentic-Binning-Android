@@ -94,13 +94,16 @@ class FakeStore(items: List<ItemEntity>, private val events: Events = Events()) 
 class FakePreparer(
     private val missing: Set<Long> = emptySet(),
     private val undecodable: Set<Long> = emptySet(),
+    /** Frames a video "extracts", each reported through onFrame. */
+    private val videoFrames: Int = 3,
 ) : Preparer {
     val prepared = mutableListOf<Long>()
     val cleaned = mutableListOf<Long>()
 
-    override fun prepare(item: ItemEntity): PreparedMedia {
+    override fun prepare(item: ItemEntity, onFrame: (ready: Int, total: Int) -> Unit): PreparedMedia {
         if (item.id in missing) throw FileNotFoundException(item.currentPath)
         if (item.id in undecodable) throw MediaDecodeException("Cannot decode ${item.originalName}")
+        if (item.kind == ItemKind.Video) (1..videoFrames).forEach { onFrame(it, videoFrames) }
         prepared += item.id
         return PreparedMedia(item.kind, listOf("/work/${item.id}/image.jpg"), emptyList(), "/thumbs/${item.id}.jpg")
     }

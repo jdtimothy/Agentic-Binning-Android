@@ -44,6 +44,9 @@ data class PipelineState(
     val error: String? = null,
     /** Failed and Missing items: done for progress purposes (`analyzed + failed` reaches `total`). */
     val failed: Int = 0,
+    /** Frames extracted so far from the current video, of [framesTotal] (0 of 0 until the first one). */
+    val framesReady: Int = 0,
+    val framesTotal: Int = 0,
 )
 
 /** Where the pipeline reports problems it recovers from; the app logs them. */
@@ -74,6 +77,8 @@ class PipelineController(
     /** Makes sure the model's weights are on the phone, reporting download progress (0..1). */
     private val ensureModel: suspend (onProgress: (Float) -> Unit) -> Unit = {},
     private val log: PipelineLog = PipelineLog.None,
+    /** Whether [ProjectRef] is the project whose database [store] currently works on; [start] refuses any other. */
+    private val isCurrent: (ProjectRef) -> Boolean = { true },
 ) {
     private enum class Control { Run, Pause, Stop }
 
@@ -88,6 +93,9 @@ class PipelineController(
     private val jobs = mutableSetOf<Job>()
     private var lastProject: ProjectRef? = null
 
+    /** Set while [stopAndReset] winds the pipeline down; every [start] is refused meanwhile. */
+    private var closed = false
+
     /** True until the current run has decided to end; until then a [start] is absorbed as a rerun. */
     private var acceptingReruns = false
     private var rerunRequested = false
@@ -99,10 +107,15 @@ class PipelineController(
     /**
      * Starts a run for [project]. While a run for the same project is in progress this asks it to look
      * for Pending items once more before it ends (it does not lift a pause); a run for another project
-     * is left alone (stop it first).
+     * is left alone (stop it first). Refused while [stopAndReset] runs and for a project that is not
+     * the open one ([isCurrent]), so a stale start cannot analyze another project's database.
      */
     fun start(project: ProjectRef) {
         synchronized(lock) {
+            if (closed || !isCurrent(project)) {
+                log.warn("Analysis start for ${project.name} refused: it is not the open project", null)
+                return
+            }
             val previous = job
             if (previous?.isActive == true && acceptingReruns) {
                 if (project == lastProject) rerunRequested = true
@@ -178,15 +191,22 @@ class PipelineController(
     /**
      * Stops, waits until every run has finished cleaning up (the model is released and nothing touches
      * the store any more), then forgets the project so [resume] cannot start it against another
-     * project's database. Call before the open project changes.
+     * project's database. Call before the open project changes. Starts are refused until it returns.
      */
     suspend fun stopAndReset() {
-        stop()
-        synchronized(lock) { jobs.toList() }.joinAll()
         synchronized(lock) {
+            closed = true
             lastProject = null
-            generation++
-            _state.value = idleState(project = null)
+        }
+        try {
+            stop()
+            synchronized(lock) { jobs.toList() }.joinAll()
+        } finally {
+            synchronized(lock) {
+                generation++
+                _state.value = idleState(project = null)
+                closed = false
+            }
         }
     }
 
@@ -246,10 +266,13 @@ class PipelineController(
             val item = store.nextPending() ?: break
             setCurrent(item)
             store.setStatus(item.id, ItemStatus.Analyzing)
-            update(gen) { it.copy(phase = PipelinePhase.Preparing, currentItemId = item.id, partial = null) }
+            update(gen) {
+                it.copy(phase = PipelinePhase.Preparing, currentItemId = item.id, partial = null, framesReady = 0, framesTotal = 0)
+            }
             val outcome = engine.analyze(
                 item,
                 onDescribing = { update(gen) { it.copy(phase = PipelinePhase.Describing) } },
+                onFrame = { ready, total -> update(gen) { it.copy(framesReady = ready, framesTotal = total) } },
             ) { partial -> update(gen) { it.copy(partial = partial) } }
             // A user-stopped reply: the item goes back to Pending in the cleanup.
             if (outcome == ItemOutcome.Cancelled) throw CancellationException("Generation was stopped")

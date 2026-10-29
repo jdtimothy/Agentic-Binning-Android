@@ -8,22 +8,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,32 +16,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.agentic.binning.media.RegistrationProgress
 import com.agentic.binning.media.RegistrationSummary
+import com.agentic.binning.model.ModelCatalog
 import com.agentic.binning.project.ProjectExistsException
 import com.agentic.binning.project.ProjectMissingException
 import com.agentic.binning.project.ProjectRef
 import com.agentic.binning.settings.AppSettings
-import com.agentic.binning.ui.glass.AmbientBackdrop
-import com.agentic.binning.ui.glass.GlassIconButton
-import com.agentic.binning.ui.glass.GlassSurface
-import com.agentic.binning.ui.glass.LocalHazeState
+import com.agentic.binning.ui.analyze.AnalyzeScreen
+import com.agentic.binning.ui.analyze.AnalyzeViewModel
 import com.agentic.binning.ui.permission.StorageAccessGate
 import com.agentic.binning.ui.project.ProjectSheet
 import com.agentic.binning.ui.project.ProjectSheetState
-import com.agentic.binning.ui.settings.AmbientBlobColors
 import com.agentic.binning.ui.settings.SettingsScreen
 import com.agentic.binning.ui.theme.AgenticTheme
-import com.agentic.binning.ui.theme.LocalGlassTokens
-import dev.chrisbanes.haze.HazeState
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -65,7 +38,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private enum class Screen { Start, Settings }
+private enum class Screen { Analyze, Settings }
 
 /** Runs a settings write, logging instead of crashing if the store cannot be written. */
 private suspend fun safeWrite(block: suspend () -> Unit) {
@@ -97,7 +70,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by graph.settings.settings.collectAsState(initial = AppSettings())
             val scope = rememberCoroutineScope()
-            var screen by remember { mutableStateOf(Screen.Start) }
+            var screen by remember { mutableStateOf(Screen.Analyze) }
 
             // Only the running flag: the full state changes on every streamed token.
             val pipelineRunning by remember {
@@ -163,18 +136,27 @@ class MainActivity : ComponentActivity() {
                         ActivityResultContracts.OpenMultipleDocuments(),
                     ) { uris -> if (uris.isNotEmpty()) runRegistration { progress -> graph.addFiles(uris, progress) } }
 
+                    val analyzeViewModel = viewModel {
+                        AnalyzeViewModel(
+                            pipeline = graph.pipeline,
+                            currentProject = graph.currentProject,
+                            modelState = graph.modelDownloader.state(ModelCatalog.LFM3_VL_2B),
+                            startAnalysis = graph::startAnalysis,
+                        )
+                    }
+
                     when (screen) {
-                        Screen.Start -> {
-                            StartPlaceholder(
-                                projectLabel = openProject?.ref?.name ?: "Create project",
-                                onOpenProjects = {
+                        Screen.Analyze -> {
+                            AnalyzeScreen(
+                                vm = analyzeViewModel,
+                                onOpenSettings = { screen = Screen.Settings },
+                                onOpenProjectSheet = {
                                     createError = null
                                     switchError = null
                                     if (!registering) registrationSummary = null
                                     refreshProjects()
                                     showSheet = true
                                 },
-                                onOpenSettings = { screen = Screen.Settings },
                             )
                             if (showSheet) {
                                 ProjectSheet(
@@ -235,59 +217,15 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         Screen.Settings -> {
-                            BackHandler { screen = Screen.Start }
+                            BackHandler { screen = Screen.Analyze }
                             SettingsScreen(
                                 settings = settings,
                                 onThemeMode = { mode -> scope.launch { safeWrite { graph.settings.setThemeMode(mode) } } },
                                 onKeepScreenOn = { on -> scope.launch { safeWrite { graph.settings.setKeepScreenOn(on) } } },
-                                onBack = { screen = Screen.Start },
+                                onBack = { screen = Screen.Analyze },
                             )
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-/** Temporary start screen; replaced by the Analyze screen in Task 12. */
-@Composable
-private fun StartPlaceholder(projectLabel: String, onOpenProjects: () -> Unit, onOpenSettings: () -> Unit) {
-    val tokens = LocalGlassTokens.current
-    val hazeState = remember { HazeState() }
-    CompositionLocalProvider(LocalHazeState provides hazeState) {
-        Box(Modifier.fillMaxSize()) {
-            AmbientBackdrop(AmbientBlobColors, hazeState)
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                GlassSurface(
-                    Modifier
-                        .widthIn(max = 260.dp)
-                        .heightIn(min = 44.dp)
-                        .clip(RoundedCornerShape(22.dp))
-                        .clickable(role = Role.Button, onClick = onOpenProjects),
-                    shape = RoundedCornerShape(22.dp),
-                ) {
-                    Text(
-                        projectLabel,
-                        modifier = Modifier
-                            .padding(horizontal = 18.dp, vertical = 11.dp)
-                            .align(Alignment.Center),
-                        color = tokens.text,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Box(Modifier.weight(1f))
-                GlassIconButton(onClick = onOpenSettings, contentDescription = "Settings") {
-                    Icon(Icons.Filled.Settings, contentDescription = null, tint = tokens.text)
                 }
             }
         }
