@@ -1,0 +1,21 @@
+# Gradle / Kotlin build output
+.gradle/
+.kotlin/
+build/
+
+# Machine-specific SDK path
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Test media and device dumps (make clips with ffmpeg; never commit them)
+*.mp4
+*.mov
+*.gguf
+ui.xml
+
+# Subagent-driven development scratch
+.superpowers/
