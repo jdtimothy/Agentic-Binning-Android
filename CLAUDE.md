@@ -40,3 +40,11 @@ adb shell am start -n com.agentic.binning/.MainActivity
 Read results from logcat, not the screen. Turn on Do Not Disturb before
 scripting taps. Native crashes: `adb logcat -d -b crash`, then grep for
 `GGML_ASSERT`.
+
+- `connectedDebugAndroidTest` uninstalls the app afterwards, which deletes the
+  pulled models (`files/geniex/models`). Add
+  `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true` to keep them,
+  or rerun a single test with `adb shell am instrument -w -e class <Class>#<method>
+  com.agentic.binning.test/androidx.test.runner.AndroidJUnitRunner`.
+- The vision layer logs the prompt as sent and every reply's profile under the
+  `VisionModel` tag (`adb logcat -s VisionModel:D`).
