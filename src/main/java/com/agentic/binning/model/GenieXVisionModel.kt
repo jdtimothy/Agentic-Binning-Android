@@ -94,7 +94,7 @@ class GenieXVisionModel(
             topP = 1.0f
             minP = 1e-6f // 0 means "SDK default" in SamplerConfig; this turns min_p off in practice.
             repetitionPenalty = 1.1f
-            if (useGrammar) grammarString = AnalysisPrompt.GRAMMAR
+            if (useGrammar) grammarString = AnalysisPrompt.grammar(media.kind)
         }
         val base = GenerationConfig().apply {
             maxTokens = when (media.kind) {

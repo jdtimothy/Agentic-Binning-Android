@@ -65,6 +65,8 @@ class GenieXVisionModelTest {
         assertNotNull(reply.text, result)
         assertEquals("eos", reply.profile.stopReason)
         assertTrue(reply.profile.generatedTokens < AnalysisPrompt.MAX_TOKENS_PHOTO)
+        assertTrue(reply.text, reply.text.replace(Regex("\\s"), "").contains("\"actions\":[]"))
+        assertTrue(reply.text, result!!.tags.size in 3..10)
         model.release()
     }
 
@@ -84,6 +86,10 @@ class GenieXVisionModelTest {
         val result = AnalysisParser.parse(reply.text, ItemKind.Video)
         assertNotNull(reply.text, result)
         assertTrue(reply.text, result!!.actions.isNotEmpty())
+        // Guaranteed by the video grammar: 2-5 actions, m:ss times, 3-10 tags.
+        assertTrue(reply.text, result.actions.size in 2..5)
+        assertTrue(reply.text, result.actions.all { it.t.matches(Regex("""\d{1,2}:[0-5]\d""")) })
+        assertTrue(reply.text, result.tags.size in 3..10)
         assertEquals(reply.text, tokens.toString())
         assertEquals("eos", reply.profile.stopReason)
         assertTrue(reply.profile.generatedTokens < AnalysisPrompt.MAX_TOKENS_VIDEO)
