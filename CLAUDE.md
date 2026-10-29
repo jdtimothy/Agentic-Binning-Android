@@ -12,15 +12,11 @@ checklist is the review list for any model-facing change.
 
 ## Current state
 
-The code is still the patched `geniex_chat_android` sample (copied from
-`..\geniex-android`), renamed to package `com.agentic.binning`.
-It runs as a chat app and serves as a known-good NPU baseline. The binning
-pipeline (MediaStore scan, shot split, per-shot analysis, SQLite + FTS5,
-search UI) is not built yet; replace the chat pieces as it lands.
-
-Worth keeping from the sample: `utils/GgufVisionConfig.kt` (vision geometry from
-the mmproj), `utils/ImgUtil.kt` / `utils/MediaUtil.kt` (decode, pad, frame
-extraction), and the model download/load flow in `MainActivity.kt`.
+Fresh Jetpack Compose app (package `com.agentic.binning`); the GenieX chat
+sample has been removed. Work is split into three plans under
+`docs/superpowers/plans/`. Reference copies of the useful sample code live in
+`docs/reference/sample/` (`GgufVisionConfig.kt.txt`, `MediaUtil.kt.txt`,
+`MainActivity.kt.txt`); they carry a `.txt` extension so they are not compiled.
 
 ## Build and install
 
@@ -43,5 +39,4 @@ adb shell am start -n com.agentic.binning/.MainActivity
 
 Read results from logcat, not the screen. Turn on Do Not Disturb before
 scripting taps. Native crashes: `adb logcat -d -b crash`, then grep for
-`GGML_ASSERT`. The instrumented test in `src/androidTest` drives the inherited
-chat flow with UI Automator (`./gradlew connectedDebugAndroidTest`).
+`GGML_ASSERT`.
