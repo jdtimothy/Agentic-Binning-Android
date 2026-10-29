@@ -486,7 +486,7 @@ Each `RegistrarTest` asserts the exact `RegistrationOutcome` type and, where rel
 
 **Interfaces:**
 - Produces:
-  - `object AnalysisPrompt { const val PROMPT_VERSION = "analysis-v1"; const val MAX_TOKENS_PHOTO = 400; const val MAX_TOKENS_VIDEO = 520; val SYSTEM: String; fun instruction(kind: ItemKind): String; val GRAMMAR: String }`.
+  - `object AnalysisPrompt { const val PROMPT_VERSION = "analysis-v2"; const val MAX_TOKENS_PHOTO = 400; const val MAX_TOKENS_VIDEO = 520; val SYSTEM: String; fun instruction(kind: ItemKind): String; fun grammar(kind: ItemKind): String }` (updated during Task 10: per-kind grammars, video 2–5 actions with m:ss times, photo `[]`, 3–10 tags).
   - `@Serializable data class ActionEntry(val t: String, val text: String)`; `data class AnalysisResult(val description: String, val actions: List<ActionEntry>, val tags: List<String>, val suggestedName: String, val shotType: String)`.
   - `object AnalysisParser { fun parse(text: String, kind: ItemKind): AnalysisResult?; fun partial(text: String): PartialAnalysis }`; `data class PartialAnalysis(val description: String, val descriptionDone: Boolean, val actions: List<ActionEntry>, val tags: List<String>)`.
 
@@ -576,7 +576,7 @@ Parser rules:
       2. template `[system(SYSTEM), user(text PLACEHOLDER)]`;
       3. `splice` in the media text and the instruction;
       4. `injectMediaPathsToConfig` with only the image parts, in marker order;
-      5. `maxTokens` from `AnalysisPrompt`, the sampler from the Global Constraints, and `grammarString = GRAMMAR` when `useGrammar`;
+      5. `maxTokens` from `AnalysisPrompt`, the sampler from the Global Constraints, and `grammarString = AnalysisPrompt.grammar(media.kind)` when `useGrammar`;
       6. stream tokens to `onToken`, and return the text and profile from `LlmStreamResult.Completed`.
     - `cancel()`: `stopStream()`. `release()`: `stopStream()` then `destroy()`.
     - `modelId` = `"${spec.repo}:${spec.precision}"`.
