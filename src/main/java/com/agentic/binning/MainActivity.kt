@@ -1,6 +1,5 @@
 package com.agentic.binning
 
-import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
@@ -40,6 +39,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.agentic.binning.media.RegistrationProgress
+import com.agentic.binning.media.RegistrationSummary
 import com.agentic.binning.project.ProjectExistsException
 import com.agentic.binning.project.ProjectMissingException
 import com.agentic.binning.project.ProjectRef
@@ -57,6 +58,7 @@ import com.agentic.binning.ui.theme.AgenticTheme
 import com.agentic.binning.ui.theme.LocalGlassTokens
 import dev.chrisbanes.haze.HazeState
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,6 +73,8 @@ private suspend fun safeWrite(block: suspend () -> Unit) {
         Log.e("MainActivity", "Failed to persist setting", e)
     }
 }
+
+private const val ADDING_IN_PROGRESS = "Wait for adding to finish"
 
 private fun createErrorMessage(t: Throwable): String = when (t) {
     is ProjectExistsException -> "A project folder with that name already exists"
@@ -111,17 +115,40 @@ class MainActivity : ComponentActivity() {
                     var showSheet by remember { mutableStateOf(false) }
                     var createError by remember { mutableStateOf<String?>(null) }
                     var switchError by remember { mutableStateOf<String?>(null) }
+                    var registration by remember { mutableStateOf<RegistrationProgress?>(null) }
+                    var registrationSummary by remember { mutableStateOf<String?>(null) }
+                    var registering by remember { mutableStateOf(false) }
 
                     fun refreshProjects() {
                         scope.launch { projects = withContext(Dispatchers.IO) { graph.registry.list() } }
                     }
 
+                    /** Runs one registration, mirroring its progress and result into the sheet state. */
+                    fun runRegistration(add: suspend ((RegistrationProgress) -> Unit) -> RegistrationSummary) {
+                        if (registering) return
+                        registering = true
+                        registrationSummary = null
+                        scope.launch {
+                            try {
+                                registrationSummary = add { registration = it }.text()
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Log.e("MainActivity", "Failed to add media", e)
+                                registrationSummary = "Could not add media"
+                            } finally {
+                                registration = null
+                                registering = false
+                            }
+                        }
+                    }
+
                     val folderPicker = rememberLauncherForActivityResult(
                         ActivityResultContracts.OpenDocumentTree(),
-                    ) { uri -> if (uri != null) onFolderPicked(uri) }
+                    ) { uri -> if (uri != null) runRegistration { progress -> graph.addFolder(uri, progress) } }
                     val filesPicker = rememberLauncherForActivityResult(
                         ActivityResultContracts.OpenMultipleDocuments(),
-                    ) { uris -> if (uris.isNotEmpty()) onFilesPicked(uris) }
+                    ) { uris -> if (uris.isNotEmpty()) runRegistration { progress -> graph.addFiles(uris, progress) } }
 
                     when (screen) {
                         Screen.Start -> {
@@ -130,6 +157,7 @@ class MainActivity : ComponentActivity() {
                                 onOpenProjects = {
                                     createError = null
                                     switchError = null
+                                    if (!registering) registrationSummary = null
                                     refreshProjects()
                                     showSheet = true
                                 },
@@ -137,9 +165,20 @@ class MainActivity : ComponentActivity() {
                             )
                             if (showSheet) {
                                 ProjectSheet(
-                                    state = ProjectSheetState(projects, openProject?.ref, createError, switchError),
+                                    state = ProjectSheetState(
+                                        projects,
+                                        openProject?.ref,
+                                        createError,
+                                        switchError,
+                                        registration,
+                                        registrationSummary,
+                                    ),
                                     onCreate = { name ->
                                         switchError = null
+                                        if (registering) {
+                                            createError = ADDING_IN_PROGRESS
+                                            return@ProjectSheet
+                                        }
                                         scope.launch {
                                             val result = withContext(Dispatchers.IO) { graph.registry.create(name) }
                                             result
@@ -158,6 +197,10 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onSwitch = { ref ->
                                         switchError = null
+                                        if (registering) {
+                                            switchError = ADDING_IN_PROGRESS
+                                            return@ProjectSheet
+                                        }
                                         scope.launch {
                                             try {
                                                 graph.openProject(ref)
@@ -191,16 +234,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    /** Receives the folder chosen with the system tree picker; Task 7 registers its media. */
-    private fun onFolderPicked(uri: Uri) {
-        Log.d("MainActivity", "Folder picked: $uri")
-    }
-
-    /** Receives the files chosen with the system document picker; Task 7 registers them. */
-    private fun onFilesPicked(uris: List<Uri>) {
-        Log.d("MainActivity", "Files picked: ${uris.size}")
     }
 }
 

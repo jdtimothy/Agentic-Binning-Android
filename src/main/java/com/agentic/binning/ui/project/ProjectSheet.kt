@@ -42,18 +42,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.agentic.binning.media.RegistrationProgress
+import com.agentic.binning.media.registrationProgressText
 import com.agentic.binning.project.ProjectRef
 import com.agentic.binning.ui.glass.GlassSurface
 import com.agentic.binning.ui.glass.LocalHazeState
 import com.agentic.binning.ui.theme.LocalGlassTokens
 
-/** What the sheet shows. Task 7 adds registration progress and summary fields. */
+/** What the sheet shows. */
 data class ProjectSheetState(
     val projects: List<ProjectRef>,
     val current: ProjectRef?,
     val createError: String?,
     /** Shown under the project list when switching fails. */
     val switchError: String? = null,
+    /** Set while media is being added; the Add media buttons are disabled meanwhile. */
+    val registration: RegistrationProgress? = null,
+    /** One-line result of the last add, e.g. "12 added · 3 already in this project". */
+    val registrationSummary: String? = null,
 )
 
 /**
@@ -76,7 +82,7 @@ fun ProjectSheet(
     val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     var name by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(state.current) { name = "" }
-    val canAddMedia = state.current != null
+    val canAddMedia = state.current != null && state.registration == null
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -133,8 +139,14 @@ fun ProjectSheet(
                         Section("Add media") {
                             PillButton("Add a folder", enabled = canAddMedia, onClick = onAddFolder)
                             PillButton("Pick photos and clips", enabled = canAddMedia, onClick = onAddFiles)
-                            if (!canAddMedia) {
+                            if (state.current == null) {
                                 Text("Create or choose a project first.", color = tokens.sub, fontSize = 13.sp)
+                            }
+                            state.registration?.let {
+                                Text(registrationProgressText(it), color = tokens.text, fontSize = 14.sp)
+                            }
+                            state.registrationSummary?.let {
+                                Text(it, color = tokens.sub, fontSize = 14.sp)
                             }
                         }
 
