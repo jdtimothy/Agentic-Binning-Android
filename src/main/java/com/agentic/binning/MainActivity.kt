@@ -7,13 +7,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import com.agentic.binning.ui.theme.AgenticTheme
+import com.agentic.binning.ui.theme.LocalGlassTokens
+import com.agentic.binning.ui.theme.ThemeMode
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            Box(Modifier.fillMaxSize().background(Color.Black))
+            AgenticTheme(ThemeMode.System) {
+                Box(Modifier.fillMaxSize().background(LocalGlassTokens.current.bg))
+            }
         }
     }
 }
