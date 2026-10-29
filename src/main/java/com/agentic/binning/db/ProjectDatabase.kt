@@ -1,7 +1,11 @@
 package com.agentic.binning.db
 
 import android.content.Context
+import androidx.room.Dao
 import androidx.room.Database
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.SQLiteConnection
@@ -26,6 +30,16 @@ import java.io.File
 abstract class ProjectDatabase : RoomDatabase() {
     abstract fun items(): ItemDao
     abstract fun analyses(): AnalysisDao
+    abstract fun meta(): ProjectMetaDao
+}
+
+@Dao
+interface ProjectMetaDao {
+    @Query("SELECT * FROM project_meta WHERE id = 1")
+    suspend fun get(): ProjectMetaEntity?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(meta: ProjectMetaEntity)
 }
 
 /**
