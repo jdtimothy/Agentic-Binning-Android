@@ -4,6 +4,7 @@ import com.agentic.binning.db.ItemEntity
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.model.VisionModelException
 import com.agentic.binning.project.ProjectRef
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -31,13 +32,14 @@ class PipelineControllerTest {
     private fun TestScope.controller(
         store: FakeStore,
         preparer: FakePreparer = this@PipelineControllerTest.preparer,
+        batchComplete: BatchCompleteHandler = BatchCompleteHandler { events += "batchComplete"; batches += it },
     ) = PipelineController(
         // Not backgroundScope: advanceUntilIdle() does not wait for background work.
         scope = CoroutineScope(StandardTestDispatcher(testScheduler)),
         engineFactory = { AnalysisEngine(model, preparer, store) },
         model = model,
         store = store,
-        batchComplete = { events += "batchComplete"; batches += it },
+        batchComplete = batchComplete,
     )
 
     private fun store(vararg items: ItemEntity) = FakeStore(items.toList(), events)
@@ -189,7 +191,12 @@ class PipelineControllerTest {
         assertEquals(ItemStatus.Analyzed, store.status(3))
         assertEquals(ItemStatus.Missing, store.status(4))
         assertEquals(1, events.count("batchComplete"))
-        assertEquals(PipelinePhase.Idle, controller.state.value.phase)
+        val state = controller.state.value
+        assertEquals(PipelinePhase.Idle, state.phase)
+        // Failed and Missing count as done, so progress can reach the end.
+        assertEquals(1, state.analyzed)
+        assertEquals(3, state.failed)
+        assertEquals(state.total, state.analyzed + state.failed)
     }
 
     @Test
@@ -231,5 +238,146 @@ class PipelineControllerTest {
         assertEquals(ItemStatus.Pending, store.status(1))
         assertEquals(1, events.count("release"))
         assertFalse(events.log.contains("batchComplete"))
+    }
+
+    // --- Fix round 1 ---
+
+    /** I1: a run cancelled before it got going (waiting for the previous run's cleanup) still ends Stopped. */
+    @Test
+    fun stopWhileWaitingForPreviousCleanup_endsStopped() = runTest {
+        val store = store(item(1), item(2))
+        val controller = controller(store)
+        model.gate(1)
+        controller.start(project)
+        runCurrent()
+        val cleanup = CompletableDeferred<Unit>().also { model.releaseGate = it }
+        controller.stop()
+        runCurrent() // first run is now suspended in release() during its cleanup
+        controller.start(project)
+        runCurrent() // second run waits for the first to finish
+        controller.stop()
+        runCurrent()
+
+        cleanup.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(PipelinePhase.Stopped, controller.state.value.phase)
+        assertEquals(ItemStatus.Pending, store.status(1))
+        assertEquals(1, events.count("load"))
+    }
+
+    /** I1: stop() before the launched run is even dispatched. */
+    @Test
+    fun stopBeforeRunIsDispatched_endsStopped() = runTest {
+        val store = store(item(1))
+        val controller = controller(store)
+
+        controller.start(project)
+        controller.stop()
+        advanceUntilIdle()
+
+        assertEquals(PipelinePhase.Stopped, controller.state.value.phase)
+        assertEquals(0, events.count("load"))
+        assertEquals(ItemStatus.Pending, store.status(1))
+    }
+
+    /** I1: AppGraph waits on this before closing the database; it must return once everything is done. */
+    @Test
+    fun stopAndReset_waitsForCleanup_andForgetsTheProject() = runTest {
+        val store = store(item(1), item(2))
+        val controller = controller(store)
+        model.gate(1)
+        controller.start(project)
+        runCurrent()
+        val cleanup = CompletableDeferred<Unit>().also { model.releaseGate = it }
+        var returned = false
+        launch {
+            controller.stopAndReset()
+            returned = true
+        }
+        runCurrent()
+        assertFalse("returned before the cleanup finished", returned)
+
+        cleanup.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(returned)
+        assertEquals(ItemStatus.Pending, store.status(1))
+        // M8: resume() must not analyze the next project's database under the old ref.
+        assertNull(controller.state.value.project)
+        controller.resume()
+        advanceUntilIdle()
+        assertEquals(1, events.count("load"))
+        assertFalse(controller.state.value.phase.isRunning)
+    }
+
+    /** I2: media added while the batch is being released is analyzed, not orphaned. */
+    @Test
+    fun startDuringRelease_runsAnotherBatch() = runTest {
+        val store = store(item(1))
+        val controller = controller(store)
+        val releasing = CompletableDeferred<Unit>().also { model.releaseGate = it }
+        controller.start(project)
+        runCurrent()
+        assertEquals(PipelinePhase.Releasing, controller.state.value.phase)
+
+        store.add(item(2))
+        controller.start(project)
+        releasing.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(ItemStatus.Analyzed, store.status(2))
+        assertEquals(2, events.count("load"))
+        assertEquals(2, events.count("release"))
+        assertEquals(2, events.count("batchComplete"))
+        assertEquals(listOf("release", "batchComplete", "load", "generate:2", "release", "batchComplete"), events.log.dropWhile { it != "release" })
+        assertEquals(PipelinePhase.Idle, controller.state.value.phase)
+    }
+
+    /** I2: media added while the batch-complete handler runs is analyzed too. */
+    @Test
+    fun startDuringBatchComplete_runsAnotherBatch() = runTest {
+        val store = store(item(1))
+        lateinit var controller: PipelineController
+        controller = controller(store, batchComplete = BatchCompleteHandler {
+            events += "batchComplete"
+            if (events.count("batchComplete") == 1) {
+                store.add(item(2))
+                controller.start(project)
+            }
+        })
+
+        controller.start(project)
+        advanceUntilIdle()
+
+        assertEquals(ItemStatus.Analyzed, store.status(2))
+        assertEquals(2, events.count("batchComplete"))
+        assertEquals(PipelinePhase.Idle, controller.state.value.phase)
+    }
+
+    /** M7: adding media while paused must not resume the run; only resume() does. */
+    @Test
+    fun startWhilePaused_staysPaused() = runTest {
+        val store = store(item(1), item(2))
+        val controller = controller(store)
+        val gate = model.gate(1)
+        controller.start(project)
+        runCurrent()
+        controller.pause()
+        gate.complete(false)
+        advanceUntilIdle()
+        assertEquals(PipelinePhase.Paused, controller.state.value.phase)
+
+        store.add(item(3))
+        controller.start(project)
+        advanceUntilIdle()
+
+        assertEquals(PipelinePhase.Paused, controller.state.value.phase)
+        assertEquals(ItemStatus.Pending, store.status(2))
+
+        controller.resume()
+        advanceUntilIdle()
+        (1L..3L).forEach { assertEquals(ItemStatus.Analyzed, store.status(it)) }
+        assertEquals(1, events.count("batchComplete"))
     }
 }

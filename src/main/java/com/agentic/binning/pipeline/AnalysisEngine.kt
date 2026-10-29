@@ -28,7 +28,7 @@ interface Preparer {
 }
 
 /** Item counts for progress: [pending] includes the item being analyzed; [analyzed] counts every item past analysis. */
-data class ItemCounts(val pending: Int, val analyzed: Int, val total: Int)
+data class ItemCounts(val pending: Int, val analyzed: Int, val total: Int, val failed: Int = 0)
 
 /** The pipeline's view of the current project's database. */
 interface AnalysisStore {
@@ -59,6 +59,7 @@ class AnalysisEngine(
     private val store: AnalysisStore,
     /** Where the blocking [Preparer.prepare] runs; the app passes `Dispatchers.IO`. */
     private val prepareContext: CoroutineContext = EmptyCoroutineContext,
+    private val log: PipelineLog = PipelineLog.None,
 ) {
     /** Profile of the most recent reply, including failed attempts. */
     @Volatile
@@ -82,7 +83,8 @@ class AnalysisEngine(
             } catch (_: FileNotFoundException) {
                 store.setStatus(item.id, ItemStatus.Missing)
                 return ItemOutcome.Missing
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                log.warn("Cannot prepare item ${item.id} (${item.originalName})", e)
                 return fail(item, REASON_DECODE)
             }
             onDescribing()
@@ -97,9 +99,11 @@ class AnalysisEngine(
                     }
                 } catch (e: CancellationException) {
                     throw e // A CancellationException is an IllegalStateException: keep this first.
-                } catch (_: IllegalStateException) {
-                    return fail(item, REASON_PROMPT) // Prompt assembly or the media-marker check.
-                } catch (_: VisionModelException) {
+                } catch (e: IllegalStateException) {
+                    log.warn("Prompt assembly failed for item ${item.id}", e) // Or the media-marker check.
+                    return fail(item, REASON_PROMPT)
+                } catch (e: VisionModelException) {
+                    log.warn("Generation failed for item ${item.id}", e)
                     return fail(item, REASON_MODEL)
                 }
                 lastProfile = reply.profile

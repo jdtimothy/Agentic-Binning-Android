@@ -51,6 +51,11 @@ class FakeStore(items: List<ItemEntity>, private val events: Events = Events()) 
     val resets = mutableListOf<Pair<ItemStatus, ItemStatus>>()
 
     fun status(id: Long) = items.getValue(id).status
+
+    /** Registers a new item, as the registrar would while a run is in progress. */
+    fun add(item: ItemEntity) {
+        items[item.id] = item
+    }
     fun reason(id: Long) = items.getValue(id).failureReason
 
     override suspend fun nextPending(): ItemEntity? =
@@ -81,6 +86,7 @@ class FakeStore(items: List<ItemEntity>, private val events: Events = Events()) 
             pending = all.count { it.status == ItemStatus.Pending || it.status == ItemStatus.Analyzing },
             analyzed = all.count { it.status == ItemStatus.Analyzed },
             total = all.size,
+            failed = all.count { it.status == ItemStatus.Failed || it.status == ItemStatus.Missing },
         )
     }
 }
@@ -154,7 +160,14 @@ class FakeModel(private val events: Events = Events()) : VisionModel {
         waiting?.complete(true)
     }
 
+    /** When set, the next [release] suspends until it completes (one-shot). */
+    var releaseGate: CompletableDeferred<Unit>? = null
+
     override suspend fun release() {
         events += "release"
+        releaseGate?.let {
+            releaseGate = null
+            it.await()
+        }
     }
 }
