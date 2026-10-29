@@ -1,6 +1,7 @@
 package com.agentic.binning
 
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -33,9 +34,19 @@ import com.agentic.binning.ui.settings.SettingsScreen
 import com.agentic.binning.ui.theme.AgenticTheme
 import com.agentic.binning.ui.theme.LocalGlassTokens
 import dev.chrisbanes.haze.HazeState
+import java.io.IOException
 import kotlinx.coroutines.launch
 
 private enum class Screen { Start, Settings }
+
+/** Runs a settings write, logging instead of crashing if the store cannot be written. */
+private suspend fun safeWrite(block: suspend () -> Unit) {
+    try {
+        block()
+    } catch (e: IOException) {
+        Log.e("MainActivity", "Failed to persist setting", e)
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,8 +73,8 @@ class MainActivity : ComponentActivity() {
                         BackHandler { screen = Screen.Start }
                         SettingsScreen(
                             settings = settings,
-                            onThemeMode = { scope.launch { graph.settings.setThemeMode(it) } },
-                            onKeepScreenOn = { scope.launch { graph.settings.setKeepScreenOn(it) } },
+                            onThemeMode = { mode -> scope.launch { safeWrite { graph.settings.setThemeMode(mode) } } },
+                            onKeepScreenOn = { on -> scope.launch { safeWrite { graph.settings.setKeepScreenOn(on) } } },
                             onBack = { screen = Screen.Start },
                         )
                     }
