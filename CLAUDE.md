@@ -67,7 +67,9 @@ Expected: 7 added, then "7 already in this project" on a second add;
 Analyzed with `stopReason` `eos`.
 
 - Projects live in `/storage/emulated/0/Agentic Binning/<name>/.binning/project.db`
-  (journal mode `delete`, so a plain `adb pull` of the `.db` is consistent).
+  (journal mode TRUNCATE, set in `ProjectDatabase.kt`, not WAL, so there is no
+  `-wal` file and a plain `adb pull` of the `.db` between writes is complete; a
+  pulled copy reports `delete` because only WAL is persisted in the file).
   Room columns are camelCase:
   `sqlite3 build/project.db "select originalName,status,failureReason from item; select itemId,stopReason,generatedTokens from analysis;"`.
 - Caps to compare `generatedTokens` against: 400 for photos, 520 for videos
