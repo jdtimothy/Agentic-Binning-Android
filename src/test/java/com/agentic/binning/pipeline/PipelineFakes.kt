@@ -10,13 +10,14 @@ import com.agentic.binning.model.VisionModel
 import com.agentic.binning.model.VisionProfile
 import com.agentic.binning.model.VisionReply
 import java.io.FileNotFoundException
+import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 
 const val VALID_JSON =
     """{"description":"A red square on white.","actions":[],"tags":["red","square","graphic"],""" +
         """"suggested_name":"Red square","shot_type":"close"}"""
 
-fun item(id: Long, status: ItemStatus = ItemStatus.Pending, kind: ItemKind = ItemKind.Photo) = ItemEntity(
+fun item(id: Long, status: ItemStatus = ItemStatus.Pending, kind: ItemKind = ItemKind.Photo, attempts: Int = 0) = ItemEntity(
     id = id,
     contentHash = "hash$id",
     originalPath = "/sdcard/DCIM/$id.jpg",
@@ -29,6 +30,7 @@ fun item(id: Long, status: ItemStatus = ItemStatus.Pending, kind: ItemKind = Ite
     height = null,
     status = status,
     addedAt = 0,
+    attempts = attempts,
 )
 
 fun reply(text: String, stopReason: String = "eos") =
@@ -48,7 +50,8 @@ class FakeStore(items: List<ItemEntity>, private val events: Events = Events()) 
     val saved = mutableMapOf<Long, AnalysisResult>()
     val savedRaw = mutableMapOf<Long, String>()
     val savedModelId = mutableMapOf<Long, String>()
-    val resets = mutableListOf<Pair<ItemStatus, ItemStatus>>()
+    /** The failAfter of each [recoverInterrupted] call. */
+    val recoveries = mutableListOf<Int>()
 
     fun status(id: Long) = items.getValue(id).status
 
@@ -57,6 +60,7 @@ class FakeStore(items: List<ItemEntity>, private val events: Events = Events()) 
         items[item.id] = item
     }
     fun reason(id: Long) = items.getValue(id).failureReason
+    fun attempts(id: Long) = items.getValue(id).attempts
 
     override suspend fun nextPending(): ItemEntity? =
         items.values.filter { it.status == ItemStatus.Pending }.minByOrNull { it.id }
@@ -65,11 +69,26 @@ class FakeStore(items: List<ItemEntity>, private val events: Events = Events()) 
         items[id] = items.getValue(id).copy(status = status, failureReason = reason)
     }
 
-    override suspend fun resetStatus(from: ItemStatus, to: ItemStatus): Int {
+    override suspend fun markAnalyzing(id: Long) {
+        val item = items.getValue(id)
+        items[id] = item.copy(status = ItemStatus.Analyzing, failureReason = null, attempts = item.attempts + 1)
+    }
+
+    override suspend fun returnToPending(id: Long) {
+        items[id] = items.getValue(id).copy(status = ItemStatus.Pending, attempts = 0)
+    }
+
+    override suspend fun recoverInterrupted(failAfter: Int): Int {
         events += "reset"
-        resets += from to to
-        val hits = items.values.filter { it.status == from }
-        hits.forEach { items[it.id] = it.copy(status = to) }
+        recoveries += failAfter
+        val hits = items.values.filter { it.status == ItemStatus.Analyzing }
+        hits.forEach {
+            items[it.id] = if (it.attempts >= failAfter) {
+                it.copy(status = ItemStatus.Failed, failureReason = FailureReasons.INTERRUPTED)
+            } else {
+                it.copy(status = ItemStatus.Pending)
+            }
+        }
         return hits.size
     }
 
@@ -94,6 +113,8 @@ class FakeStore(items: List<ItemEntity>, private val events: Events = Events()) 
 class FakePreparer(
     private val missing: Set<Long> = emptySet(),
     private val undecodable: Set<Long> = emptySet(),
+    /** Items whose work files cannot be written, as on a full disk. */
+    private val unwritable: Set<Long> = emptySet(),
     /** Frames a video "extracts", each reported through onFrame. */
     private val videoFrames: Int = 3,
 ) : Preparer {
@@ -103,6 +124,7 @@ class FakePreparer(
     override fun prepare(item: ItemEntity, onFrame: (ready: Int, total: Int) -> Unit): PreparedMedia {
         if (item.id in missing) throw FileNotFoundException(item.currentPath)
         if (item.id in undecodable) throw MediaDecodeException("Cannot decode ${item.originalName}")
+        if (item.id in unwritable) throw IOException("Cannot write /cache/frames/${item.id}/image.jpg: ENOSPC (No space left on device)")
         if (item.kind == ItemKind.Video) (1..videoFrames).forEach { onFrame(it, videoFrames) }
         prepared += item.id
         return PreparedMedia(item.kind, listOf("/work/${item.id}/image.jpg"), emptyList(), "/thumbs/${item.id}.jpg")

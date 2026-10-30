@@ -2,7 +2,6 @@ package com.agentic.binning.pipeline
 
 import com.agentic.binning.analysis.PartialAnalysis
 import com.agentic.binning.db.ItemEntity
-import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.model.VisionModel
 import com.agentic.binning.model.VisionProfile
 import com.agentic.binning.project.ProjectRef
@@ -62,6 +61,10 @@ fun interface PipelineLog {
  * Runs analysis batches for one project at a time in a single coroutine loop:
  * reset interrupted items → load the model (downloading it first if needed) → analyze each Pending
  * item → release the model → [BatchCompleteHandler] → (more Pending items? another batch) → Idle.
+ *
+ * A failure that is not the item's fault ([StopRunException], or the model failing to load) ends
+ * the run in Stopped with an error and the item back in Pending, as do [MAX_FAILURES_IN_A_ROW]
+ * Failed items in a row. An item the process died on [FAIL_INTERRUPTED_AFTER] times is failed.
  *
  * [pause] lets the current item finish and holds with the model loaded. [stop] cancels the current
  * generation, returns that item to Pending, releases the model and ends in Stopped; [resume] after
@@ -214,7 +217,7 @@ class PipelineController(
         var current: ItemEntity? = null
         try {
             currentCoroutineContext().ensureActive()
-            store.resetStatus(ItemStatus.Analyzing, ItemStatus.Pending)
+            store.recoverInterrupted(FAIL_INTERRUPTED_AFTER)
             refreshCounts(gen)
             while (true) {
                 if (store.nextPending() != null) {
@@ -254,6 +257,7 @@ class PipelineController(
         update(gen) { it.copy(downloadFraction = null) }
         model.load()
         val engine = engineFactory()
+        var failuresInARow = 0
 
         while (true) {
             if (control.value == Control.Pause) {
@@ -265,7 +269,7 @@ class PipelineController(
 
             val item = store.nextPending() ?: break
             setCurrent(item)
-            store.setStatus(item.id, ItemStatus.Analyzing)
+            store.markAnalyzing(item.id)
             update(gen) {
                 it.copy(phase = PipelinePhase.Preparing, currentItemId = item.id, partial = null, framesReady = 0, framesTotal = 0)
             }
@@ -279,6 +283,14 @@ class PipelineController(
             setCurrent(null)
             update(gen) { it.copy(lastProfile = engine.lastProfile ?: it.lastProfile) }
             refreshCounts(gen)
+            when (outcome) {
+                is ItemOutcome.Analyzed -> failuresInARow = 0
+                is ItemOutcome.Failed -> if (++failuresInARow >= MAX_FAILURES_IN_A_ROW) {
+                    // Something is wrong beyond these files; stop rather than fail the whole queue.
+                    throw StopRunException("Analysis stopped after repeated failures: ${FailureReasons.describe(outcome.reason)}")
+                }
+                else -> Unit // A missing file says nothing about the rest.
+            }
         }
 
         // Release always comes before the handler: only one model may be loaded at a time.
@@ -296,7 +308,7 @@ class PipelineController(
     private suspend fun endStopped(gen: Int, current: ItemEntity?, error: String?) {
         current?.let { item ->
             try {
-                store.setStatus(item.id, ItemStatus.Pending)
+                store.returnToPending(item.id)
             } catch (t: Throwable) {
                 log.warn("Could not return item ${item.id} to Pending", t)
             }
@@ -325,8 +337,14 @@ class PipelineController(
         _state.update { if (gen == generation) change(it) else it }
     }
 
-    private companion object {
-        fun idleState(project: ProjectRef?) =
+    companion object {
+        /** Attempts after which an item left Analyzing by a dead process is failed instead of retried. */
+        const val FAIL_INTERRUPTED_AFTER = 2
+
+        /** Failed items in a row that stop the run. */
+        const val MAX_FAILURES_IN_A_ROW = 3
+
+        private fun idleState(project: ProjectRef?) =
             PipelineState(PipelinePhase.Idle, project, null, null, null, pending = 0, analyzed = 0, total = 0)
     }
 }

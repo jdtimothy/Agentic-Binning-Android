@@ -1,6 +1,5 @@
 package com.agentic.binning.analysis
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -10,6 +9,7 @@ import com.agentic.binning.db.ItemEntity
 import com.agentic.binning.db.ItemKind
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.IOException
 import kotlin.math.roundToInt
 
 /** What the vision model reads for one item: absolute JPEG paths in prompt order. */
@@ -24,18 +24,22 @@ data class PreparedMedia(
 class MediaDecodeException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
+ * The app's own work files or thumbnails could not be written (typically a full disk). Not a
+ * [FileNotFoundException] even when the cause is one, so it is never mistaken for a missing item.
+ */
+class WorkFileException(message: String, cause: Throwable? = null) : IOException(message, cause)
+
+/**
  * Decodes a photo or samples a video into square JPEGs under `workDir/<itemId>/` (the native side
  * reads absolute file paths only) and writes a 512 px thumbnail. Blocking: call off the main thread.
  */
-class MediaPreparer(
-    @Suppress("unused") private val context: Context,
-    private val workDir: File,
-) {
+class MediaPreparer(private val workDir: File) {
     /**
      * [onFrame] is called after each video frame is written: (frames written, frames to sample).
      *
      * @throws FileNotFoundException if [item]'s file is gone.
      * @throws MediaDecodeException if it cannot be decoded.
+     * @throws WorkFileException if a work file or the thumbnail cannot be written.
      */
     fun prepare(
         item: ItemEntity,
@@ -47,8 +51,8 @@ class MediaPreparer(
         if (!source.isFile) throw FileNotFoundException(item.currentPath)
         val dir = File(workDir, item.id.toString())
         dir.deleteRecursively()
-        if (!dir.mkdirs()) throw MediaDecodeException("Cannot create ${dir.absolutePath}")
-        if (!thumbsDir.isDirectory && !thumbsDir.mkdirs()) throw MediaDecodeException("Cannot create ${thumbsDir.absolutePath}")
+        if (!dir.mkdirs()) throw WorkFileException("Cannot create ${dir.absolutePath}")
+        if (!thumbsDir.isDirectory && !thumbsDir.mkdirs()) throw WorkFileException("Cannot create ${thumbsDir.absolutePath}")
         val thumb = File(thumbsDir, "${item.id}.jpg")
         return when (item.kind) {
             ItemKind.Photo -> preparePhoto(source, dir, thumb, targetEdge)
@@ -166,9 +170,14 @@ class MediaPreparer(
         }
     }
 
+    /** Encoding a decoded bitmap only fails when the write does, so every failure here is a [WorkFileException]. */
     private fun writeJpeg(bitmap: Bitmap, file: File, quality: Int) {
-        val ok = file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, quality, it) }
-        if (!ok) throw MediaDecodeException("Cannot encode ${file.name}")
+        val ok = try {
+            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, quality, it) }
+        } catch (e: IOException) {
+            throw WorkFileException("Cannot write ${file.absolutePath}: ${e.message}", e)
+        }
+        if (!ok) throw WorkFileException("Cannot write ${file.absolutePath}")
     }
 
     private companion object {

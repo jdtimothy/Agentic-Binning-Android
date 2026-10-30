@@ -152,15 +152,47 @@ class AnalysisEngineTest {
         assertNull(store.reason(1))
     }
 
+    /** An NPU or SDK error is not the item's fault: the run stops and the item is left for the caller. */
     @Test
-    fun modelError_marksFailed_model() = runTest {
+    fun modelError_stopsTheRun_andLeavesTheItemAlone() = runTest {
         val store = FakeStore(listOf(item(1, ItemStatus.Analyzing)))
+        val preparer = FakePreparer()
         model.failure = VisionModelException("Generation failed: boom")
 
-        val outcome = engine(store).analyze(store.items.getValue(1)) {}
+        val error = try {
+            engine(store, preparer).analyze(store.items.getValue(1)) {}
+            fail("a model error should stop the run")
+            null
+        } catch (e: StopRunException) {
+            e
+        }
 
-        assertEquals(ItemOutcome.Failed("model"), outcome)
-        assertEquals(ItemStatus.Failed, store.status(1))
+        assertTrue(error!!.message!!.startsWith("The vision model failed"))
+        assertTrue(error.message!!.contains("Generation failed: boom"))
+        assertEquals(ItemStatus.Analyzing, store.status(1))
+        assertNull(store.reason(1))
+        assertEquals(listOf(1L), preparer.cleaned)
+    }
+
+    /** A full disk while writing the app's own work files fails every item alike: stop instead. */
+    @Test
+    fun workFileWriteFailure_stopsTheRun_andLeavesTheItemAlone() = runTest {
+        val store = FakeStore(listOf(item(1, ItemStatus.Analyzing)))
+        val preparer = FakePreparer(unwritable = setOf(1))
+
+        val error = try {
+            engine(store, preparer).analyze(store.items.getValue(1)) {}
+            fail("a storage error should stop the run")
+            null
+        } catch (e: StopRunException) {
+            e
+        }
+
+        assertTrue(error!!.message!!.contains("storage"))
+        assertEquals(ItemStatus.Analyzing, store.status(1))
+        assertNull(store.reason(1))
+        assertEquals(0, model.generateCalls)
+        assertEquals(listOf(1L), preparer.cleaned)
     }
 
     @Test

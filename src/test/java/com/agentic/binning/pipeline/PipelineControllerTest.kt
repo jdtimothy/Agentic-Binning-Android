@@ -55,7 +55,7 @@ class PipelineControllerTest {
         controller.start(project)
         advanceUntilIdle()
 
-        assertEquals(listOf(ItemStatus.Analyzing to ItemStatus.Pending), store.resets)
+        assertEquals(listOf(PipelineController.FAIL_INTERRUPTED_AFTER), store.recoveries)
         assertEquals("reset", events.log.first())
         assertTrue(events.log.indexOf("reset") < events.log.indexOf("load"))
         assertEquals(ItemStatus.Analyzed, store.status(1))
@@ -455,5 +455,116 @@ class PipelineControllerTest {
         // The next clip starts again from no frames.
         assertEquals(expected, seen.getValue(2L).distinct())
         assertEquals(PipelinePhase.Idle, controller.state.value.phase)
+    }
+
+    // --- Final review fixes ---
+
+    /** I1: an NPU/SDK error stops the run instead of failing every item in turn. */
+    @Test
+    fun modelErrorDuringGeneration_endsStopped_andLeavesEveryItemPending() = runTest {
+        val store = store(item(1), item(2), item(3))
+        model.failure = VisionModelException("Generation failed: QNN error 1002")
+        val controller = controller(store)
+
+        controller.start(project)
+        advanceUntilIdle()
+
+        val state = controller.state.value
+        assertEquals(PipelinePhase.Stopped, state.phase)
+        assertTrue(state.error!!.startsWith("The vision model failed"))
+        assertEquals(1, model.generateCalls)
+        (1L..3L).forEach { assertEquals(ItemStatus.Pending, store.status(it)) }
+        assertEquals(0, store.attempts(1))
+        assertEquals(1, events.count("release"))
+        assertEquals(0, events.count("batchComplete"))
+        assertEquals(0, state.failed)
+    }
+
+    /** I1: a full disk while writing work files or thumbnails stops the run; nothing is marked Failed. */
+    @Test
+    fun workFileWriteFailure_endsStopped_andLeavesEveryItemPending() = runTest {
+        val store = store(item(1), item(2))
+        val controller = controller(store, FakePreparer(unwritable = setOf(1, 2)))
+
+        controller.start(project)
+        advanceUntilIdle()
+
+        val state = controller.state.value
+        assertEquals(PipelinePhase.Stopped, state.phase)
+        assertTrue(state.error!!.contains("storage"))
+        assertEquals(ItemStatus.Pending, store.status(1))
+        assertEquals(ItemStatus.Pending, store.status(2))
+        assertEquals(0, model.generateCalls)
+    }
+
+    /** I1: three Failed items in a row stop the run with a readable reason; the rest stay Pending. */
+    @Test
+    fun threeFailuresInARow_stopTheRun() = runTest {
+        val store = store(item(1), item(2), item(3), item(4), item(5))
+        val controller = controller(store, FakePreparer(undecodable = setOf(1, 2, 3, 4, 5)))
+
+        controller.start(project)
+        advanceUntilIdle()
+
+        val state = controller.state.value
+        assertEquals(PipelinePhase.Stopped, state.phase)
+        assertEquals("Analysis stopped after repeated failures: Couldn't read this file.", state.error)
+        (1L..3L).forEach { assertEquals(ItemStatus.Failed, store.status(it)) }
+        assertEquals(ItemStatus.Pending, store.status(4))
+        assertEquals(ItemStatus.Pending, store.status(5))
+        assertEquals(1, events.count("release"))
+        assertEquals(0, events.count("batchComplete"))
+        assertEquals(3, state.failed)
+    }
+
+    /** I1: a success in between resets the count, and Missing files do not count. */
+    @Test
+    fun failuresBrokenBySuccess_doNotStopTheRun() = runTest {
+        val store = store(item(1), item(2), item(3), item(4), item(5), item(6), item(7))
+        val controller = controller(store, FakePreparer(undecodable = setOf(1, 2, 4, 6), missing = setOf(5)))
+
+        controller.start(project)
+        advanceUntilIdle()
+
+        assertEquals(PipelinePhase.Idle, controller.state.value.phase)
+        assertNull(controller.state.value.error)
+        assertEquals(ItemStatus.Analyzed, store.status(3))
+        assertEquals(ItemStatus.Missing, store.status(5))
+        assertEquals(ItemStatus.Analyzed, store.status(7))
+    }
+
+    /** I2: each start of an item's analysis is counted. */
+    @Test
+    fun analyzingAnItem_countsTheAttempt_andAStopClearsIt() = runTest {
+        val store = store(item(1), item(2))
+        val controller = controller(store)
+        model.gate(1)
+
+        controller.start(project)
+        runCurrent()
+        assertEquals(ItemStatus.Analyzing, store.status(1))
+        assertEquals(1, store.attempts(1))
+
+        controller.stop()
+        advanceUntilIdle()
+        // A clean stop is not the item's fault.
+        assertEquals(ItemStatus.Pending, store.status(1))
+        assertEquals(0, store.attempts(1))
+    }
+
+    /** I2: an item that was being analyzed when the process died twice is failed, not retried forever. */
+    @Test
+    fun start_failsItemsInterruptedTwice_andRetriesTheRest() = runTest {
+        val store = store(item(1, ItemStatus.Analyzing, attempts = 2), item(2, ItemStatus.Analyzing, attempts = 1), item(3))
+        val controller = controller(store)
+
+        controller.start(project)
+        advanceUntilIdle()
+
+        assertEquals(ItemStatus.Failed, store.status(1))
+        assertEquals("interrupted", store.reason(1))
+        assertEquals(ItemStatus.Analyzed, store.status(2))
+        assertEquals(ItemStatus.Analyzed, store.status(3))
+        assertEquals(listOf("generate:2", "generate:3"), events.log.filter { it.startsWith("generate") })
     }
 }

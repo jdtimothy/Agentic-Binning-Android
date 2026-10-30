@@ -10,6 +10,7 @@ import com.agentic.binning.model.VisionModel
 import com.agentic.binning.model.VisionModelException
 import com.agentic.binning.model.VisionProfile
 import java.io.FileNotFoundException
+import java.io.IOException
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.CancellationException
@@ -19,7 +20,9 @@ import kotlinx.coroutines.withContext
 interface Preparer {
     /**
      * @throws FileNotFoundException if the item's file is gone.
-     * @throws Exception (typically `MediaDecodeException`) if it cannot be decoded.
+     * @throws IOException (any other) if the app's own work files or thumbnails cannot be written,
+     * e.g. on a full disk: that is not the item's fault, so it stops the run.
+     * @throws Exception (typically `MediaDecodeException`) if the item's file cannot be decoded.
      * [onFrame] reports each video frame as it is extracted (frames ready, frames to extract).
      */
     fun prepare(item: ItemEntity, onFrame: (ready: Int, total: Int) -> Unit = { _, _ -> }): PreparedMedia
@@ -35,12 +38,30 @@ data class ItemCounts(val pending: Int, val analyzed: Int, val total: Int, val f
 interface AnalysisStore {
     suspend fun nextPending(): ItemEntity?
     suspend fun setStatus(id: Long, status: ItemStatus, reason: String? = null)
-    suspend fun resetStatus(from: ItemStatus, to: ItemStatus): Int
+
+    /** Marks the item Analyzing and counts the attempt (see [recoverInterrupted]). */
+    suspend fun markAnalyzing(id: Long)
+
+    /** Puts an item whose analysis was stopped cleanly back to Pending and clears its attempt count. */
+    suspend fun returnToPending(id: Long)
+
+    /**
+     * For items left Analyzing by a process that died: those with at least [failAfter] attempts
+     * become Failed ([FailureReasons.INTERRUPTED]), so an item that crashes the app natively is not
+     * retried on every launch; the rest go back to Pending. Returns how many items it touched.
+     */
+    suspend fun recoverInterrupted(failAfter: Int): Int
 
     /** Stores the analysis and marks the item Analyzed. */
     suspend fun save(itemId: Long, result: AnalysisResult, raw: String, modelId: String, profile: VisionProfile)
     suspend fun counts(): ItemCounts
 }
+
+/**
+ * Ends the whole run in Stopped with [message] (written for people) as its error; the current item
+ * goes back to Pending. For failures that are not the item's fault, so every item would fail alike.
+ */
+class StopRunException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 sealed interface ItemOutcome {
     data class Analyzed(val result: AnalysisResult) : ItemOutcome
@@ -52,7 +73,9 @@ sealed interface ItemOutcome {
 /**
  * Analyzes one item: prepare, generate (retrying once on a `length` stop or unparseable JSON), parse
  * and save. Every outcome except [ItemOutcome.Cancelled] is written to [store]; Cancelled leaves the
- * status for the caller. The preparer's work files are always cleaned up.
+ * status for the caller. Failures of the phone rather than the item (the app's storage, the model or
+ * the NPU) throw [StopRunException] and leave the status for the caller too. The preparer's work
+ * files are always cleaned up.
  */
 class AnalysisEngine(
     private val model: VisionModel,
@@ -88,6 +111,8 @@ class AnalysisEngine(
             } catch (_: FileNotFoundException) {
                 store.setStatus(item.id, ItemStatus.Missing)
                 return ItemOutcome.Missing
+            } catch (e: IOException) {
+                throw StopRunException("Couldn't write the app's working files. The phone's storage may be full (${e.message}).", e)
             } catch (e: Exception) {
                 log.warn("Cannot prepare item ${item.id} (${item.originalName})", e)
                 return fail(item, REASON_DECODE)
@@ -108,8 +133,7 @@ class AnalysisEngine(
                     log.warn("Prompt assembly failed for item ${item.id}", e) // Or the media-marker check.
                     return fail(item, REASON_PROMPT)
                 } catch (e: VisionModelException) {
-                    log.warn("Generation failed for item ${item.id}", e)
-                    return fail(item, REASON_MODEL)
+                    throw StopRunException("The vision model failed: ${e.message}", e)
                 }
                 lastProfile = reply.profile
                 when (reply.profile.stopReason) {
@@ -140,10 +164,9 @@ class AnalysisEngine(
         const val MAX_ATTEMPTS = 2
         const val STOP_LENGTH = "length"
         const val STOP_USER = "user"
-        const val REASON_LENGTH = "length"
-        const val REASON_INVALID_JSON = "invalid-json"
-        const val REASON_DECODE = "decode"
-        const val REASON_PROMPT = "prompt"
-        const val REASON_MODEL = "model"
+        const val REASON_LENGTH = FailureReasons.LENGTH
+        const val REASON_INVALID_JSON = FailureReasons.INVALID_JSON
+        const val REASON_DECODE = FailureReasons.DECODE
+        const val REASON_PROMPT = FailureReasons.PROMPT
     }
 }

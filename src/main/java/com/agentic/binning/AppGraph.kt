@@ -38,6 +38,7 @@ import com.agentic.binning.pipeline.AnalysisEngine
 import com.agentic.binning.pipeline.AnalysisService
 import com.agentic.binning.pipeline.AnalysisStore
 import com.agentic.binning.pipeline.BatchCompleteHandler
+import com.agentic.binning.pipeline.FailureReasons
 import com.agentic.binning.pipeline.ItemCounts
 import com.agentic.binning.pipeline.PipelineController
 import com.agentic.binning.pipeline.PipelineLog
@@ -94,7 +95,7 @@ class AppGraph(val context: Context) {
     val visionModel: VisionModel by lazy { GenieXVisionModel(ModelCatalog.LFM3_VL_2B) }
 
     /** Frames and padded images go to the app's own cache, never next to the user's files. */
-    private val mediaPreparer by lazy { MediaPreparer(context, File(context.cacheDir, "frames")) }
+    private val mediaPreparer by lazy { MediaPreparer(File(context.cacheDir, "frames")) }
 
     /** The open project's database; the pipeline is stopped before a switch closes it (see [openProject]). */
     private fun pipelineProject(): OpenProject = checkNotNull(_currentProject.value) { "No project is open" }
@@ -105,8 +106,12 @@ class AppGraph(val context: Context) {
         override suspend fun setStatus(id: Long, status: ItemStatus, reason: String?) =
             pipelineProject().db.items().setStatus(id, status, reason)
 
-        override suspend fun resetStatus(from: ItemStatus, to: ItemStatus): Int =
-            pipelineProject().db.items().resetStatus(from, to)
+        override suspend fun markAnalyzing(id: Long) = pipelineProject().db.items().markAnalyzing(id)
+
+        override suspend fun returnToPending(id: Long) = pipelineProject().db.items().returnToPending(id)
+
+        override suspend fun recoverInterrupted(failAfter: Int): Int =
+            pipelineProject().db.items().recoverInterrupted(failAfter, FailureReasons.INTERRUPTED)
 
         override suspend fun save(itemId: Long, result: AnalysisResult, raw: String, modelId: String, profile: VisionProfile) {
             val entity = AnalysisEntity(

@@ -46,7 +46,7 @@ class GenieXVisionModelTest {
     @Before fun setUp() {
         root = File(context.cacheDir, "vision-test-${System.nanoTime()}").apply { mkdirs() }
         thumbs = File(root, "thumbs")
-        preparer = MediaPreparer(context, File(root, "work"))
+        preparer = MediaPreparer(File(root, "work"))
         val source = File(root, "hello.png")
         saveBitmap(helloBitmap(), source, Bitmap.CompressFormat.PNG)
         photo = preparer.prepare(photoItem(1L, source), thumbs, targetEdge = 512)
