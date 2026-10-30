@@ -3,6 +3,7 @@ package com.agentic.binning.db
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 /** Narrow view of [ItemDao] used by the registrar, so it can be tested with a fake. */
@@ -34,6 +35,20 @@ interface ItemDao : ItemStore {
 
     @Query("UPDATE item SET status = :to WHERE status = :from")
     suspend fun resetStatus(from: ItemStatus, to: ItemStatus): Int
+
+    @Query("UPDATE item SET status = 'Analyzing', failureReason = NULL, attempts = attempts + 1 WHERE id = :id")
+    suspend fun markAnalyzing(id: Long)
+
+    @Query("UPDATE item SET status = 'Pending', attempts = 0 WHERE id = :id")
+    suspend fun returnToPending(id: Long)
+
+    @Query("UPDATE item SET status = 'Failed', failureReason = :reason WHERE status = 'Analyzing' AND attempts >= :failAfter")
+    suspend fun failInterrupted(failAfter: Int, reason: String): Int
+
+    /** See `AnalysisStore.recoverInterrupted`. */
+    @Transaction
+    suspend fun recoverInterrupted(failAfter: Int, reason: String): Int =
+        failInterrupted(failAfter, reason) + resetStatus(ItemStatus.Analyzing, ItemStatus.Pending)
 
     @Query("SELECT COUNT(*) FROM item WHERE status = :status")
     suspend fun countByStatus(status: ItemStatus): Int

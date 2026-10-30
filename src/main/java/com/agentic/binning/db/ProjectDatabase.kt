@@ -1,6 +1,7 @@
 package com.agentic.binning.db
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Insert
@@ -13,6 +14,9 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import java.io.File
 
+/** Room's schema version of the project database; every change needs a migration, never a destructive one. */
+const val PROJECT_DB_VERSION = 2
+
 @Database(
     entities = [
         ItemEntity::class,
@@ -24,8 +28,12 @@ import java.io.File
         MoveStepEntity::class,
         ProjectMetaEntity::class,
     ],
-    version = 1,
+    version = PROJECT_DB_VERSION,
     exportSchema = true,
+    autoMigrations = [
+        // v2: item.attempts and project_meta.stoppedByUser.
+        AutoMigration(from = 1, to = 2),
+    ],
 )
 abstract class ProjectDatabase : RoomDatabase() {
     abstract fun items(): ItemDao
@@ -40,6 +48,12 @@ interface ProjectMetaDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(meta: ProjectMetaEntity)
+
+    @Query("SELECT stoppedByUser FROM project_meta WHERE id = 1")
+    suspend fun isStoppedByUser(): Boolean?
+
+    @Query("UPDATE project_meta SET stoppedByUser = :stopped WHERE id = 1")
+    suspend fun setStoppedByUser(stopped: Boolean)
 }
 
 /**

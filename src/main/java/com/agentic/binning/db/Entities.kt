@@ -1,5 +1,6 @@
 package com.agentic.binning.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -34,6 +35,11 @@ data class ItemEntity(
     val categorySetByUser: Boolean = false,
     val addedAt: Long,
     val failureReason: String? = null,
+    /**
+     * Analysis starts since the item last left Analyzing cleanly; an item a dead process left
+     * Analyzing with 2 or more is failed on the next start instead of retried (schema v2).
+     */
+    @ColumnInfo(defaultValue = "0") val attempts: Int = 0,
 )
 
 @Entity(
@@ -126,4 +132,6 @@ data class ProjectMetaEntity(
     val name: String,
     val createdAt: Long,
     val schemaVersion: Int,
+    /** The user pressed Stop; analysis does not start on its own until Resume or Add media (schema v2). */
+    @ColumnInfo(defaultValue = "0") val stoppedByUser: Boolean = false,
 )

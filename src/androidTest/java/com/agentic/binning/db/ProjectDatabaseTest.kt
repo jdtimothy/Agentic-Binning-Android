@@ -88,4 +88,47 @@ class ProjectDatabaseTest {
         assertEquals(emptyList<Long>(), db.analyses().search("heron"))
         assertEquals(listOf(id), db.analyses().search("surfers"))
     }
+
+    /** I2: each start is counted; a clean stop clears the count. */
+    @Test fun markAnalyzing_countsAttempts_andReturnToPendingClearsThem() = runTest {
+        val id = db.items().insert(item(hash = "h4", path = "/x/e.jpg"))
+        db.items().markAnalyzing(id)
+        db.items().markAnalyzing(id)
+        val analyzing = db.items().findByHashes(listOf("h4")).single()
+        assertEquals(ItemStatus.Analyzing, analyzing.status)
+        assertEquals(2, analyzing.attempts)
+
+        db.items().returnToPending(id)
+        val pending = db.items().findByHashes(listOf("h4")).single()
+        assertEquals(ItemStatus.Pending, pending.status)
+        assertEquals(0, pending.attempts)
+    }
+
+    /** I2: the startup reset fails an item the process died on twice and retries the others. */
+    @Test fun recoverInterrupted_failsRepeatOffenders_andResetsTheRest() = runTest {
+        val twice = db.items().insert(item(hash = "h5", path = "/x/f.jpg"))
+        val once = db.items().insert(item(hash = "h6", path = "/x/g.jpg"))
+        val done = db.items().insert(item(hash = "h7", path = "/x/h.jpg", status = ItemStatus.Analyzed))
+        repeat(2) { db.items().markAnalyzing(twice) }
+        db.items().markAnalyzing(once)
+
+        assertEquals(2, db.items().recoverInterrupted(failAfter = 2, reason = "interrupted"))
+
+        val byHash = db.items().findByHashes(listOf("h5", "h6", "h7")).associateBy { it.contentHash }
+        assertEquals(ItemStatus.Failed, byHash.getValue("h5").status)
+        assertEquals("interrupted", byHash.getValue("h5").failureReason)
+        assertEquals(ItemStatus.Pending, byHash.getValue("h6").status)
+        assertEquals(ItemStatus.Analyzed, byHash.getValue("h7").status)
+        assertEquals(listOf(twice, once, done).size, 3)
+    }
+
+    /** M3: the Stop flag lives in project_meta. */
+    @Test fun stoppedByUser_roundTrips() = runTest {
+        db.meta().insert(ProjectMetaEntity(name = "Trip", createdAt = 1L, schemaVersion = PROJECT_DB_VERSION))
+        assertEquals(false, db.meta().isStoppedByUser())
+        db.meta().setStoppedByUser(true)
+        assertEquals(true, db.meta().isStoppedByUser())
+        db.meta().setStoppedByUser(false)
+        assertEquals(false, db.meta().isStoppedByUser())
+    }
 }
