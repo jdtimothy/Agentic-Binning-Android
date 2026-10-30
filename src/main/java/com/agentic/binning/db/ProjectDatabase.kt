@@ -25,7 +25,7 @@ import java.io.File
         ProjectMetaEntity::class,
     ],
     version = 1,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class ProjectDatabase : RoomDatabase() {
     abstract fun items(): ItemDao

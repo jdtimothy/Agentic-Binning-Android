@@ -41,6 +41,16 @@ android {
     buildFeatures {
         compose true
     }
+
+    // Room's exported schemas, also read by MigrationTestHelper in instrumented tests.
+    sourceSets {
+        androidTest.assets.srcDirs += files("$projectDir/schemas")
+    }
+}
+
+ksp {
+    // Committed: every released schema version, so migrations can be generated and tested.
+    arg('room.schemaLocation', "$projectDir/schemas")
 }
 
 dependencies {
