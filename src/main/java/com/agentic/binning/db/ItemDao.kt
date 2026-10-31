@@ -6,6 +6,9 @@ import androidx.room.Query
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
+/** A project's item count and how many of those still wait for analysis (Pending or Analyzing). */
+data class ItemTotals(val total: Int, val waiting: Int)
+
 /** Narrow view of [ItemDao] used by the registrar, so it can be tested with a fake. */
 interface ItemStore {
     suspend fun findByHashes(hashes: List<String>): List<ItemEntity>
@@ -52,4 +55,7 @@ interface ItemDao : ItemStore {
 
     @Query("SELECT COUNT(*) FROM item WHERE status = :status")
     suspend fun countByStatus(status: ItemStatus): Int
+
+    @Query("SELECT COUNT(*) AS total, COALESCE(SUM(status IN ('Pending', 'Analyzing')), 0) AS waiting FROM item")
+    fun observeTotals(): Flow<ItemTotals>
 }

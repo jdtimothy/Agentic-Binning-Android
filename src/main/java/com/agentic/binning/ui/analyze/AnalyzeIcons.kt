@@ -65,8 +65,8 @@ internal object AnalyzeIcons {
 
     val Alert: ImageVector = icon("alert", stroke = 3f, "M12 5v9M12 19v.01")
 
-    /** [stroke] null draws the paths filled. */
-    private fun icon(name: String, stroke: Float?, vararg paths: String): ImageVector {
+    /** [stroke] null draws the paths filled. Also builds the project sheet's icons. */
+    internal fun icon(name: String, stroke: Float?, vararg paths: String): ImageVector {
         val builder = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
         for (d in paths) {
             // A fresh parser per path: toNodes() hands out the parser's own list.
