@@ -1,6 +1,5 @@
 package com.agentic.binning.media
 
-import android.content.Context
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import androidx.exifinterface.media.ExifInterface
@@ -18,8 +17,7 @@ object MediaMetadataReader {
      * container date; a missing date falls back to the file's modification time. Never throws for
      * unparseable media: unreadable fields are simply null.
      */
-    @Suppress("UNUSED_PARAMETER")
-    fun read(context: Context, candidate: Candidate): MediaMetadata {
+    fun read(candidate: Candidate): MediaMetadata {
         val fallback = candidate.file.lastModified().takeIf { it > 0 }
         return when (candidate.kind) {
             ItemKind.Photo -> readPhoto(candidate, fallback)

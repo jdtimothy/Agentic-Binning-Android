@@ -16,6 +16,7 @@ import com.agentic.binning.db.AnalysisEntity
 import com.agentic.binning.db.ItemEntity
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.db.ProjectDatabase
+import com.agentic.binning.db.PROJECT_DB_VERSION
 import com.agentic.binning.db.ProjectMetaEntity
 import com.agentic.binning.db.openProjectDatabase
 import com.agentic.binning.media.Candidate
@@ -335,7 +336,7 @@ class AppGraph(val context: Context) {
                     ProjectMetaEntity(
                         name = ref.name,
                         createdAt = System.currentTimeMillis(),
-                        schemaVersion = PROJECT_SCHEMA_VERSION,
+                        schemaVersion = PROJECT_DB_VERSION,
                     ),
                 )
             }
@@ -432,7 +433,7 @@ class AppGraph(val context: Context) {
                 itemDao = project.db.items(),
                 otherProjects = lookups,
                 registry = registry,
-                metadata = { MediaMetadataReader.read(context, it) },
+                metadata = MediaMetadataReader::read,
                 clock = System::currentTimeMillis,
             )
             var summary = RegistrationSummary(skipped = skipped)
@@ -466,6 +467,5 @@ class AppGraph(val context: Context) {
 
     private companion object {
         const val TAG = "AppGraph"
-        const val PROJECT_SCHEMA_VERSION = 1
     }
 }

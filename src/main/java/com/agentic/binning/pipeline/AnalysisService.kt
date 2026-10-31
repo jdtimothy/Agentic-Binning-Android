@@ -224,10 +224,5 @@ class AnalysisService : LifecycleService() {
                     .putExtra(EXTRA_PATH, project.path),
             )
         }
-
-        /** Resumes a paused run, or starts a new one for the last project after a stop. */
-        fun resume(context: Context) {
-            context.startForegroundService(action(context, ACTION_RESUME))
-        }
     }
 }
