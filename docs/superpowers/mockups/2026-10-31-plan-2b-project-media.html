@@ -1,0 +1,1262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Project Media Mockups</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+/* Layout: a review sheet. Each state is a row: notes on the left, the same live phone in dark and light on the right; it stacks at phone width and the phones scale to fit. */
+:root {
+  --pg-bg: #EDF0F5;
+  --pg-fg: #11151C;
+  --pg-sub: #4D5666;
+  --pg-line: rgba(17, 21, 28, 0.12);
+  --pg-card: #FFFFFF;
+  --pg-accent: #0A63D1;
+  --pg-bezel: #0C0E12;
+  --font-ui: "Inter", "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pg-bg: #0B0D12; --pg-fg: #EDF0F5; --pg-sub: #A3ACBB; --pg-line: rgba(255, 255, 255, 0.10);
+    --pg-card: #141820; --pg-accent: #6CB6FF; --pg-bezel: #000000; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --pg-bg: #0B0D12; --pg-fg: #EDF0F5; --pg-sub: #A3ACBB; --pg-line: rgba(255, 255, 255, 0.10);
+  --pg-card: #141820; --pg-accent: #6CB6FF; --pg-bezel: #000000; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--pg-bg); color: var(--pg-fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 80px;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--pg-accent); }
+.page { width: 100%; max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+.intro { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pg-sub); margin: 0; }
+h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+.intro p { margin: 0; color: var(--pg-sub); max-width: 68ch; }
+.intro code, .notes code { font-family: var(--font-mono); font-size: 0.86em; }
+.index { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 4px 0 0; list-style: none; }
+.index a { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--pg-line); background: var(--pg-card); color: var(--pg-fg); text-decoration: none; font-size: 13px; }
+.index a span { font-family: var(--font-mono); font-size: 11px; color: var(--pg-sub); }
+.index a:hover, .index a:focus-visible { border-color: var(--pg-accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 13px; color: var(--pg-sub); margin: 0; padding: 0; list-style: none; }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.legend svg { color: var(--pg-fg); }
+
+.state { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; content-visibility: auto; contain-intrinsic-size: auto 1000px; scroll-margin-top: 24px; }
+@media (min-width: 1240px) { .state { grid-template-columns: 330px minmax(0, 1fr); gap: 36px; } }
+.notes { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 68ch; }
+.notes .no { font-family: var(--font-mono); font-size: 12px; color: var(--pg-accent); margin: 0; letter-spacing: 0.04em; }
+.notes h2 { margin: 0; font-size: 22px; line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
+.notes p { margin: 0; color: var(--pg-sub); }
+.notes ul { margin: 0; padding-left: 18px; color: var(--pg-sub); display: flex; flex-direction: column; gap: 4px; }
+.notes .tag { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pg-fg); margin-top: 6px; }
+.reset { align-self: flex-start; margin-top: 6px; font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--pg-line); background: var(--pg-card); color: var(--pg-fg); cursor: pointer; }
+.reset:hover, .reset:focus-visible { border-color: var(--pg-accent); }
+.pair { display: flex; flex-wrap: wrap; gap: 40px 36px; align-items: flex-start; min-width: 0; }
+.pair figure { margin: 0; display: flex; flex-direction: column; gap: 12px; align-items: center; width: min(412px, 100%); }
+.pair figcaption { font-family: var(--font-mono); font-size: 12px; color: var(--pg-sub); text-transform: uppercase; letter-spacing: 0.08em; }
+.wrap { position: relative; width: 100%; aspect-ratio: 412 / 915; max-width: 100%; }
+.wrap::before { content: ""; position: absolute; inset: -9px; border-radius: 54px; background: var(--pg-bezel); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22); }
+
+.docks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 18px; min-width: 0; }
+.dockcard { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.dockcard p { margin: 0; font-size: 13px; color: var(--pg-sub); }
+.dockcard .dk { border-radius: 26px; overflow: hidden; padding: 14px 12px; position: relative; }
+
+.footer { color: var(--pg-sub); font-size: 13px; border-top: 1px solid var(--pg-line); padding-top: 20px; }
+
+/* ---------- The phone ---------- */
+.ph {
+  --bg: #06070B; --bgfade: rgba(6, 7, 11, 0.88); --glass: rgba(24, 27, 36, 0.55); --glass2: rgba(30, 34, 45, 0.80);
+  --sheet: rgba(20, 23, 31, 0.90); --border: rgba(255, 255, 255, 0.13); --hi: rgba(255, 255, 255, 0.20);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.45); --tshadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  --text: #F4F6FA; --sub: rgba(226, 232, 244, 0.72); --chip: rgba(255, 255, 255, 0.08); --chip2: rgba(255, 255, 255, 0.12);
+  --accent: #6CB6FF; --on-accent: #04121F; --ink: #8CC6FF; --asoft: rgba(108, 182, 255, 0.18);
+  --ok: #4CD787; --warn: #FFB547; --wsoft: rgba(255, 181, 71, 0.16); --tagbg: rgba(108, 182, 255, 0.14); --tagtx: #D3E8FF;
+  --track: rgba(255, 255, 255, 0.14); --blob: 0.5; --scrim: rgba(0, 0, 0, 0.5); --danger: #FFB4A8;
+  --field: rgba(255, 255, 255, 0.06); --line: rgba(255, 255, 255, 0.12);
+  position: absolute; left: 0; top: 0; width: 412px; height: 915px; transform-origin: 0 0; transform: scale(var(--k, 1));
+  border-radius: 46px; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: var(--font-ui); font-size: 14px; line-height: 1.35; -webkit-font-smoothing: antialiased; isolation: isolate;
+  color-scheme: dark;
+}
+.ph.light {
+  --bg: #E8ECF2; --bgfade: rgba(232, 236, 242, 0.88); --glass: rgba(255, 255, 255, 0.58); --glass2: rgba(255, 255, 255, 0.82);
+  --sheet: rgba(245, 247, 251, 0.92); --border: rgba(255, 255, 255, 0.85); --hi: rgba(255, 255, 255, 1);
+  --shadow: 0 12px 32px rgba(40, 52, 80, 0.16); --tshadow: 0 6px 18px rgba(40, 52, 80, 0.18);
+  --text: #0E1116; --sub: #4A5263; --chip: rgba(20, 28, 45, 0.06); --chip2: rgba(255, 255, 255, 0.78);
+  --accent: #0A63D1; --on-accent: #FFFFFF; --ink: #0A55B5; --asoft: rgba(10, 99, 209, 0.12);
+  --ok: #1E8E4E; --warn: #9A5A00; --wsoft: rgba(163, 95, 0, 0.12); --tagbg: rgba(10, 99, 209, 0.09); --tagtx: #0A4A9C;
+  --track: rgba(20, 28, 45, 0.10); --blob: 0.45; --scrim: rgba(20, 26, 40, 0.34); --danger: #B3261E;
+  --field: rgba(255, 255, 255, 0.72); --line: rgba(20, 28, 45, 0.12);
+  color-scheme: light;
+}
+:where(.ph) button, :where(.ph) input { font: inherit; color: inherit; }
+.ph button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ph button:focus-visible, .ph input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ph input:focus { outline: none; }
+.ph input::placeholder { color: var(--sub); opacity: 1; }
+.ph svg { flex: none; }
+.glass { backdrop-filter: blur(24px) saturate(170%); -webkit-backdrop-filter: blur(24px) saturate(170%); background: var(--glass); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--hi), var(--shadow); }
+.blobs { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.blobs i { position: absolute; border-radius: 50%; opacity: var(--blob); }
+.blobs i:nth-child(1) { width: 340px; height: 340px; left: -120px; top: 40px; background: #2F6E8F; filter: blur(80px); }
+.blobs i:nth-child(2) { width: 300px; height: 300px; right: -120px; top: 320px; background: #F2A65A; filter: blur(80px); }
+.blobs i:nth-child(3) { width: 320px; height: 320px; left: 20px; top: 640px; background: #3E8F6E; filter: blur(90px); }
+.noscroll { scrollbar-width: none; }
+.noscroll::-webkit-scrollbar { display: none; }
+
+.gridscroll { position: absolute; inset: 0; overflow-y: auto; padding: 326px 16px 190px; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; }
+.topfade { position: absolute; left: 0; right: 0; top: 0; height: 330px; background: linear-gradient(var(--bgfade) 0, var(--bgfade) 86%, transparent); pointer-events: none; }
+.tile { padding: 0; border: 0; background: transparent; text-align: left; min-width: 0; display: flex; flex-direction: column; gap: 5px; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.art { position: relative; display: block; width: 100%; aspect-ratio: 1 / 1; border-radius: 18px; overflow: hidden; box-shadow: var(--tshadow); transition: transform 140ms ease; }
+.art svg.pic { display: block; width: 100%; height: 100%; }
+.tile.on .art { transform: scale(0.9); box-shadow: 0 0 0 3px var(--accent), var(--tshadow); }
+.tile.dimmed .art { opacity: 0.55; }
+.tname { display: block; padding: 0 2px; font-size: 11px; font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tsub { display: block; padding: 0 2px; margin-top: -3px; font-size: 10px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bdg { position: absolute; display: flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 8px; background: rgba(0, 0, 0, 0.55); color: #FFFFFF; font-size: 10.5px; font-weight: 600; line-height: 1.3; }
+.bdg.dur { right: 6px; bottom: 6px; }
+.bdg.st { left: 6px; bottom: 6px; }
+.bdg.st.warn { background: #FFB547; color: #2A1A00; }
+.bdg.bin { right: 6px; top: 6px; padding: 3px; border-radius: 9px; }
+.tick { position: absolute; left: 7px; top: 7px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #FFFFFF; background: rgba(0, 0, 0, 0.25); display: grid; place-items: center; color: transparent; }
+.tile.on .tick { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+.hdr { position: absolute; left: 16px; right: 16px; top: 44px; height: 56px; padding: 6px; border-radius: 28px; display: flex; align-items: center; gap: 8px; }
+.ib { width: 44px; height: 44px; flex: none; border-radius: 22px; border: 0; background: var(--chip); display: grid; place-items: center; }
+.ht { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.ht h3 { margin: 0; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ht span { font-size: 12px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.txtbtn { height: 36px; padding: 0 14px; border-radius: 18px; border: 0; background: var(--chip); color: var(--ink); font-weight: 600; font-size: 13px; flex: none; }
+
+.search { position: absolute; left: 16px; right: 16px; top: 112px; height: 48px; padding: 0 4px 0 16px; border-radius: 24px; display: flex; align-items: center; gap: 10px; color: var(--sub); }
+.search label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.search input { flex: 1; min-width: 0; height: 44px; border: 0; background: transparent; color: var(--text); font-size: 15px; }
+.search input::-webkit-search-cancel-button { display: none; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.cathead { position: absolute; left: 24px; right: 16px; top: 170px; height: 30px; display: flex; align-items: center; gap: 6px; }
+.cathead h4 { margin: 0; flex: 1; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sub); font-weight: 600; }
+.mini { height: 30px; padding: 0 12px; border-radius: 15px; border: 0; background: var(--chip); color: var(--ink); font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.mini.busy, .txtbtn.busy { opacity: 0.5; }
+.chips { position: absolute; left: 0; right: 0; top: 204px; height: 40px; overflow-x: auto; display: flex; gap: 6px; padding: 0 16px; align-items: center; }
+.chip { flex: none; height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid var(--border); background: var(--glass); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.chip .n { font-size: 11px; font-weight: 600; opacity: 0.8; font-variant-numeric: tabular-nums; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chip.attn { border-color: var(--warn); color: var(--warn); }
+.chip.attn[aria-pressed="true"] { background: var(--warn); border-color: var(--warn); color: #1E1300; }
+.filters { position: absolute; left: 0; right: 0; top: 248px; height: 34px; overflow-x: auto; display: flex; gap: 6px; padding: 0 16px; align-items: center; }
+.fchip { flex: none; height: 30px; padding: 0 8px 0 12px; border-radius: 15px; border: 1px solid var(--line); background: transparent; font-size: 12.5px; font-weight: 500; color: var(--sub); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.fchip.set { border-color: var(--accent); background: var(--asoft); color: var(--ink); }
+.result { position: absolute; left: 24px; right: 16px; top: 288px; height: 30px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--sub); }
+.result span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.result .mini { height: 28px; }
+.nomatch { margin: 48px 12px 0; text-align: center; color: var(--sub); font-size: 14px; }
+
+.dock { position: absolute; left: 16px; right: 16px; bottom: 22px; border-radius: 30px; padding: 10px 8px 8px; display: flex; flex-direction: column; gap: 8px; }
+.dock.static { position: relative; left: auto; right: auto; bottom: auto; }
+.status { display: flex; align-items: center; gap: 8px; padding: 0 10px; min-height: 22px; font-size: 12.5px; }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--sub); }
+.status .dot.ok { background: var(--ok); }
+.status .dot.warn { background: var(--warn); }
+.status .dot.run { background: var(--accent); animation: pulse 1.1s ease-in-out infinite; }
+.status .stxt { flex: 1; min-width: 0; }
+.status .act { border: 0; background: transparent; color: var(--ink); font-weight: 600; font-size: 12.5px; padding: 4px 2px; flex: none; }
+.dbtns { display: flex; gap: 8px; }
+.anz { height: 46px; padding: 0 16px; flex: none; border-radius: 23px; border: 0; background: var(--chip2); display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+.anz i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.binbtn { flex: 1; min-width: 0; height: 46px; border-radius: 23px; border: 0; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.binbtn .cnt { font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 10px; background: rgba(0, 0, 0, 0.16); font-variant-numeric: tabular-nums; }
+.binbtn.off { background: var(--chip); color: var(--sub); }
+.bulk { position: absolute; left: 16px; right: 16px; bottom: 22px; border-radius: 30px; padding: 8px; display: flex; gap: 8px; }
+.bulk button { flex: 1; min-width: 0; height: 50px; border-radius: 25px; border: 0; font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.bulk .p { background: var(--accent); color: var(--on-accent); }
+.bulk .s { background: var(--chip2); color: var(--danger); }
+.bulk button[aria-disabled="true"] { opacity: 0.45; }
+
+.job { position: absolute; left: 16px; right: 16px; bottom: 150px; border-radius: 26px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; background: var(--glass2); }
+.job .top { display: flex; align-items: baseline; gap: 8px; }
+.job .top b { flex: 1; font-size: 15px; }
+.job .top span { font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; }
+.bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 300ms ease; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; }
+.steps li { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 12.5px; }
+.steps li .lb { min-width: 0; }
+.steps li .lb b { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.steps li .lb small { display: block; font-size: 11px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.steps li .ph2 { font-size: 11px; color: var(--sub); }
+.steps li.cur .ph2 { color: var(--ink); font-weight: 600; }
+.steps .ico { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--line); color: var(--sub); }
+.steps li.done .ico { background: var(--ok); border-color: var(--ok); color: var(--bg); }
+.steps li.cur .ico { border-color: var(--accent); border-top-color: transparent; animation: spin 0.9s linear infinite; }
+.job .wait { font-size: 12px; color: var(--sub); display: flex; gap: 6px; align-items: flex-start; }
+
+.scrim { position: absolute; inset: 0; background: var(--scrim); border: 0; padding: 0; margin: 0; width: 100%; cursor: default; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 90%; border-radius: 30px 30px 0 0; background: var(--sheet); backdrop-filter: blur(30px) saturate(170%); -webkit-backdrop-filter: blur(30px) saturate(170%); border: 1px solid var(--border); border-bottom: 0; box-shadow: inset 0 1px 0 var(--hi), 0 -12px 40px rgba(0, 0, 0, 0.3); display: flex; flex-direction: column; }
+.sheet.tall { height: 90%; }
+.sheet.anim { animation: up 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.handle { width: 40px; height: 5px; border-radius: 3px; background: var(--track); margin: 10px auto 2px; flex: none; }
+.shead { display: flex; align-items: center; gap: 10px; padding: 6px 16px 10px 20px; flex: none; }
+.shead h3 { margin: 0; flex: 1; font-size: 18px; font-weight: 700; min-width: 0; }
+.shead .ib { width: 38px; height: 38px; }
+.sbody { flex: 1; min-height: 0; overflow-y: auto; padding: 0 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+.sbody > * { flex-shrink: 0; }
+.sfoot { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 26px; border-top: 1px solid var(--line); }
+.sfoot .row { display: flex; gap: 8px; }
+.sfoot .note { font-size: 12px; color: var(--sub); padding: 0 4px; display: flex; gap: 6px; align-items: flex-start; }
+.btn { height: 48px; border-radius: 24px; border: 0; padding: 0 18px; font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn.p { background: var(--accent); color: var(--on-accent); flex: 1; }
+.btn.s { background: var(--chip); }
+.btn.d { background: var(--chip); color: var(--danger); }
+.btn.wide { width: 100%; }
+.btn[disabled] { background: var(--chip); color: var(--sub); cursor: default; }
+.media { position: relative; border-radius: 20px; overflow: hidden; height: 214px; flex: none; box-shadow: var(--tshadow); }
+.media svg.pic { width: 100%; height: 100%; display: block; }
+.media .play { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(0, 0, 0, 0.45); color: #FFFFFF; display: grid; place-items: center; border: 1px solid rgba(255, 255, 255, 0.4); }
+.media .bdg { font-size: 12px; padding: 3px 8px; }
+.media .bdg.dur { right: 10px; bottom: 10px; }
+.media .bdg.st { left: 10px; top: 10px; bottom: auto; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.flabel { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--sub); text-transform: uppercase; letter-spacing: 0.06em; }
+.flabel .sp { flex: 1; }
+.lockpill { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px; background: var(--asoft); color: var(--ink); font-size: 11.5px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.lockpill.pending { background: transparent; border: 1px dashed var(--accent); }
+.lockpill.model { background: var(--chip); color: var(--sub); }
+.lockpill.warn { background: var(--wsoft); color: var(--warn); }
+.linkbtn { border: 0; background: transparent; color: var(--ink); font-size: 12px; font-weight: 600; padding: 2px; text-transform: none; letter-spacing: 0; }
+.input { height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--field); padding: 0 14px; font-size: 16px; color: var(--text); width: 100%; }
+.input:focus { border-color: var(--accent); }
+.picker { height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--field); padding: 0 12px 0 14px; font-size: 16px; display: flex; align-items: center; gap: 8px; text-align: left; width: 100%; }
+.picker span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker .ph3 { color: var(--sub); }
+.hint { font-size: 12px; color: var(--sub); padding: 0 2px; }
+.err { font-size: 12px; color: var(--danger); padding: 0 2px; }
+.callout { border-radius: 16px; padding: 12px 14px; background: var(--chip); font-size: 13px; display: flex; gap: 10px; align-items: flex-start; }
+.callout.warn { background: var(--wsoft); }
+.callout.warn svg { color: var(--warn); }
+.callout svg { margin-top: 1px; color: var(--ink); }
+.callout b { font-weight: 600; }
+.sect h5 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--sub); text-transform: uppercase; letter-spacing: 0.06em; }
+.sect p { margin: 0; font-size: 14px; line-height: 1.45; }
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.timeline li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; font-size: 13.5px; }
+.timeline time { font-family: var(--font-mono); font-size: 12px; color: var(--ink); padding-top: 1px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tags span { padding: 4px 10px; border-radius: 12px; background: var(--tagbg); color: var(--tagtx); font-size: 12.5px; }
+.kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 4px 10px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--sub); }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.list { display: flex; flex-direction: column; border-radius: 18px; background: var(--chip); overflow: hidden; }
+.opt { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 14px; border: 0; background: transparent; text-align: left; width: 100%; border-top: 1px solid var(--line); }
+.opt:first-child { border-top: 0; }
+.opt .lb { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.opt .lb b { font-weight: 500; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opt .lb small { font-size: 12px; color: var(--sub); }
+.opt .rt { display: flex; align-items: center; gap: 6px; color: var(--sub); font-size: 12px; font-variant-numeric: tabular-nums; }
+.opt.new b { color: var(--ink); font-weight: 600; }
+.radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--sub); flex: none; display: grid; place-items: center; }
+.radio.on { border-color: var(--accent); }
+.radio.on::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.cbox { width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--sub); flex: none; display: grid; place-items: center; color: transparent; background: transparent; padding: 0; }
+.cbox.on { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.cbox[aria-disabled="true"] { opacity: 0.35; }
+.cerow { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 8px 8px 14px; border-top: 1px solid var(--line); }
+.cerow:first-child { border-top: 0; }
+.cerow .lb { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cerow .lb b { font-weight: 500; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cerow .lb small { font-size: 12px; color: var(--sub); display: block; line-height: 1.4; }
+.cerow .lb small svg { display: inline; vertical-align: -2px; margin-right: 3px; }
+.cerow .lb small.chg { color: var(--ink); font-weight: 500; }
+.cerow .ib { width: 40px; height: 40px; background: transparent; color: var(--sub); }
+.cerow .input { height: 42px; font-size: 15px; }
+.cerow.ticked { background: var(--asoft); }
+.mergebox { border-radius: 18px; border: 1px solid var(--accent); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: var(--asoft); }
+.mergebox h5 { margin: 0; font-size: 14px; font-weight: 600; }
+.mergebox .opt { padding: 6px 0; min-height: 44px; border-top: 0; }
+.mergebox .opt small { line-height: 1.35; }
+.modelcard { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 0; border-top: 1px solid var(--line); background: transparent; width: 100%; text-align: left; }
+.modelcard:first-child { border-top: 0; }
+.modelcard .lb { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.modelcard .lb b { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.modelcard .lb small { font-size: 12.5px; color: var(--sub); }
+.modelcard .radio { margin-top: 2px; }
+.pill { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: var(--asoft); color: var(--ink); text-transform: uppercase; letter-spacing: 0.04em; }
+.pill.mute { background: var(--chip); color: var(--sub); }
+.checkrow { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 18px; background: var(--chip); border: 0; text-align: left; width: 100%; }
+.checkrow .lb { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.checkrow .lb b { font-size: 15px; font-weight: 600; }
+.checkrow .lb small { font-size: 12.5px; color: var(--sub); }
+.chg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.chg2 > div { border-radius: 16px; background: var(--chip); padding: 12px; font-size: 12.5px; display: flex; flex-direction: column; gap: 6px; }
+.chg2 h6 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sub); display: flex; gap: 5px; align-items: center; }
+.chg2 ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
+.dlg { position: absolute; left: 28px; right: 28px; top: 50%; transform: translateY(-50%); border-radius: 28px; padding: 22px 20px 16px; background: var(--sheet); backdrop-filter: blur(30px) saturate(170%); -webkit-backdrop-filter: blur(30px) saturate(170%); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--hi), 0 20px 60px rgba(0, 0, 0, 0.35); display: flex; flex-direction: column; gap: 12px; animation: pop 200ms ease; }
+.dlg h3 { margin: 0; font-size: 19px; line-height: 1.25; }
+.dlg p { margin: 0; font-size: 14px; color: var(--sub); line-height: 1.45; }
+.dlg .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.toast { position: absolute; left: 50%; bottom: 168px; transform: translateX(-50%); width: max-content; max-width: 360px; padding: 10px 16px; border-radius: 18px; background: rgba(16, 18, 24, 0.92); color: #F4F6FA; font-size: 13px; line-height: 1.4; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); text-align: center; animation: pop 180ms ease; z-index: 5; }
+.ph.light .toast { background: rgba(20, 26, 40, 0.92); }
+.emptyc { position: absolute; left: 24px; right: 24px; top: 220px; border-radius: 30px; padding: 28px 22px 22px; display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; }
+.emptyc .ico { width: 64px; height: 64px; border-radius: 22px; background: var(--asoft); color: var(--ink); display: grid; place-items: center; }
+.emptyc h3 { margin: 6px 0 0; font-size: 20px; }
+.emptyc p { margin: 0; color: var(--sub); font-size: 14px; line-height: 1.45; }
+.emptyc .btn { width: 100%; }
+.emptyc .btn.s { background: var(--chip2); }
+@keyframes up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes pop { from { opacity: 0; transform: translateX(-50%) scale(0.96); } to { opacity: 1; } }
+.dlg { animation-name: pop2; }
+@keyframes pop2 { from { opacity: 0; transform: translateY(-50%) scale(0.96); } to { opacity: 1; transform: translateY(-50%); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .sheet.anim, .toast, .dlg { animation: none; }
+  .steps li.cur .ico, .status .dot.run { animation: none; }
+  .art, .bar i { transition: none; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="intro">
+    <p class="eyebrow">Agentic Binning · Plan 2b · mockups for review · Oct 31, 2026</p>
+    <h1 class="pg">Project Media screen</h1>
+    <p>Clickable mockups of the Project Media screen with the sample Hawaii Photos project: 44 items, 12 categories, 6 files already binned, 3 items waiting to be categorized and 1 failed clip. Each state is the same live phone in dark and light. Taps work inside every phone, so a state is a starting point, not a picture. Media are colored placeholders.</p>
+    <p>The open design questions, with a recommended answer for each, are in <code>2026-10-31-plan-2b-questions.md</code> next to this file. Bin Files itself belongs to Plan 3: its button and when it is enabled are shown, its flow is not.</p>
+    <ul class="legend" id="legend"></ul>
+    <nav aria-label="States"><ul class="index" id="index"></ul></nav>
+  </header>
+  <div id="states" class="page" style="gap:72px"></div>
+  <p class="footer">Agentic Binning (Android) · Plan 2b design review. Mockup data is invented for the sample project; the counts and rules follow the design spec of Oct 28, 2026.</p>
+</main>
+
+<script>
+"use strict";
+/* ------------------------------------------------------------------ icons */
+var IC = {
+  back: '<path d="M15 18l-6-6 6-6"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  check: '<path d="M5 12l5 5 9-10"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  folderCheck: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 13l2 2 4-4"/>',
+  folderMove: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 13h6M13 11l2 2-2 2"/>',
+  clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+  alert: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.5v.01"/>',
+  play: '<path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none"/>',
+  chev: '<path d="M6 9l6 6 6-6"/>',
+  chevR: '<path d="M9 6l6 6-6 6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
+  merge: '<path d="M6 4l6 7 6-7"/><path d="M12 11v9"/>',
+  remove: '<circle cx="12" cy="12" r="8"/><path d="M8 12h8"/>',
+  shuffle: '<path d="M4 7h3l10 10h3M4 17h3l3-3M14 10l3-3h3"/><path d="M18 5l2 2-2 2M18 15l2 2-2 2"/>',
+  cloud: '<path d="M7 18h10a4 4 0 0 0 0-8 6 6 0 0 0-11.5 1.5A3.5 3.5 0 0 0 7 18z"/>',
+  phone: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
+  retry: '<path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v4h4"/>',
+  info: '<circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8v.01"/>',
+  imageOff: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M4 19L20 5"/>',
+  select: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8 12l3 3 5-6"/>',
+  photos: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/>'
+};
+function ic(n, s, w) { return '<svg width="' + (s || 18) + '" height="' + (s || 18) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (w || 2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>'; }
+function esc(t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+/* ------------------------------------------------------------- sample data */
+var PROJECT = "Hawaii Photos";
+var CATS = [
+  ["forest", "Forest Nature", "Trails, trees, waterfalls and flowers in the rainforest", "model", null],
+  ["aerial", "Aerial View", "Views from the plane and from high lookouts", "model", null],
+  ["sunset", "Sunset Over Sea", "Sunsets and golden hour over the ocean", "model", null],
+  ["lunch", "Lunch Outdoors", "Midday meals eaten outside", "model", null],
+  ["fire", "Fire Performance", "Fire dancers and torch shows at night", "model", null],
+  ["lizard", "Green Lizard", "Geckos and anoles up close", "model", null],
+  ["wind", "Windsurfers on the Sea", "Windsurfing and sails on the water", "model", null],
+  ["turtle", "Turtle Beach", "Green sea turtles on the sand and in the shallows", "model", "Turtle Beach"],
+  ["beach", "Beach Scenes", "Sand, umbrellas and people at the beach", "model", null],
+  ["mamas", "Mama's Fish House", "Dinner at Mama's Fish House", "model", "Mama's Fish House"],
+  ["breakfast", "Breakfast", "Morning meals", "model", "Breakfast"],
+  ["wedding", "Wedding Events", "The beach wedding on the last day", "user", null]
+];
+var SHOTS = { wide: "Wide", medium: "Medium", close: "Close-up", aerial: "Aerial" };
+var ITEMS = [];
+function I(id, c, k, d, shot, D, tm, n, tags, desc, acts, x) {
+  var o = { id: id, c: c, k: k, d: d, shot: shot, D: D, tm: tm, n: n, tags: tags, desc: desc, acts: acts || null,
+    st: "ok", ln: false, lc: false, bin: null, sugg: n, p: c || "none" };
+  for (var key in (x || {})) o[key] = x[key];
+  var hm = tm.replace(":", "");
+  o.orig = o.orig || ("202607" + D + "_" + hm + String((ITEMS.length * 7) % 60).padStart(2, "0") + (k === "v" ? ".mp4" : ".jpg"));
+  ITEMS.push(o);
+}
+I("f1", "forest", "v", "0:31", "wide", 16, "10:12", "Bamboo Forest Trail", ["bamboo", "trail", "forest", "hiking"], "A narrow dirt trail winds through tall bamboo; light filters down through the canopy.", [["0:00", "Walking forward along the trail"], ["0:12", "Camera tilts up to the bamboo canopy"], ["0:24", "Crosses a small wooden footbridge"]]);
+I("f2", "forest", "p", null, "wide", 15, "16:40", "Banyan Tree Roots", ["banyan tree", "roots", "town square", "shade"], "A huge banyan tree with aerial roots hanging to the ground fills a town square.");
+I("f3", "forest", "p", null, "medium", 16, "11:05", "Waterfall Through Ferns", ["waterfall", "ferns", "pool", "rainforest"], "A thin waterfall drops into a rocky pool framed by ferns.");
+I("f4", "forest", "p", null, "wide", 16, "11:20", "Rainforest Canopy Light", ["canopy", "sunlight", "trees"], "Looking up through dense rainforest canopy with the sun breaking through the leaves.");
+I("f5", "forest", "p", null, "wide", 17, "07:50", "Misty Ridge Trail", ["ridge", "mist", "mountains", "trail"], "A ridge trail disappears into low mist between green mountains.");
+I("f6", "forest", "p", null, "close", 16, "12:02", "Red Ginger Flowers", ["red ginger", "flowers", "garden"], "Close-up of bright red ginger flowers with glossy green leaves.");
+I("a1", "aerial", "p", null, "wide", 14, "09:31", "Airplane Window Landscape Sky", ["airplane window", "wing", "clouds", "sky"], "View through an airplane window: the wing above a layer of white clouds and blue sky.");
+I("a2", "aerial", "p", null, "aerial", 14, "13:48", "Coastline From Above", ["coastline", "aerial", "reef", "ocean"], "The island coastline from the plane on approach, with the reef visible under turquoise water.");
+I("a3", "aerial", "p", null, "aerial", 18, "06:15", "Crater Rim Aerial", ["crater", "volcano", "summit", "clouds"], "The rim of a volcanic crater above the clouds at sunrise.");
+I("a4", "aerial", "p", null, "aerial", 20, "15:22", "Cloud Layer Over Island", ["clouds", "island", "airplane"], "The island's peaks poke through a cloud layer, seen from the departing plane.");
+I("a5", "aerial", "v", "0:24", "aerial", 14, "13:50", "Reef From the Air", ["reef", "turquoise water", "aerial", "coast"], "Filmed from the plane as it banks over the coast and the reef.", [["0:00", "Plane banks over the coastline"], ["0:09", "Reef and turquoise shallows come into view"], ["0:18", "Dark shapes of sea turtles near the shore"]]);
+I("s1", "sunset", "p", null, "wide", 15, "18:58", "Serene Bay Sunset", ["sunset", "bay", "calm water", "orange sky"], "The sun sets over a calm bay; the sky glows orange and the water reflects it.");
+I("s2", "sunset", "p", null, "wide", 17, "19:02", "Sun Dipping Below Horizon", ["sunset", "horizon", "ocean"], "The last sliver of sun sits on the ocean horizon.");
+I("s3", "sunset", "p", null, "medium", 17, "18:49", "Golden Hour Silhouettes", ["silhouettes", "people", "golden hour", "beach"], "Two people stand in silhouette at the water's edge in golden light.");
+I("s4", "sunset", "v", "0:18", "wide", 19, "19:05", "Pink Sky Over Waves", ["pink sky", "waves", "surfer", "dusk"], "Waves roll in under a pink evening sky.", [["0:00", "Waves roll in under a pink sky"], ["0:10", "A surfer paddles across the frame"]]);
+I("l1", "lunch", "p", null, "close", 15, "12:30", "Poke Bowl Picnic Table", ["poke", "rice", "picnic table", "lunch"], "A poke bowl with ahi, rice and seaweed salad on a wooden picnic table.");
+I("l2", "lunch", "p", null, "medium", 16, "13:10", "Shrimp Truck Plates", ["garlic shrimp", "food truck", "plates"], "Two plates of garlic shrimp and rice from a food truck.");
+I("l3", "lunch", "p", null, "close", 17, "14:02", "Shave Ice Close Up", ["shave ice", "rainbow syrup", "dessert"], "A cup of rainbow shave ice held up against the sky.");
+I("l4", "lunch", "p", null, "wide", 19, "12:44", "Lunch Under Palm Shade", ["palm trees", "picnic", "shade", "family"], "A family picnic spread on a blanket in the shade of palm trees.");
+I("x1", "fire", "v", "0:42", "medium", 18, "20:14", "Fire Dancers Night", ["fire dancing", "luau", "night", "torches", "performers"], "Two performers spin flaming staffs on an outdoor luau stage, with drummers behind them and the crowd in the foreground.", [["0:00", "Drummers start; performers walk on with unlit staffs"], ["0:08", "Staffs are lit from a torch"], ["0:15", "Both performers spin the staffs overhead"], ["0:29", "One passes the staff under a leg"], ["0:38", "They bow as the crowd applauds"]], { sugg: "Night Fire Dance Show", ln: true });
+I("x2", "fire", "v", "0:15", "close", 18, "20:21", "Fire Knife Spin", ["fire knife", "spinning", "night"], "A performer spins a fire knife around their body at close range.", [["0:00", "Performer kneels with a lit fire knife"], ["0:05", "Fast spin around the body"], ["0:12", "Tosses the knife and catches it"]]);
+I("x3", "fire", "p", null, "wide", 18, "19:40", "Torch Lighting Ceremony", ["torches", "ceremony", "luau", "dusk"], "A row of tiki torches being lit along the luau grounds at dusk.");
+I("x4", "fire", "p", null, "medium", 18, "20:30", "Fire Poi Trails", ["fire poi", "light trails", "long exposure"], "Long-exposure circles of fire from a poi spinner.");
+I("g1", "lizard", "p", null, "close", 15, "09:12", "Gecko on Wooden Wall", ["gecko", "lizard", "wooden wall", "green"], "A bright green gold dust day gecko clings to a weathered wooden wall.");
+I("g2", "lizard", "p", null, "close", 16, "15:30", "Anole on Palm Frond", ["anole", "lizard", "palm frond"], "A small green anole on a palm frond, throat fan out.");
+I("g3", "lizard", "p", null, "close", 17, "10:44", "Gecko Close Up Eye", ["gecko", "eye", "macro"], "Macro shot of a gecko's eye and patterned skin.");
+I("g4", "lizard", "v", "0:07", "medium", 19, "08:20", "Lizard on Lanai Rail", ["lizard", "lanai", "railing"], "A lizard resting on the hotel lanai railing.", [["0:00", "Lizard rests on the lanai rail"], ["0:04", "It turns its head and runs off"]]);
+I("w1", "wind", "p", null, "wide", 17, "15:05", "Windsurfers at Hookipa", ["windsurfers", "waves", "sails"], "Several windsurfers ride the waves off a rocky point.");
+I("w2", "wind", "v", "0:12", "wide", 17, "15:12", "Sail Jumping Wave", ["windsurfing", "jump", "wave"], "A windsurfer launches off a breaking wave.", [["0:00", "Windsurfer heads toward a breaking wave"], ["0:06", "Jumps off the lip"], ["0:09", "Lands and carves away"]]);
+I("w3", "wind", "p", null, "wide", 17, "15:20", "Colorful Sails Lineup", ["sails", "colorful", "ocean"], "Bright sails lined up on the water near the shore.");
+I("t1", "turtle", "p", null, "wide", 15, "10:20", "Sea Turtles Resting Sand", ["sea turtles", "sand", "resting", "wildlife"], "Three green sea turtles rest on the sand above the waterline.", null, { bin: true });
+I("t2", "turtle", "v", "0:20", "medium", 15, "10:26", "Turtle Swimming Shallows", ["sea turtle", "swimming", "clear water"], "A sea turtle swims through clear shallow water.", [["0:00", "Turtle swims through the shallows"], ["0:11", "It surfaces to breathe"], ["0:16", "Swims out of frame"]], { bin: true });
+I("t3", "turtle", "p", null, "medium", 15, "10:31", "Turtle Beach Sign", ["sign", "turtles", "beach"], "A sign asking visitors to stay 10 feet from resting turtles.", null, { bin: true });
+I("b1", "beach", "p", null, "wide", 14, "07:40", "Empty Beach Morning", ["beach", "morning", "waves"], "An empty stretch of beach in soft morning light.");
+I("b2", "beach", "p", null, "wide", 19, "11:15", "Beach Umbrellas Row", ["umbrellas", "beach chairs", "resort"], "A row of striped umbrellas and chairs on a resort beach.");
+I("b3", "beach", "p", null, "medium", 19, "11:40", "Kids Building Sandcastle", ["kids", "sandcastle", "beach"], "Two kids build a sandcastle near the water.", null, { lc: true });
+I("m1", "mamas", "p", null, "wide", 16, "18:05", "Mama's Fish House Entrance", ["restaurant", "entrance", "palms", "torches"], "The entrance of Mama's Fish House, lit by torches under the palms.", null, { bin: true });
+I("m2", "mamas", "p", null, "close", 16, "19:10", "Fresh Catch Dinner Plate", ["fish", "dinner", "plate"], "A plate of grilled fresh catch with vegetables.", null, { bin: true });
+I("k1", "breakfast", "p", null, "close", 17, "08:05", "Macadamia Pancakes", ["pancakes", "macadamia", "breakfast"], "A stack of pancakes topped with macadamia nut sauce.", null, { bin: true });
+I("e1", "wedding", "p", null, "wide", 20, "10:30", "Beach Wedding Arch", ["wedding", "arch", "flowers", "beach"], "A white wedding arch with flowers set up on the sand.", null, { lc: true });
+I("u1", null, "p", null, "close", 15, "09:50", "Snorkel Gear on Towel", ["snorkel", "mask", "fins", "towel"], "A snorkel mask and fins on a striped towel, with a turtle-shaped key ring beside them.", null, { st: "waiting", p: "beach" });
+I("u2", null, "p", null, "medium", 14, "14:30", "Rental Car Dashboard", ["car", "dashboard", "map"], "The rental car dashboard with a map on the screen.", null, { st: "waiting", p: "none" });
+I("u3", null, "v", "0:09", "wide", 14, "17:20", "Hotel Lanai View", ["lanai", "ocean view", "hotel"], "Opening the hotel lanai door to an ocean view.", [["0:00", "The sliding door opens"], ["0:04", "Pan across the lanai to the ocean"]], { st: "waiting", p: "sunset" });
+I("z1", null, "v", null, "wide", 18, "17:51", "", [], "", null, { st: "failed", p: "fail", orig: "VID_20260718_175109.mp4", why: "decode", attempts: 2, sugg: "" });
+
+var PAL = {
+  forest: { sky: "#9FC9A8", sun: "#F3F7E4", far: "#3E7A52", water: "#2E5E45", near: "#1F3B2C" },
+  aerial: { sky: "#A9CDEB", sun: "#FFFFFF", far: "#E9F1F8", water: "#2F7FB8", near: "#7DB5D6" },
+  sunset: { sky: "#F2A65A", sun: "#FFE3A3", far: "#7A4E6B", water: "#3E5C8A", near: "#2B2E45" },
+  lunch: { plate: 1, table: "#C9925E", dish: "#F6F1E7", food: "#E4683F", food2: "#7BB661" },
+  fire: { sky: "#1A1022", sun: "#FF8A3D", far: "#3A1C2A", water: "#2A1420", near: "#120A12" },
+  lizard: { sky: "#B9D98C", sun: "#E9F7C8", far: "#6E9A3E", water: "#8C6A48", near: "#4F3A28" },
+  wind: { sky: "#BFE3F0", sun: "#FFFFFF", far: "#7FB2C4", water: "#1F7FA6", near: "#E8D9B0" },
+  turtle: { sky: "#CFE6EE", sun: "#FFF8E0", far: "#9BC3C9", water: "#3B8FA8", near: "#E3CFA2" },
+  beach: { sky: "#A9D3F0", sun: "#FFF8E0", far: "#C9B48A", water: "#2E7FB0", near: "#EAD9B4" },
+  mamas: { plate: 1, table: "#6B4A3A", dish: "#F3EEE6", food: "#E8B04A", food2: "#5E9C6A" },
+  breakfast: { plate: 1, table: "#E2C9A0", dish: "#FFFFFF", food: "#D99A4E", food2: "#8A5A2E" },
+  wedding: { sky: "#F6DCE3", sun: "#FFFFFF", far: "#EAC4CF", water: "#9CC9DA", near: "#F4E6D2" },
+  none: { sky: "#C7CCD3", sun: "#EEF0F2", far: "#8D949C", water: "#6C8797", near: "#CBB89A" },
+  misc: { sky: "#C7CCD3", sun: "#EEF0F2", far: "#8D949C", water: "#6C8797", near: "#CBB89A" }
+};
+function hash(s) { var h = 7; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 9973; return h; }
+function art(it) {
+  var h = hash(it.id), P = PAL[it.p] || PAL.none;
+  var o = '<svg class="pic" viewBox="0 0 120 120" preserveAspectRatio="xMidYMid slice" aria-hidden="true">';
+  if (it.p === "fail") {
+    o += '<rect width="120" height="120" fill="#5B606B"/>';
+    for (var i = -120; i < 120; i += 16) o += '<path d="M' + i + ' 120 L' + (i + 120) + ' 0" stroke="#666C78" stroke-width="7"/>';
+    o += '<g transform="translate(46 44)" fill="none" stroke="#E9ECF1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="0" y="4" width="28" height="22" rx="4"/><path d="M2 26L26 4"/></g>';
+  } else if (P.plate) {
+    var cx = 52 + (h % 18), cy = 54 + (h % 12);
+    o += '<rect width="120" height="120" fill="' + P.table + '"/><path d="M0 ' + (20 + h % 30) + 'H120" stroke="rgba(0,0,0,0.12)" stroke-width="3"/><path d="M0 ' + (90 + h % 20) + 'H120" stroke="rgba(0,0,0,0.12)" stroke-width="3"/>';
+    o += '<circle cx="' + cx + '" cy="' + cy + '" r="38" fill="' + P.dish + '"/><circle cx="' + cx + '" cy="' + cy + '" r="30" fill="none" stroke="rgba(0,0,0,0.06)" stroke-width="2"/>';
+    o += '<circle cx="' + (cx - 8) + '" cy="' + (cy - 4) + '" r="15" fill="' + P.food + '"/><circle cx="' + (cx + 12) + '" cy="' + (cy + 8) + '" r="10" fill="' + P.food2 + '"/>';
+  } else {
+    var sx = 20 + (h % 76), sy = 20 + (h % 30);
+    o += '<rect width="120" height="120" fill="' + P.sky + '"/><circle cx="' + sx + '" cy="' + sy + '" r="13" fill="' + P.sun + '"/>';
+    o += '<path d="M0 ' + (68 + h % 10) + ' Q 26 ' + (48 + h % 14) + ' 54 66 T 120 60 V120 H0 Z" fill="' + P.far + '"/>';
+    o += '<rect x="0" y="82" width="120" height="38" fill="' + P.water + '"/><path d="M0 102 Q 30 ' + (88 + h % 8) + ' 64 104 T 120 98 V120 H0 Z" fill="' + P.near + '"/>';
+  }
+  return o + "</svg>";
+}
+
+/* ------------------------------------------------------------ state model */
+function fresh() {
+  var cats = CATS.map(function (c) { return { id: c[0], name: c[1], desc: c[2], by: c[3], folder: c[4] }; });
+  var items = ITEMS.map(function (it) {
+    var o = JSON.parse(JSON.stringify(it));
+    if (o.bin) { var c = cats.filter(function (x) { return x.id === o.c; })[0]; o.bin = { folder: c.folder, file: o.n + ext(o) }; }
+    return o;
+  });
+  return { items: items, cats: cats, cat: null, q: "", kind: "all", shot: "any", date: "any", select: false, sel: [], stack: [], dialog: null, job: null, toast: null, empty: false };
+}
+function ext(it) { return it.k === "v" ? ".mp4" : ".jpg"; }
+function catById(s, id) { for (var i = 0; i < s.cats.length; i++) if (s.cats[i].id === id) return s.cats[i]; return null; }
+function itemById(s, id) { for (var i = 0; i < s.items.length; i++) if (s.items[i].id === id) return s.items[i]; return null; }
+function label(it) { return it.st === "failed" && !it.n ? it.orig : it.n; }
+function norm(t) { return t.toLowerCase().replace(/[^a-z0-9]+/g, "").replace(/(es|s)$/, ""); }
+function inPlace(s, it) {
+  if (!it.bin || !it.c) return false; var c = catById(s, it.c);
+  return c && it.bin.folder === (c.folder || c.name) && c.folder && it.bin.file === it.n + ext(it);
+}
+function summary(s) {
+  var w = 0, f = 0, a = 0, ready = 0, binned = 0, ok = 0;
+  s.items.forEach(function (it) {
+    if (it.st === "waiting") w++; else if (it.st === "failed") f++; else if (it.st === "analyzing") a++;
+    else { ok++; if (inPlace(s, it)) binned++; else ready++; }
+  });
+  return { w: w, f: f, a: a, ready: ready, binned: binned, ok: ok };
+}
+function dockInfo(s) {
+  var m = summary(s), j = s.job;
+  var on = m.ready > 0 && m.w === 0 && m.a === 0 && !j;
+  var o = { tone: "", text: "", action: null, binOn: on, count: m.ready };
+  if (j && j.type === "save") {
+    var files = j.steps.filter(function (x) { return x.kind === "move"; }).length;
+    var doneF = j.steps.filter(function (x) { return x.kind === "move" && x.state === "done"; }).length;
+    o.tone = "run"; o.text = files ? "Saving · moving " + Math.min(doneF + 1, files) + " of " + files + " files" : "Saving · renaming folder";
+    return o;
+  }
+  if (j && j.type === "sort") { o.tone = "run"; o.text = j.label; return o; }
+  if (m.a) { o.tone = "run"; o.text = "Analyzing " + m.a + " left"; return o; }
+  var parts = [];
+  if (m.ready) parts.push(m.ready + (m.ready === 1 ? " file" : " files") + " ready to bin");
+  else if (m.ok && m.binned === m.ok) parts.push("All files binned");
+  if (m.w) { parts.push(m.w + " waiting to be categorized"); o.action = { a: "categorize", label: "Categorize now" }; }
+  if (m.f && !m.w) parts.push(m.f + " failed");
+  if (!parts.length) parts.push("Nothing to bin yet");
+  o.text = parts.join(" · ");
+  o.tone = m.w ? "warn" : m.ready ? "ok" : "";
+  return o;
+}
+function matchField(s, it, q) {
+  if (!q) return "";
+  var re; try { re = new RegExp("\\b" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"); } catch (e) { return null; }
+  var cat = it.c ? catById(s, it.c) : null;
+  if (re.test(label(it))) return "name";
+  if (cat && re.test(cat.name)) return "category";
+  if (it.tags.some(function (t) { return re.test(t); })) return "tags";
+  if (it.acts && it.acts.some(function (a) { return re.test(a[1]); })) return "actions";
+  if (re.test(it.desc)) return "description";
+  return null;
+}
+function passSecondary(s, it) {
+  if (s.kind === "photo" && it.k !== "p") return false;
+  if (s.kind === "video" && it.k !== "v") return false;
+  if (s.shot !== "any" && it.shot !== s.shot) return false;
+  if (s.date !== "any" && String(it.D) !== s.date) return false;
+  return true;
+}
+function passCat(s, it, cat) {
+  if (cat === null) return true;
+  if (cat === "waiting") return it.st === "waiting";
+  if (cat === "failed") return it.st === "failed";
+  return it.c === cat && it.st !== "waiting" && it.st !== "failed";
+}
+function pool(s) {
+  var q = s.q.trim();
+  return s.items.filter(function (it) { return passSecondary(s, it) && (!q || matchField(s, it, q)); });
+}
+function sorted(list) {
+  return list.slice().sort(function (a, b) { return a.D - b.D || (a.tm < b.tm ? -1 : a.tm > b.tm ? 1 : 0); });
+}
+
+/* --------------------------------------------------------------- rendering */
+function screen(P) {
+  var s = P.s;
+  if (s.empty) return emptyScreen(P);
+  var q = s.q.trim(), base = pool(s);
+  var vis = sorted(base.filter(function (it) { return passCat(s, it, s.cat); }));
+  var busy = !!s.job;
+  var h = '<div class="blobs" aria-hidden="true"><i></i><i></i><i></i></div>';
+  h += '<div class="gridscroll noscroll" data-keep="grid"><div class="grid">' + vis.map(function (it) { return tile(s, it, q); }).join("") + "</div>";
+  if (!vis.length) h += '<p class="nomatch">' + (q ? "Nothing in " + esc(PROJECT) + " matches “" + esc(q) + "”." : "No items match these filters.") + "</p>";
+  h += "</div><div class=\"topfade\" aria-hidden=\"true\"></div>";
+  if (s.select) {
+    h += '<header class="glass hdr"><button class="ib" data-a="select-off" aria-label="Leave select mode">' + ic("x", 20, 2.2) + '</button><div class="ht"><h3>' + s.sel.length + ' selected</h3><span>Tap tiles to add or remove them</span></div><button class="txtbtn" data-a="select-all">' + (vis.length && vis.every(function (it) { return s.sel.indexOf(it.id) >= 0; }) ? "Clear" : "Select all") + "</button></header>";
+  } else {
+    h += '<header class="glass hdr"><button class="ib" data-a="back" aria-label="Back to Analyze">' + ic("back", 20, 2.2) + '</button><div class="ht"><h3>' + esc(PROJECT) + "</h3><span>Project media · " + s.items.length + ' items</span></div><button class="ib" data-a="settings" aria-label="Settings">' + ic("gear", 20, 1.8) + "</button></header>";
+  }
+  h += '<div class="glass search"><label>' + ic("search") + '<span class="sr">Search this project</span><input id="' + P.id + '-q" data-in="q" type="search" autocomplete="off" placeholder="Search “sea turtles on the sand”" value="' + esc(s.q) + '"></label>' + (s.q ? '<button class="ib" style="width:40px;height:40px" data-a="q-clear" aria-label="Clear search">' + ic("x", 16) + "</button>" : "") + "</div>";
+  h += '<div class="cathead"><h4>Categories · ' + s.cats.length + "</h4>";
+  h += '<button class="mini' + (busy ? " busy" : "") + '" data-a="resort">' + ic("shuffle", 15) + "Re-sort</button>";
+  h += '<button class="mini' + (busy ? " busy" : "") + '" data-a="edit-cats">' + ic("pencil", 15) + "Edit</button></div>";
+  h += '<div class="chips noscroll" role="group" aria-label="Filter by category">' + chips(s, base, q) + "</div>";
+  h += '<div class="filters noscroll" role="group" aria-label="More filters">' + filters(s) + "</div>";
+  var what = q ? vis.length + (vis.length === 1 ? " result" : " results") + " for “" + esc(q) + "”" : (s.cat ? chipName(s, s.cat) : "All categories") + " · " + vis.length + (vis.length === 1 ? " item" : " items");
+  if (q && s.cat) what += " in " + esc(chipName(s, s.cat));
+  h += '<div class="result"><span>' + what + "</span>" + (s.select ? "" : '<button class="mini" data-a="select-on">' + ic("select", 15) + "Select</button>") + "</div>";
+  if (s.job && s.job.type === "save") h += jobPanel(s);
+  if (s.select) h += bulkBar(s); else h += dock(dockInfo(s));
+  h += sheets(P) + dialog(s) + toast(s);
+  return h;
+}
+function chipName(s, id) { return id === "waiting" ? "Waiting to be categorized" : id === "failed" ? "Failed" : esc(catById(s, id).name); }
+function tile(s, it, q) {
+  var on = s.select && s.sel.indexOf(it.id) >= 0;
+  var cat = it.c ? catById(s, it.c) : null;
+  var kind = it.k === "v" ? "video" + (it.d ? " " + it.d : "") : "photo";
+  var where = it.st === "waiting" ? "waiting to be categorized" : it.st === "failed" ? "failed" : "in " + cat.name;
+  var lab = label(it) + ", " + kind + ", " + where + (it.bin ? ", binned" : "");
+  var o = '<button class="tile' + (on ? " on" : "") + (it.st === "analyzing" ? " dimmed" : "") + '" data-a="tile" data-v="' + it.id + '" data-tile="' + it.id + '" aria-label="' + esc(lab) + '"' + (s.select ? ' aria-pressed="' + on + '"' : "") + '><span class="art">' + art(it);
+  if (s.select) o += '<span class="tick">' + ic("check", 14, 3) + "</span>";
+  if (it.bin) o += '<span class="bdg bin" title="Binned">' + ic("folderCheck", 13, 2.2) + "</span>";
+  if (it.st === "waiting") o += '<span class="bdg st">' + ic("clock", 11, 2.4) + "Waiting</span>";
+  if (it.st === "failed") o += '<span class="bdg st warn">' + ic("alert", 11, 2.4) + "Failed</span>";
+  if (it.st === "analyzing") o += '<span class="bdg st">Analyzing…</span>';
+  if (it.k === "v") o += '<span class="bdg dur">' + ic("play", 9) + (it.d || "Video") + "</span>";
+  o += '</span><span class="tname">' + esc(label(it)) + "</span>";
+  if (q) { var m = matchField(s, it, q); if (m && m !== "name") o += '<span class="tsub">Matched in ' + m + "</span>"; }
+  return o + "</button>";
+}
+function chips(s, base, q) {
+  var o = "";
+  function chip(id, name, n, extra, attn) {
+    var on = s.cat === id;
+    return '<button class="chip' + (attn ? " attn" : "") + '" aria-pressed="' + on + '" data-a="cat" data-v="' + (id === null ? "all" : id) + '">' + extra + esc(name) + '<span class="n">' + n + "</span></button>";
+  }
+  o += chip(null, "All", base.length, "");
+  var w = base.filter(function (it) { return it.st === "waiting"; }).length, f = base.filter(function (it) { return it.st === "failed"; }).length;
+  if (w || s.cat === "waiting") o += chip("waiting", "Waiting", w, ic("clock", 13, 2.2), true);
+  if (f || s.cat === "failed") o += chip("failed", "Failed", f, ic("alert", 13, 2.2), true);
+  s.cats.forEach(function (c) {
+    var n = base.filter(function (it) { return passCat(s, it, c.id); }).length;
+    if (q && !n && s.cat !== c.id) return;
+    o += chip(c.id, c.name, n, c.by === "user" ? ic("lock", 12, 2.2) : "");
+  });
+  return o;
+}
+function filters(s) {
+  var kv = { all: "Photos and videos", photo: "Photos", video: "Videos" };
+  var sv = s.shot === "any" ? "Any shot type" : SHOTS[s.shot];
+  var dv = s.date === "any" ? "Any date" : "Jul " + s.date;
+  function f(a, text, set) { return '<button class="fchip' + (set ? " set" : "") + '" data-a="filter" data-v="' + a + '">' + text + ic("chev", 14) + "</button>"; }
+  return f("kind", kv[s.kind], s.kind !== "all") + f("shot", sv, s.shot !== "any") + f("date", dv, s.date !== "any");
+}
+function dock(d, isStatic) {
+  var o = '<nav class="glass dock' + (isStatic ? " static" : "") + '" aria-label="Project actions"><div class="status" aria-live="polite"><span class="dot ' + d.tone + '"></span><span class="stxt">' + d.text + "</span>";
+  if (d.action) o += '<button class="act" data-a="' + d.action.a + '">' + d.action.label + "</button>";
+  o += '</div><div class="dbtns"><button class="anz" data-a="back"><i></i>Analyze</button>';
+  o += '<button class="binbtn' + (d.binOn ? "" : " off") + '" data-a="bin"' + (d.binOn ? "" : ' aria-disabled="true"') + ">" + ic("folderCheck") + "Bin Files" + (d.binOn ? '<span class="cnt">' + d.count + "</span>" : "") + "</button></div></nav>";
+  return o;
+}
+function bulkBar(s) {
+  var none = !s.sel.length ? ' aria-disabled="true"' : "";
+  return '<nav class="glass bulk" aria-label="Selected items"><button class="p" data-a="bulk-move"' + none + ">" + ic("folderMove") + 'Move to category</button><button class="s" data-a="bulk-remove"' + none + ">" + ic("remove") + "Remove from project</button></nav>";
+}
+function jobPanel(s) {
+  var j = s.job, done = j.steps.filter(function (x) { return x.state === "done"; }).length, n = j.steps.length;
+  var files = j.steps.filter(function (x) { return x.kind === "move"; }).length;
+  var cur = j.steps[j.i];
+  var pct = Math.round(((done + (cur && cur.state === "verify" ? 0.6 : cur && cur.state === "copy" ? 0.3 : 0)) / n) * 100);
+  var o = '<section class="glass job" aria-label="Saving changes"><div class="top"><b>Saving changes</b><span>' + (files ? Math.min(j.steps.filter(function (x) { return x.kind === "move" && x.state === "done"; }).length + (cur && cur.kind === "move" ? 1 : 0), files) + " of " + files + (files === 1 ? " file" : " files") : done + " of " + n + " steps") + "</span></div>";
+  o += '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><i style="width:' + pct + '%"></i></div><ul class="steps">';
+  j.steps.forEach(function (st, i) {
+    var cls = st.state === "done" ? "done" : i === j.i ? "cur" : "";
+    var ph = st.state === "done" ? "Done" : i !== j.i ? "Waiting" : st.state === "copy" ? "Copying" : st.state === "verify" ? "Verifying" : "Starting";
+    if (st.kind !== "move" && i === j.i && st.state !== "done") ph = st.kind === "check" ? "Counting" : "Working";
+    o += '<li class="' + cls + '"><span class="ico">' + (st.state === "done" ? ic("check", 12, 3) : "") + '</span><span class="lb"><b>' + esc(st.label) + "</b><small>" + esc(st.sub) + '</small></span><span class="ph2">' + ph + "</span></li>";
+  });
+  o += '</ul><p class="wait" style="margin:0">' + ic("clock", 14) + "<span>Other edits wait until this finishes. You can still browse and search.</span></p></section>";
+  return o;
+}
+function toast(s) { return s.toast ? '<div class="toast" role="status">' + s.toast + "</div>" : ""; }
+function dialog(s) {
+  var d = s.dialog; if (!d) return "";
+  var its = d.ids.map(function (id) { return itemById(s, id); });
+  var nb = its.filter(function (it) { return it.bin; }).length;
+  var one = its.length === 1;
+  var title = one ? "Remove “" + esc(label(its[0])) + "” from " + esc(PROJECT) + "?" : "Remove " + its.length + " items from " + esc(PROJECT) + "?";
+  var body = one ? "The file stays on your phone where it is now" + (its[0].bin ? ", in the " + esc(its[0].bin.folder) + " folder" : "") + ". The project forgets its analysis, name and category." : "The files stay on your phone where they are now. The project forgets their analysis, names and categories.";
+  if (!one && nb) body += " " + nb + (nb === 1 ? " of them is" : " of them are") + " in a category folder and stays there.";
+  body += " You can add " + (one ? "it" : "them") + " again later.";
+  return '<button class="scrim" data-a="dlg-cancel" aria-label="Cancel" tabindex="-1"></button><div class="dlg" role="alertdialog" aria-modal="true" aria-label="Remove from project"><h3>' + title + "</h3><p>" + body + '</p><div class="row"><button class="btn s" data-a="dlg-cancel">Cancel</button><button class="btn d" data-a="dlg-remove">' + ic("remove") + (one ? "Remove" : "Remove " + its.length) + "</button></div></div>";
+}
+
+/* ------------------------------------------------------------------ sheets */
+function sheets(P) {
+  var s = P.s, o = "";
+  s.stack.forEach(function (sh, i) {
+    var anim = !P.seen[sh.uid] ? " anim" : ""; P.seen[sh.uid] = 1;
+    o += '<button class="scrim" data-a="close" aria-label="Close" tabindex="-1"></button>';
+    var inner = sh.type === "detail" ? detailSheet(P, sh) : sh.type === "failed" ? failedSheet(P, sh) : sh.type === "picker" ? pickerSheet(P, sh) : sh.type === "catedit" ? catEditSheet(P, sh) : resortSheet(P, sh);
+    o += '<section class="sheet' + anim + (sh.type === "catedit" || sh.type === "detail" || sh.type === "resort" || sh.type === "failed" ? " tall" : "") + '" role="dialog" aria-modal="true" aria-label="' + esc(sh.title || "") + '" data-keep-wrap="' + i + '"><div class="handle" aria-hidden="true"></div>' + inner + "</section>";
+  });
+  return o;
+}
+function head(title, extra) { return '<div class="shead"><h3>' + title + "</h3>" + (extra || "") + '<button class="ib" data-a="close" aria-label="Close">' + ic("x", 18) + "</button></div>"; }
+function lockMarker(isLocked, changed, unlocked, kind) {
+  if (changed) return '<span class="lockpill pending">' + ic("lock", 12, 2.2) + "Set by you when you save</span>";
+  if (isLocked && !unlocked) return '<span class="lockpill">' + ic("lock", 12, 2.2) + 'Set by you</span><button class="linkbtn" data-a="d-unlock" data-v="' + kind + '">Unlock</button>';
+  if (isLocked && unlocked) return '<span class="lockpill model">Sorting can change it after you save</span><button class="linkbtn" data-a="d-unlock" data-v="' + kind + '">Undo</button>';
+  return '<span class="lockpill model">From sorting</span>';
+}
+function draftCatName(s, d) { return d.newCat ? d.newCat : d.c ? catById(s, d.c).name : ""; }
+function detailSheet(P, sh) {
+  var s = P.s, it = itemById(s, sh.id), d = sh.draft;
+  var nameCh = d.n.trim() !== it.n, catCh = !!d.newCat || d.c !== it.c;
+  var changed = nameCh || catCh || d.unlockN || d.unlockC;
+  var cat = it.c ? catById(s, it.c) : null;
+  var o = head(it.st === "waiting" ? "Waiting to be categorized" : "Item details");
+  o += '<div class="sbody noscroll" data-keep="sheet-' + sh.uid + '"><div class="media">' + art(it).replace('preserveAspectRatio="xMidYMid slice"', 'preserveAspectRatio="xMidYMid slice"');
+  if (it.k === "v") o += '<span class="play">' + ic("play", 22) + '</span><span class="bdg dur">' + ic("play", 10) + it.d + "</span>";
+  o += '<span class="bdg st' + (it.st === "waiting" ? "" : "") + '">' + (it.st === "waiting" ? ic("clock", 12, 2.4) + "Waiting to be categorized" : it.bin ? ic("folderCheck", 12, 2.2) + "Binned" : "Sorted") + "</span></div>";
+  o += '<div class="field"><div class="flabel"><label for="' + P.id + '-name">Friendly name</label><span class="sp"></span>' + lockMarker(it.ln, nameCh, d.unlockN, "n") + "</div>";
+  o += '<input class="input" id="' + P.id + '-name" data-in="d-name" value="' + esc(d.n) + '" autocomplete="off">';
+  o += '<div class="hint">File name when binned: ' + esc((d.n.trim() || it.n) + ext(it)) + (it.sugg && it.sugg !== d.n.trim() ? " · The model suggested “" + esc(it.sugg) + "”" : "") + "</div></div>";
+  o += '<div class="field"><div class="flabel"><span>Category</span><span class="sp"></span>' + (it.st === "waiting" && !catCh ? '<span class="lockpill warn">' + ic("clock", 12, 2.2) + "Not placed yet</span>" : lockMarker(it.lc, catCh, d.unlockC, "c")) + "</div>";
+  o += '<button class="picker" data-a="d-pickcat"><span' + (draftCatName(s, d) ? "" : ' class="ph3"') + ">" + esc(draftCatName(s, d) || "Choose a category") + (d.newCat ? ' <small style="color:var(--ink)">(new)</small>' : "") + "</span>" + ic("chevR") + "</button></div>";
+  if (it.bin) {
+    o += '<div class="callout">' + ic("folderCheck") + "<span>Binned in the <b>" + esc(it.bin.folder) + "</b> folder as <b>" + esc(it.bin.file) + "</b>. " + (nameCh || catCh ? "Saving moves or renames this file right away." : "If you change the name or category, Save moves the file right away.") + "</span></div>";
+  } else if (it.st !== "waiting") {
+    o += '<div class="callout">' + ic("info") + "<span>Not binned yet. The file stays in <b>DCIM/Camera</b> until Bin Files.</span></div>";
+  } else {
+    o += '<div class="callout warn">' + ic("clock") + "<span>Sorting couldn't place this item. It tries again on the next run, or you can choose a category now. Bin Files waits until it has one.</span></div>";
+  }
+  if (it.desc) o += '<div class="sect"><h5>Description</h5><p>' + esc(it.desc) + "</p></div>";
+  else o += '<div class="sect"><h5>Description</h5><p style="color:var(--sub)">No analysis. Name and category were set by hand.</p></div>';
+  if (it.acts) o += '<div class="sect"><h5>Actions</h5><ol class="timeline">' + it.acts.map(function (a) { return "<li><time>" + a[0] + "</time><span>" + esc(a[1]) + "</span></li>"; }).join("") + "</ol></div>";
+  if (it.tags.length) o += '<div class="sect"><h5>Tags</h5><div class="tags">' + it.tags.map(function (t) { return "<span>" + esc(t) + "</span>"; }).join("") + "</div></div>";
+  o += '<div class="sect"><h5>Details</h5><dl class="kv"><dt>Shot type</dt><dd>' + SHOTS[it.shot] + "</dd><dt>Taken</dt><dd>Jul " + it.D + ", 2026 · " + it.tm + "</dd><dt>Original file</dt><dd>" + esc(it.orig) + "</dd><dt>Location</dt><dd>" + (it.bin ? esc(PROJECT + "/" + it.bin.folder + "/" + it.bin.file) : "DCIM/Camera/" + esc(it.orig)) + "</dd>" + (cat ? "<dt>Category note</dt><dd>" + esc(cat.desc || "") + "</dd>" : "") + "</dl></div>";
+  o += '<button class="btn d wide" data-a="d-remove">' + ic("remove") + "Remove from project</button>";
+  o += "</div>";
+  var lbl = s.job ? "Waits for the current save" : it.bin && (nameCh || catCh) ? "Save and move file" : "Save";
+  o += '<div class="sfoot"><div class="row"><button class="btn s" data-a="close">Cancel</button><button class="btn p" data-a="d-save"' + (!changed || s.job || (catCh && !d.c && !d.newCat) || !d.n.trim() ? " disabled" : "") + ">" + (s.job ? ic("clock") : "") + lbl + "</button></div></div>";
+  return o;
+}
+function failedSheet(P, sh) {
+  var s = P.s, it = itemById(s, sh.id), d = sh.draft;
+  var o = head("Couldn't analyze");
+  o += '<div class="sbody noscroll" data-keep="sheet-' + sh.uid + '"><div class="media">' + art(it) + '<span class="bdg st warn">' + ic("alert", 12, 2.4) + 'Failed · decode</span><span class="bdg dur">' + ic("play", 10) + "Video</span></div>";
+  o += '<div class="sect"><h5>' + esc(it.orig) + "</h5><p>The phone couldn't decode this video, so the model never saw it. The file may be damaged or use a format the phone's decoders can't read. Tried " + it.attempts + " times.</p></div>";
+  o += '<dl class="kv"><dt>Taken</dt><dd>Jul 18, 2026 · 17:51</dd><dt>Location</dt><dd>DCIM/Camera/' + esc(it.orig) + "</dd><dt>Bin Files</dt><dd>Not blocked. This item stays where it is and is listed in the report.</dd></dl>";
+  if (!sh.manual) {
+    o += '<div style="display:flex;flex-direction:column;gap:8px"><button class="btn p wide" data-a="f-retry">' + ic("retry") + 'Retry analysis</button><button class="btn s wide" data-a="f-manual">' + ic("pencil") + 'Set name and category by hand</button><button class="btn d wide" data-a="f-remove">' + ic("remove") + "Remove from project</button></div>";
+  } else {
+    o += '<div class="field"><div class="flabel"><label for="' + P.id + '-fname">Friendly name</label><span class="sp"></span><span class="lockpill pending">' + ic("lock", 12, 2.2) + "Set by you when you save</span></div>";
+    o += '<input class="input" id="' + P.id + '-fname" data-in="f-name" placeholder="For example “Sunset Drive Home”" value="' + esc(d.n) + '" autocomplete="off"><div class="hint">File name when binned: ' + esc((d.n.trim() || "…") + ".mp4") + "</div></div>";
+    o += '<div class="field"><div class="flabel"><span>Category</span><span class="sp"></span><span class="lockpill pending">' + ic("lock", 12, 2.2) + "Set by you when you save</span></div>";
+    o += '<button class="picker" data-a="d-pickcat"><span' + (draftCatName(s, d) ? "" : ' class="ph3"') + ">" + esc(draftCatName(s, d) || "Choose a category") + "</span>" + ic("chevR") + "</button></div>";
+    o += '<div class="callout">' + ic("info") + "<span>With a name and category the clip is binned like any other at the next Bin Files. It has no description or tags, so search finds it only by name and category.</span></div>";
+  }
+  o += "</div>";
+  if (sh.manual) o += '<div class="sfoot"><div class="row"><button class="btn s" data-a="f-manual-off">Back</button><button class="btn p" data-a="f-save"' + (!d.n.trim() || (!d.c && !d.newCat) || s.job ? " disabled" : "") + ">Save</button></div></div>";
+  return o;
+}
+function pickerSheet(P, sh) {
+  var s = P.s, o = "";
+  if (sh.mode === "kind" || sh.mode === "shot" || sh.mode === "date") {
+    var base = s.items, opts;
+    if (sh.mode === "kind") opts = [["all", "Photos and videos", base.length], ["photo", "Photos", base.filter(function (i) { return i.k === "p"; }).length], ["video", "Videos", base.filter(function (i) { return i.k === "v"; }).length]];
+    if (sh.mode === "shot") opts = [["any", "Any shot type", base.length]].concat(Object.keys(SHOTS).map(function (k) { return [k, SHOTS[k], base.filter(function (i) { return i.shot === k; }).length]; }));
+    if (sh.mode === "date") { opts = [["any", "Any date", base.length]]; for (var D = 14; D <= 20; D++) opts.push([String(D), "Jul " + D + ", 2026", base.filter(function (i) { return i.D === D; }).length]); }
+    var cur = s[sh.mode];
+    o += head(sh.mode === "kind" ? "Photos or videos" : sh.mode === "shot" ? "Shot type" : "Date taken");
+    o += '<div class="sbody noscroll"><div class="list">' + opts.map(function (op) { return '<button class="opt" data-a="pk-filter" data-v="' + op[0] + '"><span class="radio' + (cur === op[0] ? " on" : "") + '"></span><span class="lb"><b>' + op[1] + '</b></span><span class="rt">' + op[2] + "</span></button>"; }).join("") + "</div></div>";
+    return o;
+  }
+  var isMove = sh.mode === "move";
+  var current = isMove ? sh.value : (function () { var parent = s.stack[s.stack.length - 2]; return parent.draft.newCat ? "new:" + parent.draft.newCat : parent.draft.c; })();
+  o += head(isMove ? "Move " + s.sel.length + (s.sel.length === 1 ? " item" : " items") : "Choose a category");
+  o += '<div class="sbody noscroll" data-keep="picker"><div class="list">';
+  if (!sh.newOpen) o += '<button class="opt new" data-a="pk-new-open"><span class="radio" style="border-style:dashed;border-color:var(--ink)"></span><span class="lb"><b>New category…</b><small>Yours: sorting never renames or merges it</small></span>' + ic("plus") + "</button>";
+  else {
+    o += '<div class="opt" style="flex-direction:column;align-items:stretch;gap:8px;padding:12px 14px"><label for="' + P.id + '-newcat" style="font-size:12px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.06em">New category</label><div style="display:flex;gap:8px"><input class="input" id="' + P.id + '-newcat" data-in="pk-new" data-enter="pk-new-add" placeholder="For example “Snorkeling”" value="' + esc(sh.newName) + '" autocomplete="off"><button class="btn p" style="flex:none" data-a="pk-new-add"' + (!sh.newName.trim() ? " disabled" : "") + ">Add</button></div>";
+    var dup = sh.newName.trim() && s.cats.filter(function (c) { return norm(c.name) === norm(sh.newName); })[0];
+    o += dup ? '<div class="err">That is the same as “' + esc(dup.name) + '”. Pick it from the list instead.</div>' : '<div class="hint">Becomes a folder name when the files are binned.</div>';
+    o += "</div>";
+  }
+  if (current && String(current).indexOf("new:") === 0) o += '<button class="opt" data-a="pk-choose" data-v="' + esc(current) + '"><span class="radio on"></span><span class="lb"><b>' + esc(current.slice(4)) + "</b><small>New · created when you save</small></span>" + ic("lock", 14) + "</button>";
+  s.cats.forEach(function (c) {
+    var n = s.items.filter(function (it) { return it.c === c.id && it.st !== "waiting"; }).length;
+    o += '<button class="opt" data-a="pk-choose" data-v="' + c.id + '"><span class="radio' + (current === c.id ? " on" : "") + '"></span><span class="lb"><b>' + esc(c.name) + "</b><small>" + esc(c.desc) + '</small></span><span class="rt">' + (c.by === "user" ? ic("lock", 13) : "") + (c.folder ? ic("folder", 13) : "") + n + "</span></button>";
+  });
+  o += "</div></div>";
+  if (isMove) {
+    var its = s.sel.map(function (id) { return itemById(s, id); });
+    var nb = its.filter(function (it) { return it.bin; }).length;
+    var note = nb ? nb + (nb === 1 ? " of them is binned; its file moves" : " of them are binned; their files move") + " right away. The others move at the next Bin Files." : "Only the database changes now. The files move at the next Bin Files.";
+    o += '<div class="sfoot"><p class="note">' + ic("info", 14) + "<span>" + note + ' Moved items count as set by you.</span></p><div class="row"><button class="btn s" data-a="close">Cancel</button><button class="btn p" data-a="pk-save"' + (!sh.value || s.job ? " disabled" : "") + ">" + (s.job ? "Waits for the current save" : "Save · move " + its.length) + "</button></div></div>";
+  }
+  return o;
+}
+function planCat(s, sh) {
+  var steps = [], notes = [], changes = 0;
+  Object.keys(sh.renames).forEach(function (id) {
+    var c = catById(s, id); if (!c) return; changes++;
+    if (c.folder) steps.push({ kind: "rename", label: "Rename folder", sub: c.folder + " → " + sh.renames[id] });
+  });
+  sh.merges.forEach(function (m) {
+    changes++;
+    var keep = catById(s, m.keep), drop = catById(s, m.drop);
+    var keepName = sh.renames[m.keep] || keep.name;
+    var target = keep.folder ? (sh.renames[m.keep] || keep.folder) : keepName;
+    s.items.filter(function (it) { return it.c === m.drop && it.bin; }).forEach(function (it) {
+      steps.push({ kind: "move", label: it.bin.file, sub: it.bin.folder + "/ → " + target + "/", item: it.id, to: target });
+    });
+    if (drop.folder) steps.push({ kind: "rmdir", label: "Remove empty folder", sub: drop.folder });
+  });
+  var moves = steps.filter(function (x) { return x.kind === "move"; }).length;
+  var renames = steps.filter(function (x) { return x.kind === "rename"; });
+  if (renames.length) notes.push("Saving renames " + (renames.length === 1 ? "the " + renames[0].sub.split(" → ")[0] + " folder" : renames.length + " folders") + " right away.");
+  if (moves) notes.push("Saving moves " + moves + " binned " + (moves === 1 ? "file" : "files") + " right away, one at a time.");
+  if (changes) notes.push(steps.length ? "Other files move at the next Bin Files." : "Only the database changes. Files move at the next Bin Files.");
+  if (steps.length) steps.push({ kind: "check", label: "Count check", sub: "Every binned file is where the database says" });
+  return { steps: steps, notes: notes, changes: changes };
+}
+function catEditSheet(P, sh) {
+  var s = P.s, o = head("Edit categories");
+  var dropped = sh.merges.map(function (m) { return m.drop; });
+  o += '<div class="sbody noscroll" data-keep="sheet-' + sh.uid + '"><p class="hint" style="font-size:13px;margin:0">Rename a category, or tick two to merge them. Categories you rename or merge become yours, so sorting won\'t change them.</p>';
+  if (sh.ticked.length === 2) {
+    var a = catById(s, sh.ticked[0]), b = catById(s, sh.ticked[1]);
+    o += '<div class="mergebox"><h5>' + ic("merge", 16) + " Merge " + esc(sh.renames[a.id] || a.name) + " and " + esc(sh.renames[b.id] || b.name) + "</h5>";
+    [a, b].forEach(function (k) {
+      var other = k === a ? b : a;
+      var obin = s.items.filter(function (it) { return it.c === other.id && it.bin; }).length;
+      var cons = obin ? (k.folder ? obin + " binned files move into the " + k.folder + " folder when you save." : obin + " binned files move from the " + other.folder + " folder into a new " + (sh.renames[k.id] || k.name) + " folder when you save.") : (k.folder ? "No files move now. " + other.name + " files go into the " + k.folder + " folder at the next Bin Files." : "No files move now.");
+      o += '<button class="opt" data-a="ce-keep" data-v="' + k.id + '"><span class="radio' + (sh.keep === k.id ? " on" : "") + '"></span><span class="lb"><b>Keep the name “' + esc(sh.renames[k.id] || k.name) + "”</b><small>" + esc(cons) + "</small></span></button>";
+    });
+    o += '<div class="row" style="display:flex;gap:8px"><button class="btn s" data-a="ce-untick">Cancel</button><button class="btn p" data-a="ce-merge">' + ic("merge") + "Merge</button></div></div>";
+  }
+  o += '<div class="list">';
+  s.cats.forEach(function (c) {
+    if (dropped.indexOf(c.id) >= 0) return;
+    var n = s.items.filter(function (it) { return it.c === c.id && it.st !== "waiting"; }).length;
+    var mergedIn = sh.merges.filter(function (m) { return m.keep === c.id; }).map(function (m) { var d = catById(s, m.drop); n += s.items.filter(function (it) { return it.c === d.id; }).length; return d.name; });
+    var ticked = sh.ticked.indexOf(c.id) >= 0;
+    var dis = !ticked && sh.ticked.length >= 2;
+    o += '<div class="cerow' + (ticked ? " ticked" : "") + '"><button class="cbox' + (ticked ? " on" : "") + '" data-a="ce-tick" data-v="' + c.id + '" role="checkbox" aria-checked="' + ticked + '" aria-label="Select ' + esc(c.name) + ' to merge"' + (dis ? ' aria-disabled="true"' : "") + ">" + ic("check", 14, 3) + "</button>";
+    if (sh.editing === c.id) {
+      o += '<div class="lb"><label class="sr" for="' + P.id + '-ren">New name for ' + esc(c.name) + '</label><input class="input" id="' + P.id + '-ren" data-in="ce-ren" data-enter="ce-done" value="' + esc(sh.editVal) + '" autocomplete="off">';
+      var dup = sh.editVal.trim() && s.cats.filter(function (x) { return x.id !== c.id && norm(sh.renames[x.id] || x.name) === norm(sh.editVal); })[0];
+      o += dup ? '<small style="color:var(--danger)">Same as “' + esc(dup.name) + "”. Tick both to merge instead.</small>" : '<small>' + (c.folder ? ic("folder", 12) + "Renames the " + esc(c.folder) + " folder when you save" : "No folder yet; only the database changes") + "</small>";
+      o += '</div><button class="ib" data-a="ce-done" aria-label="Done renaming"' + (dup || !sh.editVal.trim() ? ' disabled style="opacity:.4"' : "") + ">" + ic("check", 20, 2.4) + "</button>";
+    } else {
+      var nm = sh.renames[c.id] || c.name;
+      o += '<div class="lb"><b>' + esc(nm) + "</b>";
+      var meta = [n + (n === 1 ? " item" : " items")];
+      if (c.folder) meta.push(ic("folder", 12) + "folder");
+      if (c.by === "user") meta.push(ic("lock", 12) + "yours");
+      o += "<small>" + meta.join(" · ") + "</small>";
+      if (sh.renames[c.id]) o += '<small class="chg">' + ic("pencil", 12) + "Renamed from " + esc(c.name) + "</small>";
+      if (mergedIn.length) o += '<small class="chg">' + ic("merge", 12) + "Merged with " + esc(mergedIn.join(", ")) + "</small>";
+      o += '</div><button class="ib" data-a="ce-edit" data-v="' + c.id + '" aria-label="Rename ' + esc(nm) + '">' + ic("pencil", 18) + "</button>";
+    }
+    o += "</div>";
+  });
+  o += "</div></div>";
+  var plan = planCat(s, sh);
+  o += '<div class="sfoot">' + (plan.notes.length ? '<p class="note">' + ic("info", 14) + "<span>" + plan.notes.join(" ") + "</span></p>" : "");
+  o += '<div class="row"><button class="btn s" data-a="close">Cancel</button><button class="btn p" data-a="ce-save"' + (!plan.changes || s.job ? " disabled" : "") + ">" + (s.job ? "Waits for the current save" : plan.changes ? "Save " + plan.changes + (plan.changes === 1 ? " change" : " changes") : "Save") + "</button></div></div>";
+  return o;
+}
+var MODELS = [
+  ["claude", "Claude Sonnet 5.5", "cloud", "Cloud · sends text only, never photos or frames"],
+  ["lfm", "LFM3-1.7B", "phone", "On this phone · free · analysis waits while it runs"],
+  ["qwen", "Qwen3-8B", "phone", "On this phone · not downloaded yet"]
+];
+function resortSheet(P, sh) {
+  var s = P.s, m = summary(s), n = m.ok + m.w;
+  var mine = s.cats.filter(function (c) { return c.by === "user"; }).length;
+  var mineItems = s.items.filter(function (it) { return it.ln || it.lc; }).length;
+  var o = head("Re-sort project");
+  o += '<div class="sbody noscroll" data-keep="sheet-' + sh.uid + '"><p style="margin:0;font-size:14px;line-height:1.45">Sorts all ' + n + " analyzed items again from scratch. The categories may change completely: new names, merges and splits. The failed clip is left out.</p>";
+  o += '<div class="field"><div class="flabel"><span>Sorting model for this run</span></div><div class="list">';
+  MODELS.forEach(function (md) {
+    o += '<button class="modelcard" data-a="rs-model" data-v="' + md[0] + '"><span class="radio' + (sh.model === md[0] ? " on" : "") + '"></span><span class="lb"><b>' + ic(md[2], 16) + md[1] + (md[0] === "claude" ? '<span class="pill">Settings choice</span>' : "") + (md[0] === "qwen" ? '<span class="pill mute">Download</span>' : "") + "</b><small>" + md[3] + "</small></span></button>";
+  });
+  o += "</div></div>";
+  if (sh.model === "claude") o += '<div class="callout">' + ic("cloud") + "<span><b>About $0.05.</b> Sends the text of " + n + " items (descriptions, actions, tags, suggested names) and the category list: roughly 12K tokens in and 3K out, at $2 and $10 per million tokens on your API key.</span></div>";
+  if (sh.model === "lfm") o += '<div class="callout">' + ic("phone") + "<span>Runs on the NPU. Takes a few minutes for " + n + " items; analysis waits until it finishes. No cost.</span></div>";
+  if (sh.model === "qwen") o += '<div class="callout warn">' + ic("alert") + "<span>Qwen3-8B isn't on this phone yet. Re-sort downloads it first, then runs on the NPU. Wi-Fi recommended.</span></div>";
+  o += '<button class="checkrow" data-a="rs-keep" role="checkbox" aria-checked="' + sh.keep + '"><span class="cbox' + (sh.keep ? " on" : "") + '" aria-hidden="true">' + ic("check", 14, 3) + '</span><span class="lb"><b>Keep my edits</b><small>' + (sh.keep ? "Keeps the " + mine + " category and " + mineItems + " items you set (Wedding Events, Fire Dancers Night and others). New items can still join your categories." : "Your " + mine + " category and " + mineItems + " item edits may be replaced. They stop being locked.") + "</small></span></button>";
+  o += '<div class="chg2"><div><h6>' + ic("shuffle", 13) + "Changes</h6><ul><li>Category names and descriptions</li><li>Which items each category holds</li><li>Friendly names that sorting chose</li></ul></div><div><h6>" + ic("folder", 13) + "Doesn't change now</h6><ul><li>Any file on the phone. Only the database changes.</li><li>" + m.binned + " binned files move at the next Bin Files if their category or name changed.</li></ul></div></div>";
+  o += "</div>";
+  o += '<div class="sfoot"><div class="row"><button class="btn s" data-a="close">Cancel</button><button class="btn p" data-a="rs-run"' + (s.job ? " disabled" : "") + ">" + ic("shuffle") + (sh.model === "qwen" ? "Download and re-sort" : "Re-sort " + n + " items") + "</button></div></div>";
+  return o;
+}
+function emptyScreen(P) {
+  var s = P.s;
+  var h = '<div class="blobs" aria-hidden="true"><i></i><i></i><i></i></div>';
+  h += '<header class="glass hdr"><button class="ib" data-a="back" aria-label="Back to Analyze">' + ic("back", 20, 2.2) + '</button><div class="ht"><h3>Kauai Trip</h3><span>Project media · 0 items</span></div><button class="ib" data-a="settings" aria-label="Settings">' + ic("gear", 20, 1.8) + "</button></header>";
+  h += '<div class="glass search" style="opacity:.55"><label>' + ic("search") + '<span class="sr">Search this project</span><input id="' + P.id + '-q" type="search" placeholder="Nothing to search yet" disabled></label></div>';
+  h += '<section class="glass emptyc"><span class="ico">' + ic("photos", 30, 1.8) + "</span><h3>No photos or clips yet</h3><p>Add media and the phone describes each item, then sorts everything into categories. Files stay where they are until you press Bin Files.</p>";
+  h += '<button class="btn p" data-a="add-folder">' + ic("folder") + 'Add a folder</button><button class="btn s" data-a="add-pick">' + ic("plus") + "Pick photos and clips</button></section>";
+  h += dock({ tone: "", text: "Nothing to bin yet", action: null, binOn: false, count: 0 });
+  return h + toast(s);
+}
+
+/* ----------------------------------------------------------------- actions */
+var uidN = 0;
+function push(s, sh) { sh.uid = ++uidN; s.stack.push(sh); }
+function topSheet(s) { return s.stack[s.stack.length - 1]; }
+function say(P, text) {
+  P.s.toast = text; clearTimeout(P.tt);
+  P.tt = setTimeout(function () { P.s.toast = null; render(P); }, 3200);
+}
+function openItem(P, id) {
+  var s = P.s, it = itemById(s, id);
+  if (it.st === "analyzing") return say(P, "Analyzing this clip now.");
+  if (it.st === "failed") push(s, { type: "failed", id: id, manual: false, draft: { n: "", c: null, newCat: null }, title: "Couldn't analyze" });
+  else push(s, { type: "detail", id: id, draft: { n: it.n, c: it.c, newCat: null, unlockN: false, unlockC: false }, title: "Item details" });
+}
+function makeCat(s, name) {
+  var id = "u" + (++uidN); s.cats.push({ id: id, name: name, desc: "Made by you", by: "user", folder: null }); return id;
+}
+function moveStep(s, it, catId) {
+  var c = catById(s, catId), target = c.folder || c.name;
+  return { kind: "move", label: it.n + ext(it), sub: it.bin.folder + "/" + it.bin.file + " → " + target + "/", item: it.id, to: target };
+}
+function startSave(P, steps, msg) {
+  var s = P.s;
+  if (!steps.length) { say(P, msg); return; }
+  steps.push({ kind: "check", label: "Count check", sub: "Every binned file is where the database says" });
+  s.job = { type: "save", steps: steps.map(function (x) { x.state = "wait"; return x; }), i: 0, msg: msg };
+  runJob(P);
+}
+function runJob(P) {
+  clearInterval(P.jt);
+  P.jt = setInterval(function () {
+    var s = P.s, j = s.job; if (!j || j.frozen) { clearInterval(P.jt); return; }
+    var st = j.steps[j.i];
+    if (st.kind === "move") st.state = st.state === "wait" ? "copy" : st.state === "copy" ? "verify" : "done";
+    else st.state = "done";
+    if (st.state === "done") {
+      if (st.kind === "move") {
+        var it = itemById(s, st.item); if (it && it.bin) { it.bin = { folder: st.to, file: it.n + ext(it) }; var c = catById(s, it.c); if (c && !c.folder) c.folder = st.to; }
+      }
+      j.i++;
+      if (j.i >= j.steps.length) { clearInterval(P.jt); s.job = null; say(P, j.msg); }
+    }
+    render(P);
+  }, 520);
+}
+function assignWaiting(s) {
+  var misc = s.cats.filter(function (c) { return c.name === "Misc"; })[0];
+  s.items.forEach(function (it) {
+    if (it.st !== "waiting") return;
+    if (it.id === "u2") { if (!misc) { misc = { id: "misc", name: "Misc", desc: "A few items that fit nowhere else", by: "model", folder: null }; s.cats.push(misc); } it.c = misc.id; it.p = "misc"; }
+    else it.c = "beach";
+    it.st = "ok";
+  });
+}
+function sortJob(P, label, after) {
+  var s = P.s; s.job = { type: "sort", label: label };
+  setTimeout(function () { s.job = null; after(); render(P); }, 2400);
+}
+function act(P, a, v) {
+  var s = P.s, t = topSheet(s);
+  var editBlocked = function () { if (s.job) { say(P, s.job.type === "save" ? "Edits wait until the current save finishes." : "Edits wait until sorting finishes."); return true; } return false; };
+  switch (a) {
+    case "back": say(P, "Back to the Analyze screen."); break;
+    case "settings": say(P, "Opens Settings."); break;
+    case "add-folder": say(P, "Opens the system folder picker."); break;
+    case "add-pick": say(P, "Opens the photo and clip picker."); break;
+    case "q-clear": s.q = ""; break;
+    case "cat": var id = v === "all" ? null : v; s.cat = s.cat === id ? null : id; break;
+    case "filter": push(s, { type: "picker", mode: v, title: "Filter" }); break;
+    case "pk-filter": s[t.mode] = v; s.stack.pop(); break;
+    case "select-on": s.select = true; s.sel = []; break;
+    case "select-off": s.select = false; s.sel = []; break;
+    case "select-all":
+      var vis = pool(s).filter(function (it) { return passCat(s, it, s.cat); }).map(function (it) { return it.id; });
+      s.sel = vis.every(function (id) { return s.sel.indexOf(id) >= 0; }) ? [] : vis; break;
+    case "tile":
+      if (s.select) { var k = s.sel.indexOf(v); if (k >= 0) s.sel.splice(k, 1); else s.sel.push(v); }
+      else openItem(P, v);
+      break;
+    case "edit-cats": if (editBlocked()) break; push(s, { type: "catedit", renames: {}, merges: [], ticked: [], keep: null, editing: null, editVal: "", title: "Edit categories" }); break;
+    case "resort": if (editBlocked()) break; push(s, { type: "resort", model: "claude", keep: true, title: "Re-sort project" }); break;
+    case "categorize": if (editBlocked()) break;
+      sortJob(P, "Categorizing 3 items with Claude…", function () { assignWaiting(s); say(P, "Sorted 3 items: 2 into Beach Scenes, 1 into a new Misc category."); }); break;
+    case "bin":
+      var di = dockInfo(s);
+      if (di.binOn) say(P, "Bin Files starts here. Its flow is designed in Plan 3.");
+      else if (s.job) say(P, "Bin Files waits until the current job finishes.");
+      else if (summary(s).w) say(P, "Bin Files waits until every analyzed item has a category. Categorize now, or set them by hand.");
+      else say(P, "Nothing to bin: every file is already in its folder.");
+      break;
+    case "close": s.stack.pop(); break;
+    case "d-unlock": if (v === "n") t.draft.unlockN = !t.draft.unlockN; else t.draft.unlockC = !t.draft.unlockC; break;
+    case "d-pickcat": push(s, { type: "picker", mode: "detail", newOpen: false, newName: "", title: "Choose a category" }); break;
+    case "d-remove": s.dialog = { ids: [t.id], fromSheet: true }; break;
+    case "pk-new-open": t.newOpen = true; P.focus = P.id + "-newcat"; break;
+    case "pk-new-add":
+      var nm = t.newName.trim(); if (!nm) break;
+      if (s.cats.some(function (c) { return norm(c.name) === norm(nm); })) break;
+      if (t.mode === "move") { t.value = "new:" + nm; t.newOpen = false; t.newName = ""; }
+      else { var par = s.stack[s.stack.length - 2]; par.draft.newCat = nm; par.draft.c = null; s.stack.pop(); }
+      break;
+    case "pk-choose":
+      if (t.mode === "move") t.value = v;
+      else { var pr = s.stack[s.stack.length - 2]; if (v.indexOf("new:") === 0) { pr.draft.newCat = v.slice(4); pr.draft.c = null; } else { pr.draft.c = v; pr.draft.newCat = null; } s.stack.pop(); }
+      break;
+    case "pk-save":
+      if (editBlocked()) break;
+      var cid = t.value.indexOf("new:") === 0 ? makeCat(s, t.value.slice(4)) : t.value, steps = [];
+      s.sel.forEach(function (id) { var it = itemById(s, id); if (it.st === "failed") return; if (it.bin && it.c !== cid) steps.push(moveStep(s, it, cid)); it.c = cid; it.lc = true; if (it.st === "waiting") it.st = "ok"; });
+      var cn = catById(s, cid).name, cnt = s.sel.length;
+      s.stack = []; s.select = false; s.sel = [];
+      startSave(P, steps, "Moved " + cnt + " items to " + esc(cn) + "." + (steps.length ? " " + steps.length + " binned " + (steps.length === 1 ? "file" : "files") + " moved and checked." : " Files move at the next Bin Files."));
+      break;
+    case "d-save":
+      if (editBlocked()) break;
+      var it = itemById(s, t.id), d = t.draft, nc = d.newCat ? makeCat(s, d.newCat) : d.c;
+      var nmCh = d.n.trim() !== it.n, ctCh = nc !== it.c, st2 = [];
+      var before = it.bin ? { folder: it.bin.folder, file: it.bin.file } : null;
+      it.n = d.n.trim(); if (nmCh) it.ln = true; else if (d.unlockN) it.ln = false;
+      it.c = nc; if (ctCh) it.lc = true; else if (d.unlockC) it.lc = false;
+      if (it.st === "waiting" && it.c) it.st = "ok";
+      if (before && (nmCh || ctCh)) { it.bin = before; var stp = moveStep(s, it, it.c); stp.label = it.n + ext(it); stp.sub = before.folder + "/" + before.file + " → " + (catById(s, it.c).folder || catById(s, it.c).name) + "/"; st2.push(stp); }
+      s.stack = [];
+      startSave(P, st2, st2.length ? "Saved. The file was moved and checked." : "Saved." + (it.bin ? "" : " The file moves at the next Bin Files."));
+      break;
+    case "bulk-move": if (!s.sel.length) break; if (editBlocked()) break; push(s, { type: "picker", mode: "move", value: null, newOpen: false, newName: "", title: "Move to category" }); break;
+    case "bulk-remove": if (!s.sel.length) break; if (editBlocked()) break; s.dialog = { ids: s.sel.slice() }; break;
+    case "dlg-cancel": s.dialog = null; break;
+    case "dlg-remove":
+      var ids = s.dialog.ids; s.items = s.items.filter(function (x) { return ids.indexOf(x.id) < 0; });
+      var fromSheet = s.dialog.fromSheet; s.dialog = null; s.sel = []; s.select = false; if (fromSheet) s.stack = [];
+      say(P, "Removed " + (ids.length === 1 ? "1 item" : ids.length + " items") + " from the project. The files are untouched.");
+      break;
+    case "ce-tick":
+      var ix = t.ticked.indexOf(v);
+      if (ix >= 0) t.ticked.splice(ix, 1); else if (t.ticked.length < 2) t.ticked.push(v);
+      if (t.ticked.length === 2) t.keep = t.ticked[0]; break;
+    case "ce-untick": t.ticked = []; break;
+    case "ce-keep": t.keep = v; break;
+    case "ce-merge":
+      var drop = t.ticked[0] === t.keep ? t.ticked[1] : t.ticked[0];
+      t.merges.push({ keep: t.keep, drop: drop }); t.ticked = []; break;
+    case "ce-edit": t.editing = v; t.editVal = t.renames[v] || catById(s, v).name; P.focus = P.id + "-ren"; break;
+    case "ce-done":
+      var val = t.editVal.trim(), cc = catById(s, t.editing);
+      if (!val || s.cats.some(function (x) { return x.id !== cc.id && norm(t.renames[x.id] || x.name) === norm(val); })) break;
+      if (val === cc.name) delete t.renames[cc.id]; else t.renames[cc.id] = val;
+      t.editing = null; break;
+    case "ce-save":
+      if (editBlocked()) break;
+      var plan = planCat(s, t), moved = plan.steps.filter(function (x) { return x.kind === "move"; }).length;
+      Object.keys(t.renames).forEach(function (id) {
+        var c = catById(s, id); var nn = t.renames[id];
+        if (c.folder) { s.items.forEach(function (x) { if (x.c === id && x.bin) x.bin.folder = nn; }); c.folder = nn; }
+        c.name = nn; c.by = "user";
+      });
+      t.merges.forEach(function (m) {
+        s.items.forEach(function (x) { if (x.c === m.drop) x.c = m.keep; });
+        catById(s, m.keep).by = "user";
+        s.cats = s.cats.filter(function (c) { return c.id !== m.drop; });
+        if (s.cat === m.drop) s.cat = m.keep;
+      });
+      var fileSteps = plan.steps.filter(function (x) { return x.kind !== "check" && x.kind !== "rename"; });
+      var renameSteps = plan.steps.filter(function (x) { return x.kind === "rename"; });
+      s.stack = [];
+      startSave(P, renameSteps.concat(fileSteps), "Saved " + plan.changes + (plan.changes === 1 ? " change" : " changes") + "." + (moved ? " " + moved + " files moved and checked." : renameSteps.length ? " Folder renamed and checked." : ""));
+      break;
+    case "rs-model": t.model = v; break;
+    case "rs-keep": t.keep = !t.keep; break;
+    case "rs-run":
+      if (editBlocked()) break;
+      var mdl = t.model === "claude" ? "Claude" : t.model === "lfm" ? "LFM3-1.7B" : "Qwen3-8B", keepE = t.keep;
+      s.stack = [];
+      sortJob(P, "Re-sorting " + (summary(s).ok + summary(s).w) + " items with " + mdl + "…", function () {
+        assignWaiting(s);
+        if (!keepE) { s.items.forEach(function (x) { x.ln = false; x.lc = false; }); s.cats.forEach(function (c) { c.by = "model"; }); }
+        say(P, "Re-sorted into " + s.cats.length + " categories. Nothing on disk changed; Bin Files moves what's out of place.");
+      });
+      break;
+    case "f-retry":
+      var fi = itemById(s, t.id); fi.st = "analyzing"; s.stack = [];
+      say(P, "Queued for analysis.");
+      setTimeout(function () { fi.st = "failed"; fi.attempts++; say(P, "Still couldn't decode " + fi.orig + ". Set it by hand or remove it."); render(P); }, 3000);
+      break;
+    case "f-manual": t.manual = true; P.focus = P.id + "-fname"; break;
+    case "f-manual-off": t.manual = false; break;
+    case "f-remove": s.dialog = { ids: [t.id], fromSheet: true }; break;
+    case "f-save":
+      if (editBlocked()) break;
+      var fz = itemById(s, t.id); fz.n = t.draft.n.trim(); fz.sugg = ""; fz.c = t.draft.newCat ? makeCat(s, t.draft.newCat) : t.draft.c;
+      fz.ln = true; fz.lc = true; fz.st = "ok"; fz.p = "none"; s.stack = [];
+      say(P, "Saved. The clip is binned at the next Bin Files.");
+      break;
+  }
+  render(P);
+}
+
+/* ------------------------------------------------------------ phone mount */
+var PHONES = [];
+function render(P) {
+  var el = P.el, ae = document.activeElement, fid = null, ss = 0, se = 0;
+  if (ae && el.contains(ae) && ae.id) { fid = ae.id; try { ss = ae.selectionStart; se = ae.selectionEnd; } catch (e) {} }
+  var keep = {}; el.querySelectorAll("[data-keep]").forEach(function (n) { keep[n.dataset.keep] = n.scrollTop; });
+  el.innerHTML = screen(P);
+  el.querySelectorAll("[data-keep]").forEach(function (n) { if (keep[n.dataset.keep]) n.scrollTop = keep[n.dataset.keep]; });
+  var want = P.focus || fid; P.focus = null;
+  if (want) { var f = document.getElementById(want); if (f) { f.focus({ preventScroll: true }); if (fid === want && f.setSelectionRange) try { f.setSelectionRange(ss, se); } catch (e) {} } }
+}
+function mount(el, preset, theme, n) {
+  var P = { el: el, id: "p" + n, s: null, seen: {}, preset: preset };
+  el.className = "ph " + theme;
+  setup(P);
+  el.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-a]"); if (!t || !el.contains(t)) return;
+    if (t.dataset.tile && P.lp) { P.lp = false; return; }
+    if (t.getAttribute("aria-disabled") === "true" && t.dataset.a !== "bin") return;
+    if (t.disabled) return;
+    act(P, t.dataset.a, t.dataset.v);
+  });
+  el.addEventListener("input", function (e) {
+    var k = e.target.dataset.in; if (!k) return; var s = P.s, t = topSheet(s), v = e.target.value;
+    if (k === "q") s.q = v; else if (k === "d-name") t.draft.n = v; else if (k === "f-name") t.draft.n = v;
+    else if (k === "pk-new") t.newName = v; else if (k === "ce-ren") t.editVal = v;
+    render(P);
+  });
+  el.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.dataset && e.target.dataset.enter) { e.preventDefault(); act(P, e.target.dataset.enter); }
+    if (e.key === "Escape") { if (P.s.dialog) act(P, "dlg-cancel"); else if (P.s.stack.length) act(P, "close"); else if (P.s.select) act(P, "select-off"); }
+  });
+  el.addEventListener("pointerdown", function (e) {
+    P.lp = false; var t = e.target.closest("[data-tile]"); if (!t || P.s.select) return;
+    var sx = e.clientX, sy = e.clientY; clearTimeout(P.lpt);
+    P.lpt = setTimeout(function () { P.lp = true; P.s.select = true; P.s.sel = [t.dataset.tile]; render(P); if (navigator.vibrate) try { navigator.vibrate(12); } catch (x) {} }, 480);
+    P.lpm = function (ev) { if (Math.abs(ev.clientX - sx) > 8 || Math.abs(ev.clientY - sy) > 8) clearTimeout(P.lpt); };
+  });
+  el.addEventListener("pointermove", function (e) { if (P.lpm) P.lpm(e); });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) { el.addEventListener(ev, function () { clearTimeout(P.lpt); P.lpm = null; }); });
+  el.addEventListener("contextmenu", function (e) { if (e.target.closest("[data-tile]")) e.preventDefault(); });
+  PHONES.push(P);
+  return P;
+}
+function setup(P) {
+  clearInterval(P.jt); clearTimeout(P.tt);
+  var s = fresh(); P.s = s; P.seen = {};
+  var pr = P.preset;
+  if (pr === "category") s.cat = "fire";
+  if (pr === "detail") push(s, { type: "detail", id: "x1", draft: { n: "Fire Dancers Night", c: "fire", newCat: null, unlockN: false, unlockC: false }, title: "Item details" });
+  if (pr === "picker") {
+    push(s, { type: "detail", id: "t1", draft: { n: "Sea Turtles Resting Sand", c: "turtle", newCat: null, unlockN: false, unlockC: false }, title: "Item details" });
+    push(s, { type: "picker", mode: "detail", newOpen: false, newName: "", title: "Choose a category" });
+  }
+  if (pr === "select" || pr === "remove") { s.select = true; s.sel = ["b1", "u1", "t1", "u3"]; }
+  if (pr === "remove") s.dialog = { ids: ["b1", "u1", "t1", "u3"] };
+  if (pr === "rename") push(s, { type: "catedit", renames: {}, merges: [], ticked: [], keep: null, editing: "turtle", editVal: "Sea Turtles", title: "Edit categories" });
+  if (pr === "merge") push(s, { type: "catedit", renames: {}, merges: [], ticked: ["turtle", "beach"], keep: "beach", editing: null, editVal: "", title: "Edit categories" });
+  if (pr === "saving") {
+    var sh = { renames: {}, merges: [{ keep: "beach", drop: "turtle" }] };
+    var plan = planCat(s, sh);
+    s.items.forEach(function (x) { if (x.c === "turtle") x.c = "beach"; });
+    catById(s, "beach").by = "user";
+    s.cats = s.cats.filter(function (c) { return c.id !== "turtle"; });
+    s.job = { type: "save", steps: plan.steps.map(function (x) { x.state = "wait"; return x; }), i: 1, msg: "Saved 1 change. 3 files moved and checked.", frozen: true };
+    s.job.steps[0].state = "done"; s.job.steps[1].state = "verify";
+    var first = itemById(s, s.job.steps[0].item); first.bin = { folder: "Beach Scenes", file: first.bin.file }; catById(s, "beach").folder = "Beach Scenes";
+    s.cat = "beach";
+  }
+  if (pr === "resort") push(s, { type: "resort", model: "claude", keep: true, title: "Re-sort project" });
+  if (pr === "failed") push(s, { type: "failed", id: "z1", manual: false, draft: { n: "", c: null, newCat: null }, title: "Couldn't analyze" });
+  if (pr === "search") s.q = "turtle";
+  if (pr === "empty") s.empty = true;
+  render(P);
+  if (pr === "saving") { var P2 = P; setTimeout(function () { var g = P2.el.querySelector("[data-keep=grid]"); if (g) g.scrollTop = 0; }, 0); }
+}
+
+/* ------------------------------------------------------------ page builder */
+var STATES = [
+  { id: "default", no: "1", title: "Default view", preset: "default",
+    body: "The header, search, the categories row with counts, the secondary filters, the tile grid and the pipeline status line. Waiting and Failed sit at the front of the categories row because they need attention. Binned tiles carry a folder tick.",
+    tryit: ["Tap a category chip, then tap it again to clear it.", "Tap a tile to open its detail sheet.", "Long-press a tile, or tap Select, to enter select mode.", "Tap Re-sort, or Categorize now in the status line.", "Tap Bin Files: it is greyed out while 3 items wait for a category."] },
+  { id: "category", no: "2", title: "One category selected", preset: "category",
+    body: "Fire Performance is picked. The result line names the category and its count. The other filters still apply on top.",
+    tryit: ["Tap All to go back.", "Open the Fire Dancers Night clip."] },
+  { id: "detail", no: "3", title: "Detail sheet", preset: "detail",
+    body: "The media, an editable friendly name and the category, then the description, the Actions timeline (videos only), tags and file details. The name carries a Set by you lock because the user renamed this clip earlier; sorting never touches it. Nothing changes until Save.",
+    tryit: ["Edit the name: the marker changes to “Set by you when you save” and Save turns on.", "Tap Unlock to hand the name back to sorting.", "Tap the category to pick another one."] },
+  { id: "picker", no: "3b", title: "Category picker with New category…", preset: "picker",
+    body: "The picker stacks over the detail sheet of a binned photo. New category… is first; it makes a category of yours. Locks mark your categories and folders mark categories that are already binned.",
+    tryit: ["Tap New category…, type a name and Add. Typing “turtle beaches” is caught as a duplicate.", "Pick Beach Scenes, then Save and move file: the save progress runs for one file."] },
+  { id: "select", no: "4", title: "Select mode and bulk actions", preset: "select",
+    body: "Four tiles are ticked: two waiting items, one sorted photo and one binned photo. The bottom bar swaps to the bulk actions: Move to category and Remove from project.",
+    tryit: ["Tick or untick tiles; Select all respects the current filter.", "Move to category → pick one → Save: the binned photo moves right away, the rest at the next Bin Files.", "Tap ✕ to leave select mode."] },
+  { id: "remove", no: "4b", title: "Remove from project", preset: "remove",
+    body: "Removing never deletes a file. The dialog says where the files stay and that one of them sits in a category folder.",
+    tryit: ["Remove, then look at the counts and the status line."] },
+  { id: "rename", no: "5a", title: "Category Edit: rename", preset: "rename",
+    body: "Edit on the categories row opens the list. Turtle Beach is being renamed to Sea Turtles. It already has a folder, so the row and the footer say Save renames the folder right away.",
+    tryit: ["Tap the tick to stage the rename, then Save.", "Rename another category to an existing name to see the duplicate check."] },
+  { id: "merge", no: "5b", title: "Category Edit: merge two", preset: "merge",
+    body: "Turtle Beach and Beach Scenes are ticked. The merge box asks which name survives and says what each choice does to files: keeping Beach Scenes moves the 3 binned turtle files now; keeping Turtle Beach moves nothing now.",
+    tryit: ["Switch the surviving name and read the consequence.", "Merge, then Save to watch state 6 run."] },
+  { id: "saving", no: "6", title: "Save in progress", preset: "saving",
+    body: "Saving the merge from 5b: three binned files move from Turtle Beach into a new Beach Scenes folder, one at a time, each copied, verified, then the original deleted. Then the empty folder is removed and the counts are checked. This frame is held at file 2 of 3.",
+    tryit: ["Tap Edit, Select or Re-sort: they tell you edits wait.", "Open a tile: Save in the sheet reads “Waits for the current save”.", "Search and filters still work."] },
+  { id: "resort", no: "7", title: "Re-sort project", preset: "resort",
+    body: "The model picker defaults to the Settings choice (Claude). Keep my edits is ticked. The sheet says what changes (only the database) and what doesn't (files move at the next Bin Files), with a cost note for Claude.",
+    tryit: ["Pick LFM3-1.7B or Qwen3-8B: the note changes and the cost note goes.", "Untick Keep my edits.", "Re-sort: the status line shows the run, then the waiting items get categories and Bin Files turns on."] },
+  { id: "failed", no: "8", title: "A failed item", preset: "failed",
+    body: "VID_20260718_175109.mp4 couldn't be decoded. Its tile has an amber Failed badge and the Failed chip filters to it. The sheet offers Retry, Set name and category by hand, and Remove from project. Failed items don't block Bin Files.",
+    tryit: ["Set by hand → name and category → Save: it becomes a normal item.", "Retry: it analyzes, then fails again on this file."] },
+  { id: "search", no: "9", title: "Search results", preset: "search",
+    body: "“turtle” searches names, category names, tags, actions and descriptions. Tiles found through something other than the name say where they matched, and categories with no matches drop out of the row.",
+    tryit: ["Try “sunset”, “gecko”, “luau” or “dashboard”.", "Pick a category chip to narrow the results."] },
+  { id: "empty", no: "10", title: "Empty project", preset: "empty",
+    body: "A new project with nothing in it. The two add buttons match the project sheet. Search is off and Bin Files is greyed out.",
+    tryit: [] }
+];
+var DOCKS = [
+  ["Analysis running. Bin Files is off while items are pending or analyzing.", { tone: "run", text: "Analyzing 12 left", binOn: false, count: 0 }],
+  ["Sorting after a batch, or Categorize now, or Re-sort.", { tone: "run", text: "Categorizing…", binOn: false, count: 0 }],
+  ["Some items have no category yet. Bin Files waits for them.", { tone: "warn", text: "34 files ready to bin · 3 waiting to be categorized", action: { a: "categorize", label: "Categorize now" }, binOn: false, count: 0 }],
+  ["Ready. A failed item doesn't block Bin Files.", { tone: "ok", text: "37 files ready to bin · 1 failed", binOn: true, count: 37 }],
+  ["A Save is moving binned files. Everything else waits.", { tone: "run", text: "Saving · moving 2 of 3 files", binOn: false, count: 0 }],
+  ["Every file is in its folder.", { tone: "", text: "All files binned", binOn: false, count: 0 }]
+];
+(function build() {
+  var legend = [["folderCheck", "Binned: the file is in its category folder"], ["lock", "Set by you: sorting won't change it"], ["clock", "Waiting to be categorized"], ["alert", "Failed"], ["folder", "Category has a folder"]];
+  document.getElementById("legend").innerHTML = legend.map(function (l) { return "<li>" + ic(l[0], 16) + l[1] + "</li>"; }).join("");
+  var idx = STATES.map(function (s) { return '<li><a href="#' + s.id + '"><span>' + s.no + "</span>" + s.title + "</a></li>"; }).join("") + '<li><a href="#dock"><span>+</span>Status line and Bin Files</a></li>';
+  document.getElementById("index").innerHTML = idx;
+  var host = document.getElementById("states"), n = 0, html = "";
+  STATES.forEach(function (st) {
+    html += '<section class="state" id="' + st.id + '"><div class="notes"><p class="no">STATE ' + st.no + "</p><h2>" + st.title + "</h2><p>" + st.body + "</p>";
+    if (st.tryit.length) html += '<p class="tag">Try</p><ul>' + st.tryit.map(function (t) { return "<li>" + t + "</li>"; }).join("") + "</ul>";
+    html += '<button class="reset" data-reset="' + st.id + '">Reset this state</button></div><div class="pair">';
+    ["dark", "light"].forEach(function (th) { html += '<figure><div class="wrap"><div data-preset="' + st.preset + '" data-theme-name="' + th + '" data-state="' + st.id + '"></div></div><figcaption>' + (th === "dark" ? "Dark" : "Light") + "</figcaption></figure>"; });
+    html += "</div></section>";
+  });
+  html += '<section class="state" id="dock"><div class="notes"><p class="no">STATUS LINE</p><h2>Status line and Bin Files</h2><p>The pipeline status sits on top of the bottom bar. Bin Files is on only when files are waiting to move, nothing is pending, analyzing or waiting to be categorized, and no other job runs. Failed and missing items don\'t block it. Its own flow comes with Plan 3.</p></div><div class="docks">';
+  DOCKS.forEach(function (d) {
+    ["dark", "light"].forEach(function (th) {
+      html += '<div class="dockcard"><div class="dk ph-static ' + th + '"><div class="blobs" aria-hidden="true"><i></i><i></i><i></i></div>' + dock(d[1], true) + "</div><p>" + d[0] + " · " + th + "</p></div>";
+    });
+  });
+  html += "</div></section>";
+  host.innerHTML = html;
+  host.querySelectorAll(".dk").forEach(function (dk) {
+    var light = dk.classList.contains("light");
+    dk.className = "dk ph " + (light ? "light" : "");
+    dk.style.cssText = "position:relative;width:auto;height:auto;transform:none;border-radius:26px";
+  });
+  host.querySelectorAll("[data-preset]").forEach(function (el) { mount(el, el.dataset.preset, el.dataset.themeName, ++n); });
+  host.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-reset]"); if (!b) return;
+    PHONES.forEach(function (P) { if (P.el.dataset.state === b.dataset.reset) setup(P); });
+  });
+  function fit() { document.querySelectorAll(".wrap").forEach(function (w) { var ph = w.firstElementChild; if (ph && w.clientWidth) ph.style.setProperty("--k", (w.clientWidth / 412).toFixed(4)); }); }
+  fit();
+  if (window.ResizeObserver) { var ro = new ResizeObserver(fit); document.querySelectorAll(".wrap").forEach(function (w) { ro.observe(w); }); }
+  window.addEventListener("resize", fit);
+})();
+</script>
+</body>
+</html>
