@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 /**
  * Keeps analysis alive with the screen off or the app in the background: a foreground service with
  * a progress notification (Pause/Resume and Stop actions) and a partial wake lock, held while the
- * [PipelineController] is running. It stops itself once the controller is Idle or Stopped.
+ * [PipelineController] is working (not while Paused). It stops itself once the controller is Idle or Stopped.
  */
 class AnalysisService : LifecycleService() {
     private val controller: PipelineController get() = (application as BinningApp).graph.pipeline
@@ -88,7 +88,8 @@ class AnalysisService : LifecycleService() {
                         stopSelf(lastStartId)
                         return@collect
                     }
-                    holdWakeLock()
+                    // Paused holds the model but runs nothing: let the CPU sleep until Resume.
+                    if (model.phase == PipelinePhase.Paused) releaseWakeLock() else holdWakeLock()
                     notificationManager().notify(NOTIFICATION_ID, buildNotification(controller.state.value))
                 }
         }
