@@ -66,6 +66,8 @@ class MediaPreparer(private val workDir: File) {
 
     private fun preparePhoto(source: File, dir: File, thumb: File, targetEdge: Int): PreparedMedia {
         // ALLOCATOR_SOFTWARE plus a 1,536 px cap applies EXIF rotation and avoids OOM on 200 MP photos.
+        // DNG goes through the same path: the platform's raw codec develops it straight to the capped
+        // size in about 60-110 ms (measured on the S26 with 37-46 MB files), upright, same as its JPG twin.
         val decoded = try {
             ImageDecoder.decodeBitmap(ImageDecoder.createSource(source)) { decoder, info, _ ->
                 decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE

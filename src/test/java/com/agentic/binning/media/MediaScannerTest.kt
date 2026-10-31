@@ -39,6 +39,17 @@ class MediaScannerTest {
         assertEquals(emptyList<File>(), MediaScanner.scan(File(root, "nope"), exclude = { false }).toList())
     }
 
+    @Test fun dng_isAPhotoByExtension_inAnyCase() {
+        assertEquals(ItemKind.Photo, MediaScanner.kindOf(File("a/PXL_1.dng")))
+        assertEquals(ItemKind.Photo, MediaScanner.kindOf(File("a/PXL_1.DNG")))
+    }
+
+    @Test fun scan_findsDngNextToItsJpgTwin_asSeparateFiles() {
+        listOf("raw/IMG_1.dng", "raw/IMG_1.jpg", "raw/IMG_2.DNG").forEach(::touch)
+        val found = MediaScanner.scan(File(root, "raw"), exclude = { false }).map { it.name }.toList()
+        assertEquals(listOf("IMG_1.dng", "IMG_1.jpg", "IMG_2.DNG"), found)
+    }
+
     @Test fun kindOf_isCaseInsensitiveByExtension() {
         assertEquals(ItemKind.Photo, MediaScanner.kindOf(File("a/B.HEIC")))
         assertEquals(ItemKind.Photo, MediaScanner.kindOf(File("a.webp")))

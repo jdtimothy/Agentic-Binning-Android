@@ -5,7 +5,7 @@ import java.io.File
 import java.util.Locale
 
 object MediaScanner {
-    val PHOTO_EXT = setOf("jpg", "jpeg", "png", "heic", "heif", "webp")
+    val PHOTO_EXT = setOf("jpg", "jpeg", "png", "heic", "heif", "webp", "dng")
     val VIDEO_EXT = setOf("mp4", "mov", "m4v", "3gp", "mkv", "webm")
 
     /** The media kind of [file] judged by its extension, or null if it is not a supported type. */
