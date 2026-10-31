@@ -9,8 +9,10 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.agentic.binning.AppGraph
 import com.agentic.binning.db.ItemTotals
@@ -72,9 +74,9 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
     private var registering by mutableStateOf(false)
     private var creating by mutableStateOf(false)
 
-    /** Set by [ProjectSheetHost], which owns the system picker launchers. */
-    internal var launchFolderPicker: () -> Unit = {}
-    internal var launchFilesPicker: () -> Unit = {}
+    /** Set by [ProjectSheetHost], which owns the system picker launchers and records where the result goes. */
+    internal var launchFolderPicker: (PickFor) -> Unit = {}
+    internal var launchFilesPicker: (PickFor) -> Unit = {}
 
     internal val currentProject get() = graph.currentProject
 
@@ -103,29 +105,49 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
         creating = creating,
     )
 
-    /** A folder from the system picker: held on the New project page, otherwise added to the current project. */
-    internal fun onFolderPicked(uri: Uri?) {
+    /** A folder from the system picker, for the [target] recorded when the picker was launched. */
+    internal fun onFolderPicked(uri: Uri?, target: PickFor?) {
+        val route = routePick(target, hasResult = uri != null)
         if (uri == null) return
-        if (page == SheetPage.NewProject) {
-            held = HeldMedia.Folder(uri)
-        } else {
-            runRegistration { progress -> graph.addFolder(uri, progress) }
+        when (route) {
+            PickRoute.Ignore -> Unit
+            PickRoute.AddToCurrent -> runRegistration { progress -> graph.addFolder(uri, progress) }
+            PickRoute.HoldForNewProject -> holdForNewProject(HeldMedia.Folder(uri))
         }
     }
 
-    /** Photos and clips from the system picker: held on the New project page, otherwise added to the current project. */
-    internal fun onFilesPicked(uris: List<Uri>) {
-        if (uris.isEmpty()) return
-        if (page == SheetPage.NewProject) {
-            held = HeldMedia.Files(uris)
-        } else {
-            runRegistration { progress -> graph.addFiles(uris, progress) }
+    /** Photos and clips from the system picker, for the [target] recorded when the picker was launched. */
+    internal fun onFilesPicked(uris: List<Uri>, target: PickFor?) {
+        when (routePick(target, hasResult = uris.isNotEmpty())) {
+            PickRoute.Ignore -> Unit
+            PickRoute.AddToCurrent -> runRegistration { progress -> graph.addFiles(uris, progress) }
+            PickRoute.HoldForNewProject -> holdForNewProject(HeldMedia.Files(uris))
         }
     }
 
-    override fun onPickFolder() = launchFolderPicker()
+    /**
+     * Holds [media] on the New project page. If the activity was recreated while the picker was open,
+     * this controller is fresh (sheet closed, main page), so the sheet reopens on New project.
+     */
+    private fun holdForNewProject(media: HeldMedia) {
+        held = media
+        if (!visible || page != SheetPage.NewProject) {
+            page = SheetPage.NewProject
+            switchError = null
+            refreshProjects()
+            visible = true
+        }
+    }
 
-    override fun onPickFiles() = launchFilesPicker()
+    private fun pickTarget(): PickFor = if (page == SheetPage.NewProject) PickFor.NewProject else PickFor.Current
+
+    override fun onPickFolder() {
+        if (!creating) launchFolderPicker(pickTarget())
+    }
+
+    override fun onPickFiles() {
+        if (!creating) launchFilesPicker(pickTarget())
+    }
 
     override fun onNewProject() {
         resetNewProject()
@@ -133,7 +155,7 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
     }
 
     override fun onBack() {
-        page = SheetPage.Main
+        if (!creating) page = SheetPage.Main
     }
 
     override fun onNameChange(name: String) {
@@ -146,6 +168,7 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
     }
 
     override fun onSwitch(ref: ProjectRef) {
+        if (creating) return
         switchError = null
         if (registering) {
             switchError = ADDING_IN_PROGRESS
@@ -249,25 +272,41 @@ fun rememberProjectSheetController(graph: AppGraph, scope: CoroutineScope): Proj
 /** Owns the system pickers and shows [controller]'s sheet while it is open. */
 @Composable
 fun ProjectSheetHost(controller: ProjectSheetController) {
-    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) {
-        controller.onFolderPicked(it)
+    // Saved with the activity: a picker result can reach a recreated activity and a fresh controller,
+    // so where it goes is recorded at launch rather than read from the controller's page.
+    var pickFor by rememberSaveable { mutableStateOf<PickFor?>(null) }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        val target = pickFor
+        pickFor = null
+        controller.onFolderPicked(uri, target)
     }
-    val filesPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) {
-        controller.onFilesPicked(it)
+    val filesPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        val target = pickFor
+        pickFor = null
+        controller.onFilesPicked(uris, target)
     }
     SideEffect {
-        controller.launchFolderPicker = { folderPicker.launch(null) }
-        controller.launchFilesPicker = { filesPicker.launch(arrayOf("image/*", "video/*")) }
+        controller.launchFolderPicker = { target ->
+            pickFor = target
+            folderPicker.launch(null)
+        }
+        controller.launchFilesPicker = { target ->
+            pickFor = target
+            filesPicker.launch(arrayOf("image/*", "video/*"))
+        }
     }
     if (!controller.visible) return
 
     val open by controller.currentProject.collectAsState()
-    val counts by remember(open) {
-        val project = open
-        project?.db?.items()?.observeTotals()
-            // The database closes on a project switch, possibly before this collector moves on.
-            ?.catch { e -> Log.w(TAG, "Item counts of ${project.ref.name} stopped", e) }
-            ?: flowOf(null)
-    }.collectAsState(initial = null)
+    // Keyed by project, so a switch starts from no counts instead of showing the previous project's.
+    val counts = key(open?.ref?.path) {
+        remember(open) {
+            val project = open
+            project?.db?.items()?.observeTotals()
+                // The database closes on a project switch, possibly before this collector moves on.
+                ?.catch { e -> Log.w(TAG, "Item counts of ${project.ref.name} stopped", e) }
+                ?: flowOf(null)
+        }.collectAsState(initial = null).value
+    }
     ProjectSheet(controller.state(open?.ref, counts), controller)
 }

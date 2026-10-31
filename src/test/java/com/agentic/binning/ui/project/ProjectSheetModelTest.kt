@@ -1,8 +1,13 @@
 package com.agentic.binning.ui.project
 
 import com.agentic.binning.project.ProjectRef
+import com.agentic.binning.ui.theme.DarkGlass
+import com.agentic.binning.ui.theme.LightGlass
+import com.agentic.binning.ui.theme.contrastRatio
+import com.agentic.binning.ui.theme.over
 import java.util.Locale
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProjectSheetModelTest {
@@ -75,5 +80,37 @@ class ProjectSheetModelTest {
     fun startPageIsNewProjectWithoutACurrentProject() {
         assertEquals(SheetPage.NewProject, startPage(null))
         assertEquals(SheetPage.Main, startPage(trip))
+    }
+
+    @Test
+    fun pickFromTheMainPageIsAddedToTheCurrentProject() {
+        assertEquals(PickRoute.AddToCurrent, routePick(PickFor.Current, hasResult = true))
+    }
+
+    @Test
+    fun pickFromTheNewProjectPageIsHeld() {
+        assertEquals(PickRoute.HoldForNewProject, routePick(PickFor.NewProject, hasResult = true))
+    }
+
+    @Test
+    fun pickWithoutARecordedTargetIsIgnoredNeverAdded() {
+        assertEquals(PickRoute.Ignore, routePick(null, hasResult = true))
+    }
+
+    @Test
+    fun cancelledPickIsIgnored() {
+        assertEquals(PickRoute.Ignore, routePick(PickFor.Current, hasResult = false))
+        assertEquals(PickRoute.Ignore, routePick(PickFor.NewProject, hasResult = false))
+    }
+
+    @Test
+    fun darkOutlineIsTheBorderToken() {
+        assertEquals(DarkGlass.border, sheetOutline(DarkGlass))
+    }
+
+    @Test
+    fun lightOutlineIsVisibleOnTheSheet() {
+        val surface = LightGlass.glassStrong.over(LightGlass.bg)
+        assertTrue(contrastRatio(sheetOutline(LightGlass).over(surface), surface) >= 3.0)
     }
 }

@@ -33,7 +33,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -125,8 +124,12 @@ fun ProjectSheet(state: ProjectSheetState, actions: ProjectSheetActions) {
     val scope = rememberCoroutineScope()
     val onNewProjectPage = state.page == SheetPage.NewProject
 
-    /** Back on the New project page: to the main page, or closes the sheet when there is no project. */
-    val back: () -> Unit = {
+    /**
+     * Back on the New project page: to the main page, or closes the sheet when there is no project.
+     * Ignored while the project is being created.
+     */
+    val back: () -> Unit = back@{
+        if (state.creating) return@back
         if (state.current == null) {
             scope.launch { sheetState.hide() }.invokeOnCompletion { actions.onDismiss() }
         } else {
@@ -142,9 +145,10 @@ fun ProjectSheet(state: ProjectSheetState, actions: ProjectSheetActions) {
         scrimColor = Color.Black.copy(alpha = 0.4f),
         tonalElevation = 0.dp,
         dragHandle = null,
-        // On the New project page, Back goes to the main page (handled below) instead of closing.
-        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = !onNewProjectPage),
     ) {
+        // On the New project page, Back goes to the main page instead of closing: this handler takes
+        // it before the sheet does. (ModalBottomSheetProperties is read only when the sheet window is
+        // created, so switching shouldDismissOnBackPress per page left Back dead on the main page.)
         BackHandler(enabled = onNewProjectPage, onBack = back)
         // The sheet lives in its own window, so the screen's backdrop blur cannot reach it:
         // an opaque base under a strong glass fill instead.
@@ -179,7 +183,7 @@ fun ProjectSheet(state: ProjectSheetState, actions: ProjectSheetActions) {
 @Composable
 private fun ColumnScope.MainPage(state: ProjectSheetState, actions: ProjectSheetActions) {
     val tokens = LocalGlassTokens.current
-    val canAddMedia = state.current != null && state.registration == null
+    val canAddMedia = state.current != null && state.registration == null && !state.creating
 
     state.current?.let { current ->
         Text("Current project", color = tokens.sub, fontSize = 12.sp)
@@ -239,8 +243,9 @@ private fun NewProjectPage(state: ProjectSheetState, actions: ProjectSheetAction
                 .padding(end = 4.dp)
                 .minimumInteractiveComponentSize()
                 .size(40.dp)
+                .alpha(if (state.creating) 0.4f else 1f)
                 .clip(CircleShape)
-                .clickable(role = Role.Button, onClickLabel = "Back", onClick = onBack),
+                .clickable(enabled = !state.creating, role = Role.Button, onClickLabel = "Back", onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
             Icon(ProjectIcons.ArrowLeft, contentDescription = "Back", tint = tokens.text, modifier = Modifier.size(22.dp))
@@ -268,7 +273,7 @@ private fun NewProjectPage(state: ProjectSheetState, actions: ProjectSheetAction
             unfocusedTextColor = tokens.text,
             cursorColor = tokens.accent,
             focusedBorderColor = tokens.accent,
-            unfocusedBorderColor = tokens.border,
+            unfocusedBorderColor = sheetOutline(tokens),
             errorBorderColor = tokens.warn,
             errorTextColor = tokens.text,
             errorCursorColor = tokens.warn,
@@ -282,6 +287,7 @@ private fun NewProjectPage(state: ProjectSheetState, actions: ProjectSheetAction
             "A folder",
             ProjectIcons.Folder,
             selected = state.selection is MediaChoice.Folder,
+            enabled = !state.creating,
             modifier = Modifier.weight(1f),
             onClick = actions::onPickFolder,
         )
@@ -289,6 +295,7 @@ private fun NewProjectPage(state: ProjectSheetState, actions: ProjectSheetAction
             "Photos and clips",
             ProjectIcons.Photo,
             selected = state.selection is MediaChoice.Files,
+            enabled = !state.creating,
             modifier = Modifier.weight(1f),
             onClick = actions::onPickFiles,
         )
@@ -316,8 +323,9 @@ private fun NewProjectPage(state: ProjectSheetState, actions: ProjectSheetAction
             Box(
                 Modifier
                     .minimumInteractiveComponentSize()
+                    .alpha(if (state.creating) 0.4f else 1f)
                     .clip(CircleShape)
-                    .clickable(role = Role.Button) {
+                    .clickable(enabled = !state.creating, role = Role.Button) {
                         if (selection is MediaChoice.Folder) actions.onPickFolder() else actions.onPickFiles()
                     }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -356,7 +364,7 @@ private fun PillButton(
             .alpha(if (enabled) 1f else 0.4f)
             .clip(CircleShape)
             .background(if (primary) tokens.accent else tokens.chip)
-            .border(1.dp, if (primary) Color.Transparent else tokens.border, CircleShape)
+            .border(1.dp, if (primary) Color.Transparent else sheetOutline(tokens), CircleShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
@@ -415,16 +423,24 @@ private fun ProjectRow(ref: ProjectRef, onClick: () -> Unit) {
 }
 
 @Composable
-private fun MediaTile(label: String, icon: ImageVector, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun MediaTile(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    enabled: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
     val tokens = LocalGlassTokens.current
     val shape = RoundedCornerShape(14.dp)
     Column(
         modifier
             .heightIn(min = 88.dp)
+            .alpha(if (enabled) 1f else 0.4f)
             .clip(shape)
             .background(if (selected) tokens.tagBg else tokens.chip)
-            .border(if (selected) 1.5.dp else 1.dp, if (selected) tokens.accent else tokens.border, shape)
-            .clickable(role = Role.Button, onClick = onClick)
+            .border(if (selected) 1.5.dp else 1.dp, if (selected) tokens.accent else sheetOutline(tokens), shape)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
