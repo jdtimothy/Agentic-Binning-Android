@@ -35,6 +35,7 @@ import com.agentic.binning.model.VisionModel
 import com.agentic.binning.model.VisionModelException
 import com.agentic.binning.model.VisionProfile
 import com.agentic.binning.pipeline.AnalysisEngine
+import com.agentic.binning.pipeline.AnalysisLauncher
 import com.agentic.binning.pipeline.AnalysisService
 import com.agentic.binning.pipeline.AnalysisStore
 import com.agentic.binning.pipeline.BatchCompleteHandler
@@ -42,8 +43,8 @@ import com.agentic.binning.pipeline.FailureReasons
 import com.agentic.binning.pipeline.ItemCounts
 import com.agentic.binning.pipeline.PipelineController
 import com.agentic.binning.pipeline.PipelineLog
-import com.agentic.binning.pipeline.PipelinePhase
 import com.agentic.binning.pipeline.Preparer
+import com.agentic.binning.pipeline.ProjectRunFlags
 import com.agentic.binning.project.OpenProject
 import com.agentic.binning.project.ProjectFolders
 import com.agentic.binning.project.ProjectMissingException
@@ -200,25 +201,60 @@ class AppGraph(val context: Context) {
         false
     }
 
-    /** Starts analysis of [project] if it has items waiting for it. */
-    private suspend fun startAnalysisIfPending(project: OpenProject) {
-        if (hasPendingItems(project)) startAnalysis(project.ref)
+    private val launcher by lazy { AnalysisLauncher({ pipeline.state.value }, ::startAnalysis, pipeline::stop) }
+
+    /** [project]'s waiting items and its remembered Stop, for [launcher]. */
+    private fun runFlags(project: OpenProject) = object : ProjectRunFlags {
+        override suspend fun hasWaitingItems(): Boolean {
+            val items = project.db.items()
+            return items.countByStatus(ItemStatus.Pending) + items.countByStatus(ItemStatus.Analyzing) > 0
+        }
+
+        override suspend fun isStoppedByUser(): Boolean = project.db.meta().isStoppedByUser() == true
+
+        override suspend fun setStoppedByUser(stopped: Boolean) = project.db.meta().setStoppedByUser(stopped)
     }
 
     /**
      * Picks up [project]'s Pending or Analyzing items on launch, after a switch and on resume (a run is
      * not persisted, so a process death would otherwise leave them waiting). Leaves a run alone that
-     * is already going, or that the user stopped.
+     * is already going, or that the user stopped (remembered across launches).
      */
     private suspend fun resumeAnalysisIfPending(project: OpenProject) {
-        val state = pipeline.state.value
-        if (state.project == project.ref && (state.phase.isRunning || state.phase == PipelinePhase.Stopped)) return
-        startAnalysisIfPending(project)
+        launcher.autoStart(project.ref, runFlags(project))
     }
 
-    private suspend fun hasPendingItems(project: OpenProject): Boolean {
-        val items = project.db.items()
-        return items.countByStatus(ItemStatus.Pending) + items.countByStatus(ItemStatus.Analyzing) > 0
+    /** After media is added: lifts a Stop and starts anything waiting. */
+    private suspend fun startAnalysisAfterAdd(project: OpenProject) {
+        launcher.userStart(project.ref, runFlags(project))
+    }
+
+    /** The Stop button (screen or notification): stops the run and remembers it for the open project. */
+    fun stopAnalysis() {
+        val open = _currentProject.value
+        if (open == null) {
+            pipeline.stop()
+            return
+        }
+        appScope.launch {
+            try {
+                launcher.userStop(runFlags(open))
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not remember the stop for ${open.ref.name}", e)
+            }
+        }
+    }
+
+    /** The Resume button after a stop (or with nothing running): lifts the Stop and starts [ref]'s waiting items. */
+    fun resumeAnalysis(ref: ProjectRef) {
+        val open = _currentProject.value?.takeIf { it.ref == ref } ?: return
+        appScope.launch {
+            try {
+                launcher.userStart(ref, runFlags(open))
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not resume analysis of ${ref.name}", e)
+            }
+        }
     }
 
     /**
@@ -231,7 +267,7 @@ class AppGraph(val context: Context) {
             try {
                 val deferred = deferredStart == open.ref
                 deferredStart = null
-                if (deferred) startAnalysisIfPending(open) else resumeAnalysisIfPending(open)
+                if (deferred) launcher.retryDeferred(open.ref, runFlags(open)) else resumeAnalysisIfPending(open)
             } catch (e: Exception) {
                 Log.w(TAG, "Could not start analysis on resume", e)
             }
@@ -332,14 +368,14 @@ class AppGraph(val context: Context) {
      * Registers every supported photo and video under the folder behind [treeUri] with the current
      * project. Other projects' folders and the current project's `.binning` folder are not entered.
      * [onProgress] is called once per file; [onRegistered] after the run completes (by default it
-     * starts analysis if the project has Pending items; it never fails the registration).
+     * lifts a Stop and starts analysis if the project has Pending items; it never fails the registration).
      *
      * @throws IllegalStateException if no project is open.
      */
     suspend fun addFolder(
         treeUri: Uri,
         onProgress: (RegistrationProgress) -> Unit,
-        onRegistered: suspend (OpenProject) -> Unit = ::startAnalysisIfPending,
+        onRegistered: suspend (OpenProject) -> Unit = ::startAnalysisAfterAdd,
     ): RegistrationSummary {
         val project = checkNotNull(_currentProject.value) { "No project is open" }
         val (candidates, skipped) = withContext(Dispatchers.IO) {
@@ -363,7 +399,7 @@ class AppGraph(val context: Context) {
     suspend fun addFiles(
         uris: List<Uri>,
         onProgress: (RegistrationProgress) -> Unit,
-        onRegistered: suspend (OpenProject) -> Unit = ::startAnalysisIfPending,
+        onRegistered: suspend (OpenProject) -> Unit = ::startAnalysisAfterAdd,
     ): RegistrationSummary {
         val project = checkNotNull(_currentProject.value) { "No project is open" }
         val (candidates, skipped) = withContext(Dispatchers.IO) {

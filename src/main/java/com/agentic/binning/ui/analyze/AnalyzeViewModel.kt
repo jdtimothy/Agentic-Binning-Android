@@ -38,8 +38,10 @@ class AnalyzeViewModel(
     private val pipeline: PipelineController,
     private val currentProject: StateFlow<OpenProject?>,
     modelState: Flow<DownloadState>,
-    /** Starts analysis of a project in the foreground service (AppGraph.startAnalysis). */
-    private val startAnalysis: (ProjectRef) -> Boolean,
+    /** Lifts a Stop and analyzes a project's waiting items in the foreground service (AppGraph.resumeAnalysis). */
+    private val resumeAnalysis: (ProjectRef) -> Unit,
+    /** Stops the run and remembers it for the open project (AppGraph.stopAnalysis). */
+    private val stopAnalysis: () -> Unit,
 ) : ViewModel() {
     private class ProjectItems(val project: OpenProject, val items: List<ItemEntity>)
 
@@ -163,7 +165,7 @@ class AnalyzeViewModel(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, EmptyOutput)
 
-    fun stop() = pipeline.stop()
+    fun stop() = stopAnalysis()
 
     /** Pause while running; Resume continues a paused run or starts a new one for the open project. */
     fun togglePause() {
@@ -173,7 +175,7 @@ class AnalyzeViewModel(
         when {
             live && state.phase == PipelinePhase.Paused -> pipeline.resume()
             live && state.phase.isRunning -> pipeline.pause()
-            else -> startAnalysis(project.ref)
+            else -> resumeAnalysis(project.ref)
         }
     }
 

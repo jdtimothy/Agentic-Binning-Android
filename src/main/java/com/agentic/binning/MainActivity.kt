@@ -141,7 +141,8 @@ class MainActivity : ComponentActivity() {
                             pipeline = graph.pipeline,
                             currentProject = graph.currentProject,
                             modelState = graph.modelDownloader.state(ModelCatalog.LFM3_VL_2B),
-                            startAnalysis = graph::startAnalysis,
+                            resumeAnalysis = graph::resumeAnalysis,
+                            stopAnalysis = graph::stopAnalysis,
                         )
                     }
 

@@ -50,7 +50,7 @@ class AnalysisService : LifecycleService() {
                 stopIfNotRunning(startId)
             }
             ACTION_PAUSE -> controller.pause()
-            ACTION_STOP -> controller.stop()
+            ACTION_STOP -> (application as BinningApp).graph.stopAnalysis()
         }
         observe()
         return START_NOT_STICKY
