@@ -59,3 +59,25 @@ pick up. Read this before writing Plan 2.
     unexpected files" count check.
   - Decide "already binned" from `currentPath` against the target path, not
     from `status` alone. Status mixes analysis, sorting and binning state.
+
+## From the Plan 1 fix rounds and extra tasks
+- **Attempts counter.** Any process death while an item is Analyzing (OS kill,
+  force-stop, reinstall) counts as an attempt; two fail the item as
+  "interrupted". Reset `attempts` when an analysis is saved and when an item
+  is re-queued, and offer a retry for Failed items.
+- **"Stopped" after a cold launch.** A project the user stopped shows "Waiting
+  to analyze" after a restart; map `stoppedByUser` to "Stopped".
+- **Stops from phone-side errors or the 3-failure breaker aren't remembered.**
+  The run retries on the next launch, and the breaker can fail up to 3 more
+  items each time. Decide with the retry design.
+- **Stop then Resume in quick succession** can write `stoppedByUser` out of
+  order (both launch on `Dispatchers.Default`); serialize them.
+- **Add media that adds nothing still lifts a Stop** and restarts analysis.
+- **Raw exception text** (paths, ENOSPC) still reaches some user-facing errors.
+- **Project sheet:** a pick for the current project that returns after the
+  app was killed, before the project reopens, is dropped; await the restore.
+  No "Creating…" feedback; a retry after "created but couldn't open" says the
+  name exists.
+- **RAW (DNG).** DNGs are ordinary photo items with no pairing to a same-named
+  JPG (user decision 2026-10-30). Adding a folder from Expert RAW therefore adds
+  both files of every shot; revisit only if the user asks.
