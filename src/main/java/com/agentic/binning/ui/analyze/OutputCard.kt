@@ -70,6 +70,9 @@ fun OutputCard(output: OutputState, modifier: Modifier = Modifier) {
                 .padding(horizontal = 18.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (output.runError != null) {
+                Text(output.runError, color = tokens.warn, fontSize = 14.sp, lineHeight = 1.45.em)
+            }
             Column {
                 SectionLabel("Description", Modifier.padding(bottom = 6.dp))
                 when {

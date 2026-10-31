@@ -18,7 +18,13 @@ class AnalyzeMappingTest {
     private val trip = ProjectRef("Trip", "/sdcard/Agentic Binning/Trip")
     private val other = ProjectRef("Other", "/sdcard/Agentic Binning/Other")
 
-    private fun card(id: Long, status: ItemStatus, kind: ItemKind = ItemKind.Photo, durationMs: Long? = null) = CardItem(
+    private fun card(
+        id: Long,
+        status: ItemStatus,
+        kind: ItemKind = ItemKind.Photo,
+        durationMs: Long? = null,
+        failureReason: String? = null,
+    ) = CardItem(
         id = id,
         name = "$id",
         kind = kind,
@@ -28,6 +34,7 @@ class AnalyzeMappingTest {
         durationMs = durationMs,
         image = File("/x/$id.jpg"),
         imageIsVideo = false,
+        failureReason = failureReason,
     )
 
     private fun state(
@@ -106,5 +113,47 @@ class AnalyzeMappingTest {
         val out = outputOf(true, false, clip, state(PipelinePhase.Describing, currentItemId = 8, partial = partial), null)
         assertEquals(listOf(ActionRow("0:01", "Wave breaks"), ActionRow(null, "Gull lands")), out.actions)
         assertEquals(8L, out.itemId)
+    }
+
+    // --- Final review fixes ---
+
+    /** M4: the status row stays short; the run's error goes to the output card. */
+    @Test fun stoppedWithError_statusRowSaysStopped() {
+        val stopped = state(PipelinePhase.Stopped).copy(error = "The vision model failed: Generation failed: QNN error 1002")
+        assertEquals("Stopped" to StatusTone.Quiet, statusOf(true, listOf(ItemStatus.Pending), stopped, null))
+    }
+
+    @Test fun stoppedWithError_outputCardShowsItInFull_overAnyCard() {
+        val error = "Analysis stopped after repeated failures: Couldn't read this file."
+        val stopped = state(PipelinePhase.Stopped).copy(error = error)
+        val stored = StoredAnalysis(1, "A pier at dusk.", emptyList(), listOf("pier"))
+
+        val analyzed = outputOf(true, false, card(1, ItemStatus.Analyzed), stopped, stored)
+        assertEquals(error, analyzed.runError)
+        assertEquals("A pier at dusk.", analyzed.description)
+
+        val pending = outputOf(true, false, card(2, ItemStatus.Pending), stopped, null)
+        assertEquals(error, pending.runError)
+    }
+
+    @Test fun noRunError_unlessStoppedWithOne() {
+        val card = card(1, ItemStatus.Pending)
+        assertNull(outputOf(true, false, card, state(PipelinePhase.Stopped), null).runError)
+        assertNull(outputOf(true, false, card, state(PipelinePhase.Idle).copy(error = "old"), null).runError)
+        assertNull(outputOf(true, false, card, null, null).runError)
+    }
+
+    /** M5: failure codes read as plain sentences. */
+    @Test fun failureReasons_areWordedForPeople() {
+        fun failure(reason: String?) = outputOf(true, false, card(1, ItemStatus.Failed, failureReason = reason), null, null).failure
+        assertEquals("Couldn't read this file.", failure("decode"))
+        assertEquals("The model's reply was cut off.", failure("length"))
+        assertEquals("The model's reply wasn't readable.", failure("invalid-json"))
+        assertEquals("Couldn't build the model's prompt for this file.", failure("prompt"))
+        assertEquals("The vision model failed on this file.", failure("model"))
+        assertEquals("Stopped here last time the app closed unexpectedly.", failure("interrupted"))
+        assertEquals("Couldn't analyze this file.", failure("something-new"))
+        assertEquals("Couldn't analyze this file.", failure(null))
+        assertEquals("The file is missing.", outputOf(true, false, card(1, ItemStatus.Missing), null, null).failure)
     }
 }

@@ -6,6 +6,7 @@ import com.agentic.binning.db.ItemEntity
 import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.model.DownloadState
+import com.agentic.binning.pipeline.FailureReasons
 import com.agentic.binning.pipeline.PipelinePhase
 import com.agentic.binning.pipeline.PipelineState
 import com.agentic.binning.project.ProjectRef
@@ -98,6 +99,8 @@ data class OutputState(
     val itemId: Long? = null,
     /** True while the reply is streaming in, so the card follows it down. */
     val live: Boolean = false,
+    /** Why the run stopped on its own (e.g. the disk is full), shown in full above the item's output. */
+    val runError: String? = null,
 )
 
 val EmptyOutput = OutputState(null, "", false, null, emptyList(), emptyList())
@@ -224,7 +227,8 @@ fun statusOf(hasProject: Boolean, statuses: List<ItemStatus>, state: PipelineSta
         } to StatusTone.Active
         PipelinePhase.Paused -> return "Paused" to StatusTone.Paused
         PipelinePhase.Releasing -> return "Finishing up" to StatusTone.Active
-        PipelinePhase.Stopped -> return (state.error?.let { "Stopped · $it" } ?: "Stopped") to StatusTone.Quiet
+        // Kept short beside the speed; the reason, if any, is in the output card (OutputState.runError).
+        PipelinePhase.Stopped -> return "Stopped" to StatusTone.Quiet
         PipelinePhase.Idle, null -> Unit
     }
     return when {
@@ -236,9 +240,15 @@ fun statusOf(hasProject: Boolean, statuses: List<ItemStatus>, state: PipelineSta
 
 /**
  * The output card for the centre [card]: the streaming reply while it is the live item, else its
- * saved analysis ([stored]), failure or a notice.
+ * saved analysis ([stored]), failure or a notice. A run that stopped with an error shows it on every card.
  */
 fun outputOf(hasProject: Boolean, empty: Boolean, card: CardItem?, state: PipelineState?, stored: StoredAnalysis?): OutputState {
+    val runError = state?.error?.takeIf { state.phase == PipelinePhase.Stopped }
+    val output = cardOutput(hasProject, empty, card, state, stored)
+    return if (runError == null) output else output.copy(runError = runError)
+}
+
+private fun cardOutput(hasProject: Boolean, empty: Boolean, card: CardItem?, state: PipelineState?, stored: StoredAnalysis?): OutputState {
     fun notice(text: String) = EmptyOutput.copy(notice = text, itemId = card?.id)
     if (!hasProject) return notice("Create a project, then add a folder or pick photos and clips from the project menu.")
     if (empty || card == null) return notice("Add a folder or pick photos and clips from the project menu.")
@@ -266,11 +276,7 @@ fun outputOf(hasProject: Boolean, empty: Boolean, card: CardItem?, state: Pipeli
     }
     return when (card.status) {
         ItemStatus.Failed, ItemStatus.Missing -> EmptyOutput.copy(
-            failure = when {
-                card.status == ItemStatus.Missing -> "The file is missing."
-                card.failureReason != null -> "Could not analyze this item: ${card.failureReason}"
-                else -> "Could not analyze this item."
-            },
+            failure = if (card.status == ItemStatus.Missing) "The file is missing." else FailureReasons.describe(card.failureReason),
             itemId = card.id,
         )
         ItemStatus.Pending, ItemStatus.Analyzing -> notice("Waiting to be analyzed.")
