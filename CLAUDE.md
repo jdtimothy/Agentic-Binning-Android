@@ -74,10 +74,18 @@ Analyzed with `stopReason` `eos`.
   `sqlite3 build/project.db "select originalName,status,failureReason from item; select itemId,stopReason,generatedTokens from analysis;"`.
 - Caps to compare `generatedTokens` against: 400 for photos, 520 for videos
   (`AnalysisPrompt.MAX_TOKENS_*`).
-- Drive the add-media flow with `uiautomator dump` + `input tap`: project button
-  opens the sheet, "Add a folder" opens the system picker (breadcrumbs work),
-  then "USE THIS FOLDER" and "ALLOW". Don't swipe on the sheet while the
-  keyboard is up: the swipe types into the name field.
+- Drive the add-media flow with `uiautomator dump` + `input tap`: the project
+  chip opens the sheet on the current project ("Add a folder" / "Pick photos
+  and clips", then the other projects; on the New project page when there is
+  no project). "Add a folder" opens the system picker (breadcrumbs work), then
+  "USE THIS FOLDER" and "ALLOW". "+ New project" opens the New project page:
+  name, optional "A folder" / "Photos and clips" tile (held until "Create and
+  analyze"), back arrow or system Back to return. Don't swipe on the sheet
+  while the keyboard is up: the swipe types into the name field.
+- Registration matches files across projects by content hash: media already in
+  another project is reported "in another project (<name>)", not added. The
+  Plan 1 set in `Movies/avb-plan1` belongs to "Plan1 E2E", so use fresh media
+  to see items added to a new project.
 - `uiautomator dump` can fail with "could not get idle state" while the Analyze
   screen animates; take a `screencap` instead.
 - `ffmpeg -qp 0` (lossless x264) writes High 4:4:4 Predictive, which the
