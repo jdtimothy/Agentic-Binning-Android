@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: Tasks 1–6 done, Nov 1, 2026.** Drafted Oct 31 before Plan 2a reached GitHub. 2a merged into `main` as `24aa3bd` (PR #4) and was merged into `plan-2b-draft` on Nov 1. Task 6 checked every 2a dependency against the merged code; its findings (section "Task 6" below) replace the old **CONFIRM against 2a** markers, and Tasks 7–17 were updated to match. On Nov 1 the owner approved P1–P6 (P5 with its own wording) and Q1, Q4, Q6, Q10, Q12 and Q19's retry rule, and asked for **Task 6A** (open an existing project, remove a project from the app), planned below. **Next: Task 6A, then Task 7.** Before building a task, check "Product decisions" for answers it depends on; recommended answers marked open are not approved.
+**Status: Tasks 1–6 done, Nov 1, 2026.** Drafted Oct 31 before Plan 2a reached GitHub. 2a merged into `main` as `24aa3bd` (PR #4) and was merged into `plan-2b-draft` on Nov 1. Task 6 checked every 2a dependency against the merged code; its findings (section "Task 6" below) replace the old **CONFIRM against 2a** markers, and Tasks 7–17 were updated to match. On Nov 1 the owner approved P1–P6 (P5 with its own wording) and Q1, Q4, Q6, Q10, Q12 and Q19's retry rule, and asked for **Task 6A** (open an existing project, remove a project from the app), planned below. Later on Nov 1 the owner settled every remaining question except Q3 (filter placement; options mockup pending review), including no Re-sort cost note (Task 4 dropped). **Next: merge this PR after review, then Task 6A on a new branch, then Task 7.** Before building a task, check "Product decisions" for answers it depends on.
 
 **Goal:** The Project Media screen from the approved mockups: browse, search and filter a project's items; edit names and categories for one item or many; rename and merge categories; remove items; handle failed items; and re-sort the whole project with a chosen model. All edits change the database only, because nothing is binned until Plan 3.
 
-**Architecture:** Same single module and hand-wired `AppGraph` as Plan 1. Pure rules (search query, name clashes, status line, cost note, move planning, layout check) are plain Kotlin with JVM tests. A `ProjectMediaRepository` turns Room rows into screen models and runs every edit in one transaction, refreshing the item's FTS row. Sorting jobs (Categorize now, Re-sort) go through 2a's single job arbiter, never a separate code path. The Compose screen follows the glass components from Plan 1 (`ui/glass/Glass.kt`, `GlassTokens`).
+**Architecture:** Same single module and hand-wired `AppGraph` as Plan 1. Pure rules (search query, name clashes, status line, move planning, layout check) are plain Kotlin with JVM tests. A `ProjectMediaRepository` turns Room rows into screen models and runs every edit in one transaction, refreshing the item's FTS row. Sorting jobs (Categorize now, Re-sort) go through 2a's single job arbiter, never a separate code path. The Compose screen follows the glass components from Plan 1 (`ui/glass/Glass.kt`, `GlassTokens`).
 
 **Tech Stack:** As Plan 1 (Kotlin 2.2.0, AGP 8.13.0, Compose Material 3, Haze, Coil 3, Room 2.7 with the bundled SQLite driver).
 
@@ -14,7 +14,8 @@
 - `docs/superpowers/specs/2026-10-28-agentic-binning-design.md`, "Project Media screen", "3. Categorize", "4. Bin Files".
 - Mockups: `docs/superpowers/mockups/2026-10-31-plan-2b-project-media.html` (open in a browser).
 - Current projects mockup (Task 6A): `docs/superpowers/mockups/2026-11-01-plan-2b-current-projects.html`.
-- Decisions: `docs/superpowers/mockups/2026-10-31-plan-2b-questions.md`. Approved: Q1, Q2, Q4, Q5, Q6, Q7, Q10, Q12, and Q19's retry rule. The rest are recommended answers, shown in the mockups. If the user changes an answer, update the affected task before building it.
+- Decisions: `docs/superpowers/mockups/2026-10-31-plan-2b-questions.md`. Every question is settled except Q3 (see "Product decisions"); Q11 is deferred to Plan 3. If the user changes an answer, update the affected task before building it.
+- Filter placement options for Q3: `docs/superpowers/mockups/2026-11-01-plan-2b-filters-options.html`.
 - `docs/superpowers/plan-2-notes.md` and `CLAUDE.md`.
 - Plan 2a: `docs/superpowers/plans/2026-10-30-plan-2a-sorting.md`, `docs/superpowers/notes/2026-11-01-plan-2a-phone-recheck.md` (the deferred Claude test and the Hawaii Photos rule, see "Handoff notes").
 
@@ -66,35 +67,38 @@ Add `#methodName` to the class for a single test. Read results from the instrume
 
 ### Approved Nov 1, 2026 (from Task 6)
 
-The owner approved the recommended answer of each, with P5's wording replaced by their own. Tasks below are written to these answers.
+The owner approved the recommended answer of each, with P5's wording replaced by their own (and P5 later superseded by Q13). Tasks below are written to these answers.
 
 - **P1. A Re-sort that fails or is stopped midway** (Task 9). Before clearing anything, Re-sort checks that the chosen backend can run (Claude: a key is saved; LFM3-1.7B: downloaded). Only then does it clear the unlocked assignments and sort. A network failure, rate limit or Stop after that point leaves the cleared items waiting (they block Bin Files until Categorize now succeeds), and the sheet says so before the user starts.
 - **P2. Unlock keeps the item's category** (Task 7, Q5). Automatic sorting only touches items with no category, so an unlocked item stays where it is until a Re-sort. The detail sheet says "Sorting may change this on the next Re-sort" next to the Unlock link.
 - **P3. The same-name check is 2a's normalizer** (Task 6.5). It treats `Mama's` / `Mamas`, `Sea Lions` / `Sealions` and plurals before the last word as different names (and keys `Bus` as `bu`, harmlessly). Revisit only with real duplicates, since a stricter check changes 2a's sorting too.
 - **P4. Category names are capped at 40 characters**, the sorter's limit (the draft allowed 60), so a folder name never depends on who named the category.
-- **P5. The Re-sort cost note** (Task 15, Q13). `ResortCost` counts the prompt and the reply JSON only; Claude's adaptive thinking shares the 16,000-token cap per call, and a chunk can take up to 6 calls (`SortingCategorizer.MAX_CALLS_PER_CHUNK`). The note shows the figure with exactly this sentence: **"Estimated base cost; thinking and retries may increase it."** (owner's wording; not "at least"). Calibrate against real usage once the deferred Claude test runs (`TextReply` has `inputTokens` / `outputTokens`; `sort_run` doesn't store them yet).
+- **P5. The Re-sort cost note** (Task 15, Q13). **Superseded the same day: the owner chose no cost note at all (Q13), so `ResortCost` was deleted (Task 4 dropped).** For the record: `ResortCost` counted the prompt and the reply JSON only; Claude's adaptive thinking shares the 16,000-token cap per call, and a chunk can take up to 6 calls (`SortingCategorizer.MAX_CALLS_PER_CHUNK`). The note shows the figure with exactly this sentence: **"Estimated base cost; thinking and retries may increase it."** (owner's wording; not "at least"). Calibrate against real usage once the deferred Claude test runs (`TextReply` has `inputTokens` / `outputTokens`; `sort_run` doesn't store them yet).
 - **P6. Retry analysis lifts a remembered Stop and starts analysis** (Task 7, Q19), like `AnalysisLauncher.userAdd`. Categorize now leaves a Stop alone.
 
 ### Approved Nov 1, 2026 (project list design, owner's own)
 
 - **P7. Current projects.** The project sheet's list is headed **Current projects** (the projects loaded into the app). Under the heading sit two buttons, **Open project** and **New project**. An **Edit** button at the right of the heading puts a small **×** on each project; tapping × takes the project off the list and never deletes its database or files. No long explanations in the UI. Mockup: `docs/superpowers/mockups/2026-11-01-plan-2b-current-projects.html`. (The owner said "create new project"; the mockup labels it "New project", matching 2a's page title and fitting beside "Open project".)
 
-### Approved earlier (questions document)
+### Approved Nov 1, 2026 (second round)
 
-Q1 (Remove from project never deletes media), Q2, Q4 (Re-sort keeps edits by default), Q5, Q6 (Save and Cancel are scoped per sheet), Q7, Q10 (merge two categories at a time; the user chooses the surviving name), Q12 (sorting actions are disabled during analysis, not queued), and Q19's retry rule (an explicit Retry resets the attempts counter).
+- **P7a. Keep 2a's "Current project" label** on the open project's block above the list (the owner chose this over the recommended "Now open").
+- **P7b. Undo after ×:** a "Removed <name>" toast with Undo for about 5 seconds; Undo puts the row back where it was and reopens it if it was open.
+- **P7c. One confirmation only:** × on a project with analysis or sorting running asks "Stop analysis and remove <name>?" (Cancel / Remove); otherwise × acts at once.
+- **P7d. No projects:** the sheet shows the Current projects heading, Open project, New project and "No projects yet" (changes 2a's `startPage`).
+- **P8. Declined:** registration keeps 2a's rule and skips only listed projects' folders. A removed project's folder is not skipped. Nothing leaks in 2b; revisit before Plan 3 bins anything (listed under "Left for Plan 3").
+- **P9. Back up first:** opening an older-schema project copies `project.db` to `.binning/project.db.v<N>.bak` before Room upgrades it.
+- **Project list safety:** Task 6A makes every write to `projects.json` (create, switch, remove, restore) refuse when the file exists but can't be read, instead of overwriting it with an empty list.
+- **Merge plan:** merge PR #5 after the owner's local review; build Task 6A on a fresh branch with its own PR.
+- **Housekeeping:** `ResortCost` deleted (Q13), `gradlew` made executable, `CLAUDE.md` "Current state" updated.
+
+### Approved (questions document)
+
+Q1 (Remove from project never deletes media), Q2, Q4 (Re-sort keeps edits by default), Q5, Q6 (Save and Cancel are scoped per sheet), Q7, Q8 (Re-sort and Edit on the categories header, Select on the result line, as mocked), Q9 (Waiting and Failed as chips), Q10 (merge two categories at a time; the user chooses the surviving name), Q12 (sorting actions are disabled during analysis, not queued; reason "Re-sort is available when analysis is stopped or done"), Q13 (**no cost note**), Q14 (the Re-sort picker lists exactly what Settings lists), Q15 (search as mocked), Q16 (tile markers as mocked, no locks on tiles), Q17 (oldest first), Q18 (two facts at most in the status line), Q19 (an explicit Retry resets attempts; a failed item can be set by hand with both locks). **Q11 is deferred to Plan 3** (nothing is binned in 2b).
 
 ### Open
 
-None of these is approved; each gives the answer the plan currently assumes.
-
-- **P7a–P7d. Details of the Current projects design** (Task 6A; the design itself is the owner's, see "Approved"). Shown in `docs/superpowers/mockups/2026-11-01-plan-2b-current-projects.html`:
-  - **P7a.** The open project's block above the list is relabelled from 2a's "Current project" to **"Now open"**, so it doesn't read like the "Current projects" heading. **Recommend: "Now open".**
-  - **P7b.** After × a toast says "Removed <name>" with **Undo** for about 5 seconds, which puts the row back where it was (and reopens it if it was open). **Recommend: yes**, since × is a small target and there is no confirmation.
-  - **P7c.** The only confirmation: × on a project with analysis or sorting running asks "Stop analysis and remove <name>?" (Cancel / Remove). **Recommend: yes.**
-  - **P7d.** With no projects (first launch, reinstall, after removing the last one) the sheet shows the Current projects section with the two buttons and "No projects yet", instead of 2a's jump straight to the New project form, so Open project is visible to someone reinstalling. **Recommend: yes** (changes `startPage`).
-- **P8. A removed project's folder in later scans** (Task 6A). While registered, a project's folder is skipped when another project adds a parent folder, and its items count as "in another project". After removal neither holds. In 2b a project folder holds only `.binning/`, which the scanner already skips (it skips every dot-folder), so nothing leaks today; from Plan 3 on, binned category folders would. **Recommend:** registration also skips any folder that contains `.binning/project.db`, registered or not (Task 6A Step 5). Duplicates across projects after a removed project is reopened are accepted in 2b and must be resolved before Plan 3 bins anything.
-- **P9. Opening a project with an older schema** (Task 6A). Room's AutoMigrations upgrade it in place, as they already do for registered projects. **Recommend:** copy `project.db` to `.binning/project.db.v<N>.bak` first, so the original survives an upgrade that goes wrong.
-- **Still open from the questions document:** Q3, Q8, Q9, Q11, Q13 (the cost note's wording is settled by P5), Q14–Q18, and the rest of Q19 (setting a failed item by hand). Under Q14's recommended answer the Re-sort picker shows Claude and LFM3-1.7B only, because 2a dropped Qwen.
+- **Q3. Where the secondary filters go** (Task 11). The owner asked to compare options first: `docs/superpowers/mockups/2026-11-01-plan-2b-filters-options.html` shows (A) three dropdown chips always visible, (B) one Filters button on the result line with set filters shown as chips, (C) an All / Photos / Videos toggle always visible with shot type and date behind More. Task 11's filter row waits for this answer.
 
 ---
 
@@ -107,7 +111,6 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 | `search/FtsQuery.kt` | User text → safe FTS5 MATCH expression | Done (Task 1) |
 | `projectmedia/CategoryNames.kt` | Clean names; normalized clash check, both through 2a's `cleanName` / `SortValidator.normalize` | Done (Task 2; changed in Task 6) |
 | `projectmedia/MediaStatus.kt` | Status line text, tone, Categorize now, Bin Files enabled | Done (Task 3) |
-| `projectmedia/ResortCost.kt` | Token and dollar estimate for the Re-sort cost note | Done (Task 4) |
 | `move/MovePlanner.kt` | Target paths with " 2" suffixes, never overwriting (for Plan 3) | Done (Task 5) |
 | `move/LayoutCheck.kt` | Count check after moves; ignores `.binning/` and removed files (for Plan 3) | Done (Task 5) |
 | `project/ProjectDatabaseProbe.kt`, `project/ProjectOpenRules.kt` | Read-only check of an existing project's database; open/refuse decisions | Task 6A |
@@ -123,7 +126,7 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 | `ui/media/CategoryPickerSheet.kt` | Category list with New category… (detail and bulk move) | Task 12 |
 | `ui/media/SelectionBar.kt`, `ui/media/RemoveDialog.kt` | Bulk actions and the remove confirmation | Task 13 |
 | `ui/media/CategoryEditSheet.kt` | Rename and merge | Task 14 |
-| `ui/media/ResortSheet.kt` | Model picker, Keep my edits, changes / doesn't change, cost note | Task 15 |
+| `ui/media/ResortSheet.kt` | Model picker, Keep my edits, changes / doesn't change | Task 15 |
 | `ui/media/FailedSheet.kt` | Retry, set by hand, remove | Task 16 |
 | `ui/media/MediaIcons.kt` | Icons not already in `AnalyzeIcons` / `ProjectIcons` | Task 11 |
 
@@ -155,11 +158,9 @@ Written and unit-tested on Oct 31, 2026, before 2a, in a JVM-only scratch build 
 - Bin Files is enabled when files are ready, nothing is pending, analyzing or waiting, and no job runs. Failed and missing items never block it (Q7, Q18).
 - Test: `projectmedia/MediaStatusTest.kt` (9 tests).
 
-### Task 4: Re-sort cost estimate ✅
+### Task 4: Re-sort cost estimate (dropped)
 
-- `ResortCost.estimate(itemTextChars, existingCategories, expectedCategories)`, `dollars(tokens, price)`, `label(dollars)`, `tokensLabel(n)`. `SONNET_5_5 = $2 / $10` per million tokens (Q13).
-- **Settled in Task 6:** 2a calls `ClaudeTextModel.MODEL = "claude-sonnet-5-5"` and has no price catalog (`ModelCatalog` lists GenieX downloads only), so the price stays here. `price_isForTheModelClaudeSorts` fails if the model id changes. The estimate leaves out Claude's adaptive thinking and retries, so the note calls it an estimated base cost (P5, approved).
-- Test: `projectmedia/ResortCostTest.kt` (6 tests; was 5).
+Written Oct 31 (`ResortCost` and 6 tests). Dropped Nov 1: the owner chose no Re-sort cost note (Q13), so the code and tests were deleted in `bb4bbce`.
 
 ### Task 5: Move planner and layout check (for Plan 3) ✅
 
@@ -204,7 +205,7 @@ Done Nov 1, 2026 against `main` @ `24aa3bd` (Plan 2a, PR #4, merged into `plan-2
 - `pipeline/Categorizer.kt`: `interface Categorizer { suspend fun categorize(project, onProgress): CategorizeOutcome }`, outcomes `NothingToDo`, `Done(sorted, newCategories)`, `Partial(sorted, left, message)`, `Unavailable(reason: SortUnavailable)`.
 - `SortingCategorizer(store: SortStore, modelFor: (SortingModelChoice) -> TextModel, choice: suspend () -> SortingModelChoice, ...)`. It always sorts `store.uncategorized()`: there is no "sort all items" mode and no per-call model override. `AppGraph` builds it with `choice = { settings.settings.first().sortingModel }` and `modelFor = ::textModelFor`.
 - `SortingModelChoice { Claude, Lfm3_1_7B }` (`settings/SettingsStore.kt`). Settings lists exactly these two (`SortingOptions` and `pickSorting` in `ui/settings/SettingsModel.kt`); Qwen was dropped in 2a.
-- Claude: `ClaudeTextModel.MODEL = "claude-sonnet-5-5"`, `MAX_TOKENS = 16_000` per call with adaptive thinking sharing that cap (effort MEDIUM), no SDK retries. 2a has no price catalog, so `ResortCost.SONNET_5_5` stays in `projectmedia/ResortCost.kt`; `ResortCostTest.price_isForTheModelClaudeSorts` fails if `ClaudeTextModel.MODEL` changes, so the price gets reviewed with it.
+- Claude: `ClaudeTextModel.MODEL = "claude-sonnet-5-5"`, `MAX_TOKENS = 16_000` per call with adaptive thinking sharing that cap (effort MEDIUM), no SDK retries. 2a has no price catalog. (Task 6 first kept the Re-sort price in `ResortCost` with a guard test; both were deleted when the cost note was dropped, Q13.)
 - **Categorize now already exists:** `PipelineController.categorizeNow(project)`, started through `AppGraph.startAnalysis(ref, RunKind.CategorizeOnly)` so it runs in `AnalysisService`. It is a no-op while a run for the same project is active (that run categorizes at its end anyway). `AppGraph.resumeAnalysis(ref)` (Resume) lifts a Stop and analyzes or categorizes; Categorize now should call `startAnalysis(ref, RunKind.CategorizeOnly)` directly, which does not lift a Stop.
 
 #### 6.3 Arbiter: ownership, busy, cancellation, release
@@ -253,10 +254,11 @@ These are additions Task 9 must make; none exists today.
 
 #### 6.9 Verification (Nov 1, 2026, cloud container, no phone)
 
-- Environment: OpenJDK 21.0.12, Android SDK at `/root/android-sdk` (platform 35, build-tools 35.0.0) through the gitignored `local.properties`. `gradlew` is committed without the executable bit, so it was run as `bash ./gradlew`.
+- Environment: OpenJDK 21.0.12, Android SDK at `/root/android-sdk` (platform 35, build-tools 35.0.0) through the gitignored `local.properties`. `gradlew` was committed without the executable bit, so it was run as `bash ./gradlew` (fixed later, `ea5a67c`).
 - `main` @ `24aa3bd`, `./gradlew test --rerun-tasks`: 403 tests per variant, 0 failures. Four earlier attempts died on Maven Central HTTP 429 while downloading dependencies, before any test ran; nothing in the build was changed to get past them.
 - Merge commit `53c28b0`: `./gradlew test --rerun-tasks` 449 per variant, 0 failures; `assembleDebug assembleDebugAndroidTest` succeeded.
-- After this task's changes: `./gradlew test --rerun-tasks` 454 tests per variant (debug and release, 40 classes, 0 failures/errors/skips); `assembleDebug assembleDebugAndroidTest` succeeded. The six 2b classes now hold 51 tests (`FtsQueryTest` 8, `CategoryNamesTest` 11, `MediaStatusTest` 9, `ResortCostTest` 6, `MovePlannerTest` 11, `LayoutCheckTest` 6); with `ProjectFoldersTest` (3), 54, the successor of the old "49". 2a's `SortValidatorTest` (46) is unchanged.
+- After this task's changes: `./gradlew test --rerun-tasks` 454 tests per variant (debug and release, 40 classes, 0 failures/errors/skips); `assembleDebug assembleDebugAndroidTest` succeeded. The six 2b classes then held 51 tests (`FtsQueryTest` 8, `CategoryNamesTest` 11, `MediaStatusTest` 9, `ResortCostTest` 6, `MovePlannerTest` 11, `LayoutCheckTest` 6); with `ProjectFoldersTest` (3), 54, the successor of the old "49". 2a's `SortValidatorTest` (46) is unchanged.
+- After `ResortCost` was dropped (`bb4bbce`) and `gradlew` made executable (`ea5a67c`): `./gradlew test --rerun-tasks` 448 tests per variant (39 classes, 0 failures/errors/skips); `assembleDebug assembleDebugAndroidTest` succeeded. The five remaining 2b classes hold 45 tests; 48 with `ProjectFoldersTest`.
 - **Not run:** any instrumented test or phone check (no device was attached). The authenticated Claude request remains deferred with the owner's approval (`notes/2026-11-01-plan-2a-phone-recheck.md`); no key was requested and no paid call made.
 
 - [x] **Step 1:** Read 2a and record the facts above.
@@ -267,7 +269,7 @@ These are additions Task 9 must make; none exists today.
 
 Requested by the owner on Nov 1, 2026. Planned only; not started.
 
-**Where it fits:** first, before Task 7. It doesn't depend on Project Media (Tasks 7–17), and it changes the open and switch path in `AppGraph` that Task 9's Re-sort builds on, so doing it first means Task 9 is written against the final open/close rules. It also gives a way back to a project after a reinstall or a cleared app data, which a 2b tester will need before the end-to-end check (Task 17). It touches the registry, `AppGraph`'s open path, registration's scan exclusions and the project sheet; nothing in `projectmedia/`, the sorter or the model backends.
+**Where it fits:** first, before Task 7, on a fresh branch after PR #5 is merged (approved merge plan). It doesn't depend on Project Media (Tasks 7–17), and it changes the open and switch path in `AppGraph` that Task 9's Re-sort builds on, so doing it first means Task 9 is written against the final open/close rules. It also gives a way back to a project after a reinstall or a cleared app data, which a 2b tester will need before the end-to-end check (Task 17). It touches the registry, `AppGraph`'s open path, registration's scan exclusions and the project sheet; nothing in `projectmedia/`, the sorter or the model backends.
 
 **Goal:**
 - **Open project** (button under Current projects): pick a folder that already holds an Agentic Binning project, check its database without changing it, and open it with its saved analyses, categories, locks, sort runs and Stop flag as they are, never recreating them, and without a second registry entry.
@@ -301,7 +303,7 @@ Requested by the owner on Nov 1, 2026. Planned only; not started.
    | Not SQLite, unreadable, `quick_check` fails, no `room_master_table` or no `project_meta` row | Refused: "This project can't be opened" | None |
    | `user_version` > `PROJECT_DB_VERSION` | Refused: "Made with a newer app version. Update to open it." | None. Room is never opened on it; never add a destructive or downgrade fallback. |
    | `user_version` = `PROJECT_DB_VERSION` but the identity hash differs from the build's | Refused: "This project can't be opened" | None |
-   | `user_version` < `PROJECT_DB_VERSION` (1 or 2) | Opened after a backup (P9, open): copy to `.binning/project.db.v<N>.bak`, then let Room's AutoMigrations upgrade it | The backup, then the migration |
+   | `user_version` < `PROJECT_DB_VERSION` (1 or 2) | Opened after a backup (P9, approved): copy to `.binning/project.db.v<N>.bak`, then let Room's AutoMigrations upgrade it | The backup, then the migration |
    | Current version, hash matches, meta present | Opened | None by the open itself |
 
    A hot `project.db-journal` beside the file (an interrupted write) makes the read-only probe fail. Report it as "This project can't be opened" and change nothing; SQLite's normal recovery on a read-write open is a later decision, not part of this task.
@@ -312,24 +314,24 @@ Requested by the owner on Nov 1, 2026. Planned only; not started.
 #### Remove from Current projects (Edit, ×)
 
 1. **Scope:** only the registry entry. No file, folder, database, journal, backup or thumbnail is deleted, moved or rewritten. The implementation calls no `delete`, `deleteRecursively`, `renameTo` or `Files.move` on anything under the project folder; `ProjectRegistry.remove` writes only `projects.json`.
-2. **The registry must be readable.** `remove` reads strictly: if `projects.json` exists but can't be parsed, it refuses ("Couldn't update the project list") instead of writing an empty list over it. (The same lenient read in `create` and `setCurrent` is an existing 2a risk; note it, but changing it is outside this task.)
-3. **No confirmation, with Undo.** × removes at once and shows "Removed <name>" with Undo (P7b, open). Undo puts the entry back at its old position (`ProjectRegistry.restore(ref, index)`) and, if it was the open project, reopens it. The one exception: × on a project with a run in progress asks "Stop analysis and remove <name>?" (Cancel / Remove) first (P7c, open).
+2. **The list must be readable** (approved). Every write to `projects.json` (`create`, `setCurrent`, `remove`, `restore`) reads strictly first: if the file exists but can't be parsed, the write is refused ("Couldn't update the project list") and the file is left as it is, instead of 2a's behaviour of reading it as empty and writing an empty list over it. A missing file still means "no projects".
+3. **No confirmation, with Undo.** × removes at once and shows "Removed <name>" with Undo (P7b, approved). Undo puts the entry back at its old position (`ProjectRegistry.restore(ref, index)`) and, if it was the open project, reopens it. The one exception: × on a project with a run in progress asks "Stop analysis and remove <name>?" (Cancel / Remove) first (P7c, approved).
 4. **Active work.** Edit (and so ×) is disabled while media is being added or a project is being created (the sheet's existing `registration` and `creating` states), since those write to the open database. A run in progress (analysing, paused, categorizing, later Re-sort) is stopped the way a switch stops it: under `openLock`, `pipelineTarget = null`, `pipeline.stopAndReset()` (which waits for the models to be released), `deferredStart = null`, then the database is closed and `current` cleared. `stoppedByUser` is not written: the project's own database keeps whatever it had.
 5. **Missing folder.** Remove works when the folder no longer exists, and never recreates it (no `requireProjectFolder`, no database open). Such rows show "Folder missing" in place of their counts.
-6. **Afterwards.** If the removed project was the current one, open the first remaining project (in list order) whose folder exists and whose database passes the probe. If none does, the sheet shows the empty Current projects section with Open project and New project (P7d, open; today 2a shows the New project page). Removing another project leaves the current one open.
-7. **Scans after removal** (P8, open): if approved, `scanExclusions` also skips any folder that contains `.binning/project.db`, registered or not.
+6. **Afterwards.** If the removed project was the current one, open the first remaining project (in list order) whose folder exists and whose database passes the probe. If none does, the sheet shows the empty Current projects section with Open project and New project (P7d, approved; today 2a shows the New project page). Removing another project leaves the current one open.
+7. **Scans after removal:** unchanged from 2a (P8 declined). A removed project's folder is no longer skipped; in 2b it holds only `.binning/`, which the scanner skips anyway.
 
-#### Where the actions appear (P7, approved; details P7a–P7d open)
+#### Where the actions appear (P7 and P7a–P7d, approved)
 
 Mockup: `docs/superpowers/mockups/2026-11-01-plan-2b-current-projects.html` (states 1–6, dark and light, live).
 
 - **The project sheet's main page** (2a's `ProjectSheet.kt`):
-  - Top: the open project's block, labelled **Now open** (P7a), with 2a's Add a folder and Pick photos and clips, unchanged.
+  - Top: the open project's block, unchanged from 2a: the **Current project** label (P7a), counts, Add a folder and Pick photos and clips.
   - **Current projects** heading, with **Edit** at its right (hidden while the list is empty).
   - Under the heading, two buttons side by side: **Open project** (system folder picker) and **New project** (2a's New project page). They replace 2a's single "New project" chip.
   - The list: every project in the app, the open one first with an **Open** pill and no chevron; the others with their counts and a chevron. Tap to switch, as today. A project whose folder is gone shows **Folder missing**.
 - **Edit mode:** Edit becomes **Done**; the two buttons hide; each row shows a small **×** instead of the chevron, and rows don't switch. × removes the row (above). Edit mode ends with Done, when the sheet closes, or when the list becomes empty.
-- **No projects** (P7d): the Current projects heading, the two buttons and "No projects yet".
+- **No projects** (P7d, approved): the Current projects heading, the two buttons and "No projects yet".
 - **Reopening a removed project:** Open project, then pick its folder (by default `Internal storage/Agentic Binning/<name>`). It comes back with everything it had. The same path recovers projects after a reinstall or cleared app data, because the list lives in app-private storage and the projects don't.
 - **Copy stays short:** no explanatory paragraphs. The only text beyond labels is the one-line refusal under the buttons, the "Removed <name> · Undo" toast and the one confirmation title.
 
@@ -342,7 +344,7 @@ JVM (temp directories, no Android):
   - `remove_forgetsOnlyThatEntry`;
   - `remove_current_clearsCurrent`;
   - `remove_unknownPath_changesNothing`;
-  - `remove_unreadableRegistry_refusesAndKeepsTheFile` (file bytes unchanged);
+  - `remove_unreadableRegistry_refusesAndKeepsTheFile`, `create_unreadableRegistry_refusesAndKeepsTheFile`, `setCurrent_unreadableRegistry_refusesAndKeepsTheFile` (file bytes unchanged each time);
   - `remove_survivesANewInstance` (persistence after restart: a fresh `ProjectRegistry` on the same file sees the removal and the remaining current project);
   - `remove_preservesEveryFile` (a project folder with media, `.binning/project.db`, a journal and thumbnails: the path, size and SHA-256 of every file are the same before and after; the folder is never created when missing).
 - `ProjectOpenRulesTest`: one case per row of the table above, plus `alreadyRegistered_opensTheEntry`, `insideOrContainingAProject_isRefused`, and that only "current" and "older" lead to an open.
@@ -376,9 +378,8 @@ Phone check (Task 17's media, never Hawaii Photos or Maui):
 - [ ] **Step 1:** Write the JVM tests; check they fail.
 - [ ] **Step 2:** Implement `ProjectRegistry` canonical matching, strict `remove`, and `ProjectOpenRules`; JVM tests pass.
 - [ ] **Step 3:** Write the device tests; implement `ProjectDatabaseProbe` and `AppGraph.openExistingProject` / `removeProject`; device tests pass (direct instrumentation, on an identified device).
-- [ ] **Step 4:** Sheet UI per P7 and the mockup (P7a–P7d as the owner decides), with light and dark previews; compare with the mockup on the phone with `screencap`.
-- [ ] **Step 5:** If P8 is approved, add the `.binning/project.db` scan exclusion with a `RegistrarTest` or `MediaScannerTest` case.
-- [ ] **Step 6:** Phone check; full JVM suite; commit `feat: open an existing project and remove a project from the app`.
+- [ ] **Step 4:** Sheet UI per P7, P7a–P7d and the mockup, with light and dark previews; compare with the mockup on the phone with `screencap`.
+- [ ] **Step 5:** Phone check; full JVM suite; commit `feat: open an existing project and remove a project from the app`.
 
 ### Task 7: Project Media data layer and edits
 
@@ -389,7 +390,7 @@ Phone check (Task 17's media, never Hawaii Photos or Maui):
 
 **Interfaces (proposed; nothing here exists yet):**
 - `data class MediaRow(id, kind, durationMs, takenAt, status, categoryId, friendlyName, suggestedName, shotType, nameSetByUser, categorySetByUser, currentPath)`. `suggestedName` and `shotType` come from `analysis` (null for an item without one). The tile image is `ProjectFolders.thumbsDir(projectDir)/<id>.jpg` when that file exists, else `currentPath`, as `AnalyzeViewModel` does; there is no thumbnail column. `isBinned` is left out until Plan 3 decides it from `currentPath` (plan-2-notes).
-- `fun observeRows(filter: MediaFilter, ftsQuery: String?): Flow<List<MediaRow>>`. Ordered by `takenAt`, oldest first, then `id` (Q17, open). `ftsQuery` is only ever `FtsQuery.from(text)`; when it is set, the rows are the ids from `AnalysisDao.search` (raw `MATCH`, Task 6.6) joined back to `item`, and each gets a `matchedIn` field (name, category, tags, actions, description) for the tile's "Matched in" line (Q15, open).
+- `fun observeRows(filter: MediaFilter, ftsQuery: String?): Flow<List<MediaRow>>`. Ordered by `takenAt`, oldest first, then `id` (Q17, approved). `ftsQuery` is only ever `FtsQuery.from(text)`; when it is set, the rows are the ids from `AnalysisDao.search` (raw `MATCH`, Task 6.6) joined back to `item`, and each gets a `matchedIn` field (name, category, tags, actions, description) for the tile's "Matched in" line (Q15, approved).
 - `fun observeCounts(): Flow<MediaCounts>` and `fun observeChips(filter): Flow<List<ChipCount>>`. Chips: All, Waiting, Failed, then each category with a count. Waiting uses exactly Task 6.4's condition. Categories with no matches are hidden while a search is active.
 - Edits, each `suspend` and one transaction that also refreshes the FTS row of every changed item:
   - `saveItem(id, name, category: CategoryChoice, unlockName, unlockCategory)`. `CategoryChoice` is `Existing(id)` or `New(name)`. Choosing a category on an `Analyzed` item makes it `Sorted`.
@@ -481,10 +482,10 @@ Match mockup states 1, 2, 9 and 10, and the status line strip:
 - **Header:** back, project name, "Project media · N items", settings.
 - **Search field** with a clear button. Debounce about 150 ms, then `FtsQuery.from`.
 - **"CATEGORIES · N"** with Re-sort and Edit.
-- **Chips row:** All, then amber Waiting and Failed when there are any (Q9), then the categories, with a lock on yours.
-- **Filter chips:** photo/video, shot type and date, always visible (Q3). Each opens a small sheet with counts.
+- **Chips row:** All, then amber Waiting and Failed when there are any (Q9, approved), then the categories, with a lock on yours.
+- **Filters:** photo/video, shot type and date. **Placement waits for Q3** (open): option A, B or C in `docs/superpowers/mockups/2026-11-01-plan-2b-filters-options.html`. Whichever is chosen, each choice shows its count and a set filter is always visible above the grid.
 - **Result line** with Select.
-- **3-column grid of tiles** (Coil thumbnails; badges per Q16).
+- **3-column grid of tiles** (Coil thumbnails; badges per Q16, approved: duration, Waiting / Failed, no locks).
 - **Dock:** the `mediaStatus` text with Categorize now, Analyze, and Bin Files. Categorize now calls `AppGraph.startAnalysis(ref, RunKind.CategorizeOnly)` (Task 6.2); like Re-sort it is disabled, with the reason, while a run is in progress (Q12, approved). Disabled Bin Files shows the reason in a toast; enabled Bin Files shows "comes with Plan 3" until Plan 3.
 - **Empty project:** a card with Add a folder and Pick photos and clips, reusing the project sheet's pickers.
 
@@ -539,19 +540,19 @@ Match mockup states 5a and 5b; the Save progress (state 6) comes with Plan 3.
 
 Match mockup state 7.
 
-- **Model picker:** lists exactly what Settings lists, defaulting to the Settings choice (Q14, open). Today that is `SortingOptions` in `ui/settings/SettingsModel.kt`: Claude and LFM3-1.7B. Reuse `pickSorting` so a missing key or an undownloaded model is handled as in Settings (`ApiKeys.info`, `ModelDownloader.isReady`).
+- **Model picker:** lists exactly what Settings lists, defaulting to the Settings choice (Q14, approved). Today that is `SortingOptions` in `ui/settings/SettingsModel.kt`: Claude and LFM3-1.7B. Reuse `pickSorting` so a missing key or an undownloaded model is handled as in Settings (`ApiKeys.info`, `ModelDownloader.isReady`).
 - **Keep my edits:** ticked by default (Q4, approved), with counts of what it keeps.
 - **"Changes" and "Doesn't change now"** panels.
-- **Cost note** for Claude only: `ResortCost`, rendered as "About $X. Estimated base cost; thinking and retries may increase it. Sends the text of N items… roughly NK tokens in and NK out, at $2 and $10 per million tokens." The middle sentence is the owner's exact wording (P5, approved); never "at least".
+- **No cost note** (Q13, approved). The sheet doesn't estimate Claude's cost.
 - **The button:** "Re-sort N items", disabled with the reason while a run is in progress (Q12, approved): "Re-sort is available when analysis is stopped or done". (Q12's draft text said "paused or done", but a paused run still holds the vision model.) Also disabled, with `pickSorting`'s reason, when the chosen backend can't run (P1).
 
-- [ ] **Step 1:** JVM test that the cost note's numbers come from the items' real text lengths.
+- [ ] **Step 1:** JVM tests for the sheet's state (default model, Keep my edits counts, disabled reasons).
 - [ ] **Step 2:** Compose; wire to Task 9.
 - [ ] **Step 3: Commit.**
 
 ### Task 16: Failed item sheet
 
-Match mockup state 8: the reason, attempts, Retry analysis, Set name and category by hand, and Remove from project. A failed item set by hand gets both locks and is sorted like any other.
+Match mockup state 8: the reason, attempts, Retry analysis, Set name and category by hand, and Remove from project (Q19, approved). A failed item set by hand gets both locks and is sorted like any other.
 
 - [ ] **Step 1:** Compose; wire to `retryFailed`, `setByHand` and `removeItems`.
 - [ ] **Step 2: Commit.**
@@ -588,6 +589,8 @@ Match mockup state 8: the reason, attempts, Retry analysis, Set name and categor
 - Save moving files that are already binned (mockup state 6): the progress card, "Other edits wait", the Saving job kind. A category rename can be done as per-file moves into the new folder plus removing the empty old one. That keeps it resumable with the existing `move_step` table instead of a separate folder-rename step.
 - Q2's removed-file record: a `removed_file(path, removedAt)` table filled by `removeItems` for binned items, read by `LayoutCheck` as `ignored`.
 - Decide "already binned" from `currentPath` against the target path, not from `status` alone (plan-2-notes).
+- **Q11 (deferred Nov 1):** renaming or merging a category whose files are binned moves files at Save; decide with the move engine whether the user may leave the screen while it runs.
+- **P8 revisit:** once binned category folders exist, decide whether registration should skip any folder holding `.binning/project.db`, so a project taken off Current projects can't have its binned files added to another project; and how to handle items that end up in two projects after a removed project is reopened.
 
 ---
 
@@ -595,13 +598,13 @@ Match mockup state 8: the reason, attempts, Retry analysis, Set name and categor
 
 Everything from the Oct 31 handoff (`docs/superpowers/plan-2b-handoff.md`, deleted in the commit that finished Task 6) that still matters, with what changed since.
 
-- **Order of work (Nov 1):** Task 6A (open existing / remove project) comes before Task 7; see its "Where it fits". Nothing from Task 6A onward is started.
+- **Order of work (Nov 1):** the owner reviews PR #5 locally and merges it; Task 6A (Open project, Edit/× on Current projects) is then built on a fresh branch with its own PR, before Task 7. Nothing from Task 6A onward is started. Q3 (filter placement) must be answered before Task 11.
 - **Branches and PRs:** PR #2 (mockups) and PR #4 (Plan 2a) are merged into `main`. PR #3 (this branch's first draft PR) is closed and must not be reopened or retargeted; `plan-2b-draft` has a new draft PR against `main`, jdtimothy/Agentic-Video-Binning-Android#5. Never rebase or force-push `plan-2b-draft`: merge `main` into it.
 - **Mockups:** `docs/superpowers/mockups/2026-10-31-plan-2b-project-media.html` (open the file in a browser; GitHub doesn't render it), checked in Chromium at 390 px and 1440 px. Questions: `docs/superpowers/mockups/2026-10-31-plan-2b-questions.md`.
 - **Scope decided Oct 31:** files never move in Plan 2b; Save changes the database only. The move engine, Save moving binned files, the save progress card (mockup state 6) and Q2's removed-file table are Plan 3. `move/MovePlanner.kt` and `move/LayoutCheck.kt` were written early because they are pure logic.
 - **Approved answers:** Q2 (a removed binned item's file stays, its path is remembered so the count check skips it), Q5 (user-set values are locked, with Unlock), Q7 (waiting items keep blocking Bin Files; the ways out are the Waiting chip, Categorize now and setting a category by hand).
-- **Cost:** `ResortCost` uses Sonnet 5.5's $2 / $10 per million tokens and estimates about $0.04 for a 43-item project; the mockup's "about $0.05" was illustrative (and see P5: the note is an estimated base cost).
+- **Cost:** there is no Re-sort cost note (Q13, Nov 1); the mockup's "about $0.05" note is obsolete and `ResortCost` was deleted.
 - **Search format** (verified Oct 31 against SQLite FTS5 with `tokenize='porter unicode61'` in Python): every quoted word is safe; raw `AND`, `-x`, `a:b`, `(`, `*` and a stray `"` fail as queries; `"resting"*` also matches "restaurant", hence the prefix only on the last word.
 - **Deferred Claude test:** 2a merged with the authenticated Anthropic request unverified, by the owner's explicit choice (`notes/2026-11-01-plan-2a-phone-recheck.md`). Keep Claude implemented and LFM3-1.7B selected for daily use. The test needs an Anthropic API key with usable billing; Nous Portal or X subscriptions don't provide one, and another provider would be separate scope. Never request a key, make a paid call or swap the provider without the owner.
 - **Hawaii Photos:** when the Claude test resumes, keep all 53 items and reset only their model-generated sorting, after a fresh backup; never restore the old 46-item baseline. Preserve user-set names, assignments and categories.
-- **Cloud sessions:** the container now has OpenJDK 21 and the Android SDK at `/root/android-sdk` (gitignored `local.properties`); `ANDROID_HOME` is unset. Run the wrapper as `bash ./gradlew` (it is committed without the executable bit; don't change the mode in an unrelated commit). Maven Central rate-limits these containers (HTTP 429): retry with backoff; the Gradle cache fills a little on each attempt. No phone is attached, so device checks stay pending. Never commit `local.properties`, the SDK, keys or build outputs.
+- **Cloud sessions:** the container now has OpenJDK 21 and the Android SDK at `/root/android-sdk` (gitignored `local.properties`); `ANDROID_HOME` is unset. `./gradlew` works directly since `ea5a67c` (before that it was committed without the executable bit and had to be run as `bash ./gradlew`). Maven Central rate-limits these containers (HTTP 429): retry with backoff; the Gradle cache fills a little on each attempt. No phone is attached, so device checks stay pending. Never commit `local.properties`, the SDK, keys or build outputs.

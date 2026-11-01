@@ -19,9 +19,19 @@ says otherwise. "State N" refers to the numbered states in the HTML file.
 | 6 | Save and Cancel are scoped per sheet | Approved Nov 1 |
 | 10 | Merge two categories at a time; you choose the surviving name | Approved Nov 1 |
 | 12 | Sorting actions are disabled while analysis runs, not queued | Approved Nov 1 |
-| 19 (retry) | An explicit Retry resets the attempts counter | Approved Nov 1 (setting by hand is still open) |
-| P1–P6 | Follow-ups from checking against Plan 2a (end of this file) | Approved Nov 1; P5 with the owner's wording |
-| 3, 8, 9, 11, 13–18, 19 (by hand), P7a–P7d, P8, P9 | Everything else | Open: recommended answers shown in the mockups or the plan |
+| 19 (retry) | An explicit Retry resets the attempts counter | Approved Nov 1 |
+| 8 | Re-sort and Edit on the categories header, Select on the result line | Approved Nov 1 |
+| 9 | Waiting and Failed as chips in the categories row | Approved Nov 1 |
+| 11 | Renaming or merging a binned category moves files at Save | Deferred to Plan 3 (nothing is binned in 2b) |
+| 13 | Re-sort cost note | Decided Nov 1: **no cost note** (supersedes P5's wording; `ResortCost` deleted) |
+| 14 | Re-sort picker lists exactly what Settings lists | Approved Nov 1 |
+| 15 | Search behaviour as mocked | Approved Nov 1 |
+| 16 | Tile markers as mocked, no locks on tiles | Approved Nov 1 |
+| 17 | Grid order: oldest first | Approved Nov 1 |
+| 18 | Status line: two facts at most | Approved Nov 1 |
+| 19 (by hand) | A failed item can be set by hand with both locks | Approved Nov 1 |
+| P1–P9 | Follow-ups from checking against Plan 2a and Task 6A (end of this file) | Settled Nov 1 (P5 superseded by Q13, P8 declined) |
+| 3 | Secondary filters | **Open:** compare options A, B and C in `2026-11-01-plan-2b-filters-options.html` |
 
 Every *(my call)* in the spec's Project Media section is here: secondary
 filters (Q3), Keep my edits ticked by default (Q4) and Remove from project
@@ -61,7 +71,7 @@ move files, and the user can see where the file is. (b) is a hidden file move;
 
 ## 3. Secondary filters: photo/video, shot type and date *(my call)*
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: open.** The owner asked to compare placements before choosing: `2026-11-01-plan-2b-filters-options.html` shows (A) always-visible dropdown chips, as below, (B) one Filters button, and (C) an All / Photos / Videos toggle with shot type and date behind More.
 
 Spec: these replace the earlier Subject/Setting/Shot/Date selector, because
 categories are now the main way to group. The mockups show them as a row of
@@ -137,7 +147,7 @@ reason the user chose.
 
 ## 8. Where Re-sort, Edit and Select live
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted).
 
 Mocked: **Re-sort** and **Edit** sit on the categories header row ("CATEGORIES
 · 12 · Re-sort · Edit"), because both act on the categories. **Select** sits on
@@ -150,7 +160,7 @@ overflow menu on the header.
 
 ## 9. Waiting and Failed as chips in the categories row
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted).
 
 Mocked: amber **Waiting** and **Failed** chips right after All, shown only
 when there are such items. The spec only asks for a badge on Failed items.
@@ -172,7 +182,7 @@ model's categories turn out to need it.
 
 ## 11. Renaming or merging a binned category moves files at Save
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: deferred to Plan 3, Nov 1, 2026.** Nothing is binned in 2b; decide with the move engine.
 
 Spec: renaming a category whose folder exists renames the folder; merging
 moves the files into the surviving folder; both happen on Save, with progress,
@@ -188,7 +198,7 @@ Analyze screen's Project Media pill shows "Saving…" until it finishes.
 
 ## 12. Re-sort while analysis is running
 
-**Status: approved Nov 1, 2026** (recommended answer accepted). Both Re-sort and Categorize now are disabled, not queued. Wording note from the plan: a paused run still holds the vision model, so the reason reads "Re-sort is available when analysis is stopped or done", not "paused or done".
+**Status: approved Nov 1, 2026** (recommended answer accepted). Both Re-sort and Categorize now are disabled, not queued. The disabled reason reads "Re-sort is available when analysis is stopped or done" (approved Nov 1), not "paused or done": a paused run still holds the vision model.
 
 The "one model loaded" rule means Re-sort and Categorize now can't run while
 the vision model is busy. **Recommend:** disable both while analysis runs and
@@ -197,7 +207,7 @@ them silently. Not drawn in the mockups.
 
 ## 13. The Re-sort cost note
 
-**Status: open, except one sentence.** P5 (approved Nov 1) fixes the uncertainty wording: the note says "Estimated base cost; thinking and retries may increase it." The rest of the recommendation below is not yet confirmed.
+**Status: decided Nov 1, 2026: no cost note.** The owner chose not to show an estimate at all. This supersedes P5's approved sentence ("Estimated base cost; thinking and retries may increase it."), and the `ResortCost` estimate was deleted.
 
 Mocked: "About $0.05. Sends the text of 43 items … roughly 12K tokens in and
 3K out, at $2 and $10 per million tokens on your API key." That is the
@@ -210,7 +220,7 @@ checked. Show it only for Claude.
 
 ## 14. Qwen3-8B in the Re-sort picker
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted). The picker lists exactly what Settings lists (today Claude and LFM3-1.7B; 2a dropped Qwen).
 
 Mocked as a third option with a Download pill; picking it changes the button
 to "Download and re-sort". The spec says to leave Qwen3-8B out of Settings if
@@ -220,7 +230,7 @@ neither the `qairt` bundle nor a GGUF works with geniex 0.10.0.
 
 ## 15. Search behaviour
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted).
 
 Mocked (state 9): categories with no matches drop out of the row during a
 search; tiles found through something other than the name show "Matched in
@@ -232,7 +242,7 @@ for “turtle”".
 
 ## 16. Tile markers
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted).
 
 Mocked: a folder tick on binned tiles, a "Waiting" or amber "Failed" badge,
 and a duration badge on videos. Locks are not shown on tiles; they appear in
@@ -243,7 +253,7 @@ little gain.
 
 ## 17. Grid order
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted).
 
 Mocked: by capture time, oldest first, so a trip reads in order. Category
 filters keep that order.
@@ -253,7 +263,7 @@ filters keep that order.
 
 ## 18. Status line wording when several things are true
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted).
 
 Mocked: ready count first, then waiting count, with the Categorize now link;
 "1 failed" appears only when nothing is waiting. Examples in the "Status line
@@ -265,7 +275,7 @@ bin · 3 waiting to be categorized", "37 files ready to bin · 1 failed",
 
 ## 19. Failed item: retry and set by hand
 
-**Status: approved in part, Nov 1, 2026.** An explicit Retry resets the attempts counter (and, by P6, lifts a remembered Stop). Setting a failed item's name and category by hand is still open.
+**Status: approved Nov 1, 2026.** An explicit Retry resets the attempts counter (and, by P6, lifts a remembered Stop), and a failed item can be set by hand with both locks.
 
 Mocked (state 8): Retry analysis, Set name and category by hand, Remove from
 project. Setting by hand gives the clip a name and category with both locks
@@ -275,7 +285,7 @@ Question from the Plan 1 notes: should a retry reset the attempts counter?
 **Recommend: yes**, reset on a user retry, so a clip that failed twice to an
 interruption can be tried again.
 
-## Follow-ups from checking against Plan 2a (Nov 1)
+## Follow-ups from checking against Plan 2a and planning Task 6A (Nov 1)
 
 Raised while confirming the plan against the merged Plan 2a code. Full text and the tasks they affect: `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`, "Product decisions".
 
@@ -285,12 +295,13 @@ Raised while confirming the plan against the merged Plan 2a code. Full text and 
 | P2 | Unlock keeps the item's category until the next Re-sort | Approved Nov 1 |
 | P3 | The same-name check is Plan 2a's normalizer | Approved Nov 1 |
 | P4 | Category names are capped at 40 characters | Approved Nov 1 |
-| P5 | Claude's cost note says "Estimated base cost; thinking and retries may increase it." | Approved Nov 1, owner's wording (replaces the recommended "at least") |
+| P5 | Claude's cost note says "Estimated base cost; thinking and retries may increase it." | Approved Nov 1, owner's wording; then superseded by Q13 (no cost note) |
 | P6 | Retry analysis lifts a remembered Stop; Categorize now doesn't | Approved Nov 1 |
 | P7 | Current projects: Open project and New project buttons, Edit puts × on each project, × only takes it off the list | Approved Nov 1, owner's design (mockup `2026-11-01-plan-2b-current-projects.html`) |
-| P7a | Relabel the open project's block "Now open" | Open |
-| P7b | "Removed <name>" toast with Undo after × | Open |
-| P7c | Confirm only when × would stop running analysis | Open |
-| P7d | With no projects, show the two buttons and an empty list, not the New project form | Open |
-| P8 | Registration skips any folder holding `.binning/project.db`, registered or not | Open |
-| P9 | Back up an older-schema project database before upgrading it on open | Open |
+| P7a | Label of the open project's block | Decided Nov 1: keep 2a's "Current project" (not "Now open") |
+| P7b | "Removed <name>" toast with Undo after × | Approved Nov 1 |
+| P7c | Confirm only when × would stop running analysis | Approved Nov 1 |
+| P7d | With no projects, show the two buttons and an empty list, not the New project form | Approved Nov 1 |
+| P8 | Registration skips any folder holding `.binning/project.db`, registered or not | Declined Nov 1: keep 2a's rule; revisit before Plan 3 |
+| P9 | Back up an older-schema project database before upgrading it on open | Approved Nov 1 |
+| — | Every write to the project list refuses when the file can't be read (create, switch, remove) | Approved Nov 1 |

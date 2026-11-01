@@ -12,11 +12,30 @@ checklist is the review list for any model-facing change.
 
 ## Current state
 
-Fresh Jetpack Compose app (package `com.agentic.binning`); the GenieX chat
-sample has been removed. Work is split into three plans under
-`docs/superpowers/plans/`. Reference copies of the useful sample code live in
+Jetpack Compose app (package `com.agentic.binning`). Plans live under
+`docs/superpowers/plans/`:
+
+- **Plan 1** (foundation and analysis) and **Plan 2a** (sorting with LFM3-1.7B
+  or Claude, `ModelArbiter`, schema v3) are merged into `main`. 2a's
+  authenticated Claude request is still unverified, deferred by the owner
+  (`docs/superpowers/notes/2026-11-01-plan-2a-phone-recheck.md`); keep LFM3-1.7B
+  selected and never make a paid Claude call without the owner.
+- **Plan 2b** (Project Media, editing, Re-sort, and Task 6A: Open project and
+  Edit/× on Current projects) is in progress on `plan-2b-draft`:
+  `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Tasks 1–6 are
+  done; its "Product decisions" section holds every owner decision and the one
+  open question. Mockups are in `docs/superpowers/mockups/` (open the HTML
+  files in a browser; GitHub doesn't render them).
+- **Plan 3** (binning: moving files) is not started.
+
+Reference copies of the useful GenieX sample code live in
 `docs/reference/sample/` (`GgufVisionConfig.kt.txt`, `MediaUtil.kt.txt`,
 `MainActivity.kt.txt`); they carry a `.txt` extension so they are not compiled.
+
+Cloud sessions (no phone attached) have OpenJDK 21 and the SDK at
+`/root/android-sdk`; use that Java, not the Windows `JAVA_HOME` below. Maven
+Central rate-limits them (HTTP 429): retry with backoff, never change
+dependency versions or repositories to get past it.
 
 ## Build and install
 

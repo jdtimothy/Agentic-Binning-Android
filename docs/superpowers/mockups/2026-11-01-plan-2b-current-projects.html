@@ -143,7 +143,7 @@ code { font-family: var(--font-mono); font-size: 0.86em; }
     <p class="eyebrow">Plan 2b · Task 6A · Nov 1, 2026</p>
     <h1 class="pg">Current projects: open, create, remove</h1>
     <p>The project sheet's list becomes <b>Current projects</b>: the projects loaded into the app. Two buttons, <b>Open project</b> and <b>New project</b>, sit under the heading. <b>Edit</b> puts a small × on each row; tapping × takes the project off the list and never deletes its database or files. Each phone is live: try Edit, ×, Undo and Done.</p>
-    <p>Owner's direction (Nov 1): the two buttons, Edit with ×, the name "Current projects", and no long explanations in the UI. Points marked <b>Open</b> are proposals for the owner.</p>
+    <p>Owner's design (Nov 1): the two buttons, Edit with ×, the name "Current projects", and no long explanations in the UI. The details (P7a–P7d) were decided the same day: keep 2a's "Current project" label, Undo after ×, confirm only when analysis would stop, and the two buttons when there are no projects.</p>
     <ul class="index">
       <li><a href="#s1"><span>1</span>Sheet</a></li>
       <li><a href="#s2"><span>2</span>Edit</a></li>
@@ -159,7 +159,7 @@ code { font-family: var(--font-mono); font-size: 0.86em; }
       <p class="no">STATE 1</p>
       <h2>The project sheet</h2>
       <ul>
-        <li>The open project's block keeps 2a's Add a folder and Pick photos and clips. Its label changes from "Current project" to <b>Now open</b>, so it doesn't read like the list heading below (<b>Open</b>, P7a).</li>
+        <li>The open project's block is unchanged from 2a: the <b>Current project</b> label, its counts, Add a folder and Pick photos and clips (P7a: owner kept 2a's label).</li>
         <li><b>Current projects</b> lists every project in the app, the open one first with an <b>Open</b> pill. Tap a row to switch.</li>
         <li><b>Open project</b> opens the system folder picker; <b>New project</b> opens 2a's New project page.</li>
         <li>A project whose folder is gone shows <b>Folder missing</b>; it can still be removed.</li>
@@ -189,7 +189,7 @@ code { font-family: var(--font-mono); font-size: 0.86em; }
       <p class="no">STATE 3</p>
       <h2>Removed, with Undo</h2>
       <ul>
-        <li>A short toast, "Removed Sort Test", with <b>Undo</b> for a mis-tap on a small target. It puts the row back where it was (<b>Open</b>, P7b).</li>
+        <li>A short toast, "Removed Sort Test", with <b>Undo</b> for a mis-tap on a small target. It puts the row back where it was (P7b, approved).</li>
         <li>No dialog for a project that isn't working: nothing is lost, and Open project brings it back after the toast is gone.</li>
         <li>Removing the open project when nothing runs works the same way, then the next project in the list opens.</li>
       </ul>
@@ -203,7 +203,7 @@ code { font-family: var(--font-mono); font-size: 0.86em; }
       <p class="no">STATE 4</p>
       <h2>Removing the open project while it analyzes</h2>
       <ul>
-        <li>The only confirmation: × on a project with analysis or sorting running asks "Stop analysis and remove Hawaii Photos?" (<b>Open</b>, P7c).</li>
+        <li>The only confirmation: × on a project with analysis or sorting running asks "Stop analysis and remove Hawaii Photos?" (P7c, approved).</li>
         <li>Remove stops the run (the model is released), takes the project off the list and opens the next project, Maui here.</li>
       </ul>
       <button class="reset" data-reset>Reset</button>
@@ -216,7 +216,7 @@ code { font-family: var(--font-mono); font-size: 0.86em; }
       <p class="no">STATE 5</p>
       <h2>No projects</h2>
       <ul>
-        <li>On first launch, after a reinstall, or after removing the last project, the sheet shows the same two buttons over an empty list (<b>Open</b>, P7d). Today 2a opens straight on the New project form, which hides Open project from someone reinstalling.</li>
+        <li>On first launch, after a reinstall, or after removing the last project, the sheet shows the same two buttons over an empty list (P7d, approved). Today 2a opens straight on the New project form, which hides Open project from someone reinstalling.</li>
         <li>No Edit while the list is empty.</li>
       </ul>
       <button class="reset" data-reset>Reset</button>
@@ -290,7 +290,7 @@ function render(s) {
   var open = s.open ? byId(s, s.open) : null;
   var o = '<div class="blobs"><i></i><i></i><i></i></div><div class="scrim"></div><div class="sheet"><div class="handle"></div><div class="sbody' + (s.toast ? ' withtoast' : '') + '">';
   if (open) {
-    o += '<div class="lbl">Now open</div><div class="pname">' + esc(open.name) + '</div><div class="counts">' + esc(s.busy ? "136 items · 31 left · Analyzing" : open.sub) + '</div>';
+    o += '<div class="lbl">Current project</div><div class="pname">' + esc(open.name) + '</div><div class="counts">' + esc(s.busy ? "136 items · 31 left · Analyzing" : open.sub) + '</div>';
     o += '<div style="height:16px"></div><button class="pill p">' + ic("folderPlus") + 'Add a folder</button><div style="height:10px"></div><button class="pill">' + ic("photo") + 'Pick photos and clips</button>';
   }
   o += '<div class="sec"' + (open ? '' : ' style="margin-top:4px"') + '><h3>Current projects</h3>';

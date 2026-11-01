@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Filter Placement Options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+/* Same review-sheet layout and phone tokens as 2026-10-31-plan-2b-project-media.html. */
+:root {
+  --pg-bg: #EDF0F5; --pg-fg: #11151C; --pg-sub: #4D5666; --pg-line: rgba(17, 21, 28, 0.12);
+  --pg-card: #FFFFFF; --pg-accent: #0A63D1; --pg-bezel: #0C0E12;
+  --font-ui: "Inter", "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pg-bg: #0B0D12; --pg-fg: #EDF0F5; --pg-sub: #A3ACBB; --pg-line: rgba(255, 255, 255, 0.10);
+    --pg-card: #141820; --pg-accent: #6CB6FF; --pg-bezel: #000000; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --pg-bg: #0B0D12; --pg-fg: #EDF0F5; --pg-sub: #A3ACBB; --pg-line: rgba(255, 255, 255, 0.10);
+  --pg-card: #141820; --pg-accent: #6CB6FF; --pg-bezel: #000000; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--pg-bg); color: var(--pg-fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 80px; -webkit-font-smoothing: antialiased;
+}
+.page { width: 100%; max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+.intro { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pg-sub); margin: 0; }
+h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+.intro p { margin: 0; color: var(--pg-sub); max-width: 68ch; }
+code { font-family: var(--font-mono); font-size: 0.86em; }
+.cmp { border-collapse: collapse; font-size: 14px; width: 100%; max-width: 760px; }
+.cmp th, .cmp td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--pg-line); vertical-align: top; }
+.cmp th { font-weight: 600; }
+.cmp td { color: var(--pg-sub); }
+.tablewrap { overflow-x: auto; max-width: 100%; }
+.state { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; scroll-margin-top: 24px; }
+@media (min-width: 1240px) { .state { grid-template-columns: 330px minmax(0, 1fr); gap: 36px; } }
+.notes { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 68ch; }
+.notes .no { font-family: var(--font-mono); font-size: 12px; color: var(--pg-accent); margin: 0; letter-spacing: 0.04em; }
+.notes h2 { margin: 0; font-size: 22px; line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
+.notes ul { margin: 0; padding-left: 18px; color: var(--pg-sub); display: flex; flex-direction: column; gap: 4px; }
+.reset { align-self: flex-start; margin-top: 6px; font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--pg-line); background: var(--pg-card); color: var(--pg-fg); cursor: pointer; }
+.reset:hover, .reset:focus-visible { border-color: var(--pg-accent); }
+.pair { display: flex; flex-wrap: wrap; gap: 40px 36px; align-items: flex-start; min-width: 0; }
+.pair figure { margin: 0; display: flex; flex-direction: column; gap: 12px; align-items: center; width: min(412px, 100%); }
+.pair figcaption { font-family: var(--font-mono); font-size: 12px; color: var(--pg-sub); text-transform: uppercase; letter-spacing: 0.08em; }
+.wrap { position: relative; width: 100%; aspect-ratio: 412 / 915; max-width: 100%; }
+.wrap::before { content: ""; position: absolute; inset: -9px; border-radius: 54px; background: var(--pg-bezel); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22); }
+.footer { color: var(--pg-sub); font-size: 13px; border-top: 1px solid var(--pg-line); padding-top: 20px; }
+
+/* ---------- The phone ---------- */
+.ph {
+  --bg: #06070B; --bgfade: rgba(6, 7, 11, 0.9); --glass: rgba(24, 27, 36, 0.55); --sheet: rgba(20, 23, 31, 0.94);
+  --border: rgba(255, 255, 255, 0.13); --hi: rgba(255, 255, 255, 0.20); --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --text: #F4F6FA; --sub: rgba(226, 232, 244, 0.72); --chip: rgba(255, 255, 255, 0.08); --chip2: rgba(255, 255, 255, 0.12);
+  --accent: #6CB6FF; --on-accent: #04121F; --ink: #8CC6FF; --asoft: rgba(108, 182, 255, 0.18); --warn: #FFB547;
+  --track: rgba(255, 255, 255, 0.14); --blob: 0.5; --scrim: rgba(0, 0, 0, 0.5); --line: rgba(255, 255, 255, 0.12);
+  position: absolute; left: 0; top: 0; width: 412px; height: 915px; transform-origin: 0 0; transform: scale(var(--k, 1));
+  border-radius: 46px; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: var(--font-ui); font-size: 14px; line-height: 1.35; -webkit-font-smoothing: antialiased; isolation: isolate; color-scheme: dark;
+}
+.ph.light {
+  --bg: #E8ECF2; --bgfade: rgba(232, 236, 242, 0.9); --glass: rgba(255, 255, 255, 0.58); --sheet: rgba(245, 247, 251, 0.95);
+  --border: rgba(255, 255, 255, 0.85); --hi: rgba(255, 255, 255, 1); --shadow: 0 12px 32px rgba(40, 52, 80, 0.16);
+  --text: #0E1116; --sub: #4A5263; --chip: rgba(20, 28, 45, 0.06); --chip2: rgba(255, 255, 255, 0.78);
+  --accent: #0A63D1; --on-accent: #FFFFFF; --ink: #0A55B5; --asoft: rgba(10, 99, 209, 0.12); --warn: #9A5A00;
+  --track: rgba(20, 28, 45, 0.10); --blob: 0.45; --scrim: rgba(20, 26, 40, 0.34); --line: rgba(20, 28, 45, 0.12); color-scheme: light;
+}
+:where(.ph) button { font: inherit; color: inherit; }
+.ph button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ph button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ph svg { flex: none; }
+.glass { backdrop-filter: blur(24px) saturate(170%); -webkit-backdrop-filter: blur(24px) saturate(170%); background: var(--glass); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--hi), var(--shadow); }
+.blobs { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.blobs i { position: absolute; border-radius: 50%; opacity: var(--blob); }
+.blobs i:nth-child(1) { width: 340px; height: 340px; left: -120px; top: 40px; background: #2F6E8F; filter: blur(80px); }
+.blobs i:nth-child(2) { width: 300px; height: 300px; right: -120px; top: 320px; background: #F2A65A; filter: blur(80px); }
+.blobs i:nth-child(3) { width: 320px; height: 320px; left: 20px; top: 640px; background: #3E8F6E; filter: blur(90px); }
+.noscroll { scrollbar-width: none; }
+.noscroll::-webkit-scrollbar { display: none; }
+.gridscroll { position: absolute; inset: 0; overflow-y: auto; padding: var(--gtop) 16px 120px; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; }
+.topfade { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--gtop) + 4px); background: linear-gradient(var(--bgfade) 0, var(--bgfade) 88%, transparent); pointer-events: none; }
+.tile { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.art { position: relative; display: block; width: 100%; aspect-ratio: 1 / 1; border-radius: 18px; overflow: hidden; }
+.tname { font-size: 11px; font-weight: 500; padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bdg { position: absolute; right: 6px; bottom: 6px; padding: 2px 6px; border-radius: 8px; background: rgba(0, 0, 0, 0.55); color: #FFFFFF; font-size: 10.5px; font-weight: 600; }
+.hdr { position: absolute; left: 16px; right: 16px; top: 44px; height: 56px; padding: 6px; border-radius: 28px; display: flex; align-items: center; gap: 8px; }
+.ib { width: 44px; height: 44px; flex: none; border-radius: 22px; border: 0; background: var(--chip); display: grid; place-items: center; }
+.ht { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.ht b { font-size: 16px; }
+.ht span { font-size: 12px; color: var(--sub); }
+.search { position: absolute; left: 16px; right: 16px; top: 112px; height: 48px; padding: 0 16px; border-radius: 24px; display: flex; align-items: center; gap: 10px; color: var(--sub); font-size: 15px; }
+.cathead { position: absolute; left: 24px; right: 16px; top: 170px; height: 30px; display: flex; align-items: center; gap: 6px; }
+.cathead h4 { margin: 0; flex: 1; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sub); font-weight: 600; }
+.mini { height: 30px; padding: 0 12px; border-radius: 15px; border: 0; background: var(--chip); color: var(--ink); font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 5px; flex: none; }
+.mini.on { background: var(--asoft); }
+.mini .cnt { min-width: 18px; height: 18px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; display: grid; place-items: center; padding: 0 5px; }
+.chips { position: absolute; left: 0; right: 0; top: 204px; height: 40px; overflow-x: auto; display: flex; gap: 6px; padding: 0 16px; align-items: center; }
+.chip { flex: none; height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid var(--border); background: var(--glass); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.chip .n { font-size: 11px; font-weight: 600; opacity: 0.8; }
+.chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chip.attn { border-color: var(--warn); color: var(--warn); }
+.filters { position: absolute; left: 0; right: 0; top: 248px; height: 34px; overflow-x: auto; display: flex; gap: 6px; padding: 0 16px; align-items: center; }
+.fchip { flex: none; height: 30px; padding: 0 8px 0 12px; border-radius: 15px; border: 1px solid var(--line); background: transparent; font-size: 12.5px; font-weight: 500; color: var(--sub); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.fchip.set { border-color: var(--accent); background: var(--asoft); color: var(--ink); }
+.seg { flex: none; display: flex; height: 30px; border-radius: 15px; border: 1px solid var(--line); overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 0 11px; font-size: 12.5px; font-weight: 500; color: var(--sub); }
+.seg button.on { background: var(--asoft); color: var(--ink); font-weight: 600; }
+.setchip { flex: none; height: 30px; padding: 0 6px 0 12px; border-radius: 15px; border: 1px solid var(--accent); background: var(--asoft); color: var(--ink); font-size: 12.5px; font-weight: 500; display: flex; align-items: center; gap: 2px; white-space: nowrap; }
+.result { position: absolute; left: 24px; right: 16px; height: 30px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--sub); }
+.result span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock { position: absolute; left: 16px; right: 16px; bottom: 22px; height: 64px; border-radius: 30px; display: flex; align-items: center; padding: 0 18px; font-size: 12.5px; color: var(--sub); }
+.scrim { position: absolute; inset: 0; background: var(--scrim); z-index: 5; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; border-radius: 30px 30px 0 0; background: var(--sheet); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border: 1px solid var(--border); border-bottom: 0; padding: 0 20px 30px; display: flex; flex-direction: column; gap: 4px; max-height: 90%; overflow-y: auto; }
+.handle { width: 40px; height: 5px; border-radius: 3px; background: var(--track); margin: 10px auto 8px; flex: none; }
+.sheet h3 { margin: 0 0 4px; font-size: 18px; font-weight: 700; }
+.grp { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sub); font-weight: 600; margin-top: 10px; }
+.opt { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border-radius: 14px; border: 0; background: transparent; text-align: left; width: 100%; font-size: 15px; }
+.opt .n { margin-left: auto; color: var(--sub); font-size: 13px; }
+.opt .rd { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); flex: none; }
+.opt.on { background: var(--chip); }
+.opt.on .rd { border-color: var(--accent); background: radial-gradient(var(--accent) 0 45%, transparent 50%); }
+.done { margin-top: 12px; height: 48px; border-radius: 24px; border: 0; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 15px; }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="intro">
+    <p class="eyebrow">Plan 2b · Q3 · Nov 1, 2026</p>
+    <h1 class="pg">Where the secondary filters go</h1>
+    <p>Three ways to place the photo/video, shot type and date filters on Project Media. Everything else on the screen is the same as the approved mockup. Each phone is live: tap the filters and watch the grid and the result count change.</p>
+    <div class="tablewrap"><table class="cmp">
+      <thead><tr><th>Option</th><th>"Videos only"</th><th>Shot type or date</th><th>Space above the grid</th></tr></thead>
+      <tbody>
+        <tr><th>A. Always visible</th><td>2 taps (chip, then Videos)</td><td>2 taps</td><td>One extra row (34 px)</td></tr>
+        <tr><th>B. Filters button</th><td>3 taps (Filters, Videos, Done)</td><td>3 taps</td><td>None until a filter is set</td></tr>
+        <tr><th>C. Type toggle plus More</th><td>1 tap</td><td>3 taps (More, choice, Done)</td><td>One extra row (34 px)</td></tr>
+      </tbody>
+    </table></div>
+  </header>
+
+  <section class="state" data-v="A">
+    <div class="notes">
+      <p class="no">OPTION A · recommended so far</p>
+      <h2>A row of three dropdown chips, always visible</h2>
+      <ul>
+        <li>As in the approved Project Media mockup: "Photos and videos", "Any shot type", "Any date" under the category chips.</li>
+        <li>Each opens a small sheet with counts; a set filter turns blue and shows its value.</li>
+        <li>Every filter is always in view, so it's obvious when one is narrowing the grid.</li>
+      </ul>
+      <button class="reset" data-reset>Reset</button>
+    </div>
+    <div class="pair"></div>
+  </section>
+
+  <section class="state" data-v="B">
+    <div class="notes">
+      <p class="no">OPTION B</p>
+      <h2>One Filters button</h2>
+      <ul>
+        <li>A <b>Filters</b> button on the result line, next to Select, opens one sheet with all three groups.</li>
+        <li>With nothing set, the grid starts one row higher.</li>
+        <li>Set filters appear as blue chips with × under the category chips, and the button shows a count, so a narrowed grid is still visible.</li>
+      </ul>
+      <button class="reset" data-reset>Reset</button>
+    </div>
+    <div class="pair"></div>
+  </section>
+
+  <section class="state" data-v="C">
+    <div class="notes">
+      <p class="no">OPTION C</p>
+      <h2>Type toggle, the rest behind More</h2>
+      <ul>
+        <li>An <b>All · Photos · Videos</b> toggle is always visible: "videos only" is one tap.</li>
+        <li><b>More</b> opens a sheet for shot type and date; once set they show as blue chips beside the toggle.</li>
+        <li>Same height as A, with the most common filter fastest.</li>
+      </ul>
+      <button class="reset" data-reset>Reset</button>
+    </div>
+    <div class="pair"></div>
+  </section>
+
+  <p class="footer">Goes with Q3 in <code>docs/superpowers/mockups/2026-10-31-plan-2b-questions.md</code> and Task 11 of <code>docs/superpowers/plans/2026-10-31-plan-2b-project-media.md</code>. Layout and tokens follow <code>2026-10-31-plan-2b-project-media.html</code>.</p>
+</main>
+
+<script>
+var IC = {
+  back: '<path d="M15 18l-6-6 6-6"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  chev: '<path d="M6 9l6 6 6-6"/>',
+  x: '<path d="M7 7l10 10M17 7L7 17"/>',
+  sliders: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  select: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
+  shuffle: '<path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
+  pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  play: '<path d="M7 5l12 7-12 7z" fill="currentColor"/>'
+};
+function ic(n, s, w) { return '<svg width="' + (s || 18) + '" height="' + (s || 18) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (w || 2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>'; }
+function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+var SHOTS = { wide: "Wide", close: "Close-up", people: "People", action: "Action" };
+var DATES = ["12", "13", "14"];
+var COLORS = [["#2F6E8F", "#9BD3E8"], ["#F2A65A", "#FCE3B0"], ["#3E8F6E", "#B8E2C8"], ["#6B5BA8", "#CFC6F0"], ["#B5523B", "#F4C2B4"], ["#2B4C7E", "#A9C4EE"]];
+var ITEMS = [
+  ["Turtle Resting on Sand", "p", "close", "12"], ["Snorkel Reef", "v", "action", "12", "0:42"], ["Beach Sunset", "p", "wide", "12"],
+  ["Lava Field", "p", "wide", "13"], ["Kids in Waves", "v", "people", "13", "1:05"], ["Shave Ice", "p", "close", "13"],
+  ["Road to Hana", "v", "wide", "13", "2:10"], ["Waterfall Hike", "p", "wide", "14"], ["Mama's Fish House", "p", "people", "14"],
+  ["Surf Lesson", "v", "action", "14", "0:58"], ["Gecko on Wall", "p", "close", "14"], ["Luau Dancers", "v", "people", "14", "1:31"]
+].map(function (r, i) { return { name: r[0], k: r[1], shot: r[2], date: r[3], d: r[4], col: COLORS[i % COLORS.length] }; });
+
+function start() { return { kind: "all", shot: "any", date: "any", sheet: null, draft: null }; }
+function vis(s) { return ITEMS.filter(function (it) { return (s.kind === "all" || (s.kind === "photo" ? it.k === "p" : it.k === "v")) && (s.shot === "any" || it.shot === s.shot) && (s.date === "any" || it.date === s.date); }); }
+function count(s, patch) { var t = Object.assign({}, s, patch); return vis(t).length; }
+function kindLabel(k) { return { all: "Photos and videos", photo: "Photos", video: "Videos" }[k]; }
+function nset(s) { return (s.kind !== "all") + (s.shot !== "any") + (s.date !== "any"); }
+
+function header(v, s) {
+  var o = '<div class="glass hdr"><button class="ib" aria-label="Back">' + ic("back") + '</button><div class="ht"><b>Hawaii Photos</b><span>Project media · 12 items</span></div><button class="ib" aria-label="Settings">' + ic("gear") + '</button></div>';
+  o += '<div class="glass search">' + ic("search") + '<span>Search “sea turtles on the sand”</span></div>';
+  o += '<div class="cathead"><h4>Categories · 4</h4><button class="mini">' + ic("shuffle", 15) + 'Re-sort</button><button class="mini">' + ic("pencil", 15) + 'Edit</button></div>';
+  o += '<div class="chips noscroll"><button class="chip on">All<span class="n">12</span></button><button class="chip">Beach Days<span class="n">4</span></button><button class="chip">Island Food<span class="n">3</span></button><button class="chip">Hikes<span class="n">3</span></button><button class="chip">Ocean Life<span class="n">2</span></button></div>';
+  return o;
+}
+
+function render(v, s) {
+  var shown = vis(s), top, o = '<div class="blobs"><i></i><i></i><i></i></div>';
+  var extraRow = v === "A" || v === "C" || (v === "B" && nset(s) > 0);
+  var resultTop = extraRow ? 288 : 252;
+  top = resultTop + 38;
+  o += '<div class="gridscroll noscroll" style="--gtop:' + top + 'px"><div class="grid">';
+  shown.forEach(function (it) {
+    o += '<div class="tile"><span class="art" style="background:linear-gradient(140deg,' + it.col[0] + ',' + it.col[1] + ')">' + (it.k === "v" ? '<span class="bdg">' + it.d + '</span>' : '') + '</span><span class="tname">' + esc(it.name) + '</span></div>';
+  });
+  o += '</div></div><div class="topfade" style="--gtop:' + top + 'px"></div>';
+  o += header(v, s);
+
+  if (v === "A") {
+    o += '<div class="filters noscroll">' +
+      '<button class="fchip' + (s.kind !== "all" ? " set" : "") + '" data-a="open" data-v="kind">' + kindLabel(s.kind) + ic("chev", 14) + '</button>' +
+      '<button class="fchip' + (s.shot !== "any" ? " set" : "") + '" data-a="open" data-v="shot">' + (s.shot === "any" ? "Any shot type" : SHOTS[s.shot]) + ic("chev", 14) + '</button>' +
+      '<button class="fchip' + (s.date !== "any" ? " set" : "") + '" data-a="open" data-v="date">' + (s.date === "any" ? "Any date" : "Jul " + s.date) + ic("chev", 14) + '</button></div>';
+  } else if (v === "B") {
+    if (nset(s)) {
+      o += '<div class="filters noscroll">';
+      if (s.kind !== "all") o += setChip(kindLabel(s.kind), "kind");
+      if (s.shot !== "any") o += setChip(SHOTS[s.shot], "shot");
+      if (s.date !== "any") o += setChip("Jul " + s.date, "date");
+      o += '</div>';
+    }
+  } else {
+    o += '<div class="filters noscroll"><div class="seg" role="group" aria-label="Type">' +
+      ["all", "photo", "video"].map(function (k) { return '<button class="' + (s.kind === k ? "on" : "") + '" data-a="kind" data-v="' + k + '">' + { all: "All", photo: "Photos", video: "Videos" }[k] + '</button>'; }).join("") + '</div>';
+    if (s.shot !== "any") o += setChip(SHOTS[s.shot], "shot");
+    if (s.date !== "any") o += setChip("Jul " + s.date, "date");
+    var more = (s.shot !== "any") + (s.date !== "any");
+    o += '<button class="fchip' + (more ? " set" : "") + '" data-a="open" data-v="more">More' + ic("chev", 14) + '</button></div>';
+  }
+
+  o += '<div class="result" style="top:' + resultTop + 'px"><span>All categories · ' + shown.length + (shown.length === 1 ? " item" : " items") + '</span>';
+  if (v === "B") o += '<button class="mini' + (nset(s) ? " on" : "") + '" data-a="open" data-v="all">' + ic("sliders", 15) + 'Filters' + (nset(s) ? '<span class="cnt">' + nset(s) + '</span>' : '') + '</button>';
+  o += '<button class="mini">' + ic("select", 15) + 'Select</button></div>';
+  o += '<div class="glass dock">' + ic("clock", 14) + '&nbsp; 9 files ready to bin · 3 waiting to be categorized</div>';
+  if (s.sheet) o += sheet(v, s);
+  return o;
+}
+function setChip(text, key) { return '<span class="setchip">' + esc(text) + '<button class="ib" style="width:24px;height:24px;background:transparent" data-a="clear" data-v="' + key + '" aria-label="Clear ' + esc(text) + '">' + ic("x", 13, 2.4) + '</button></span>'; }
+
+function opts(s, key, list) {
+  return list.map(function (o) {
+    var patch = {}; patch[key] = o[0];
+    var on = s.draft[key] === o[0];
+    return '<button class="opt' + (on ? " on" : "") + '" data-a="pick" data-k="' + key + '" data-v="' + o[0] + '"><span class="rd"></span>' + esc(o[1]) + '<span class="n">' + count(s.draft, patch) + '</span></button>';
+  }).join("");
+}
+function sheet(v, s) {
+  var g = { kind: [["all", "Photos and videos"], ["photo", "Photos"], ["video", "Videos"]],
+    shot: [["any", "Any shot type"]].concat(Object.keys(SHOTS).map(function (k) { return [k, SHOTS[k]]; })),
+    date: [["any", "Any date"]].concat(DATES.map(function (d) { return [d, "Jul " + d]; })) };
+  var groups = s.sheet === "all" ? ["kind", "shot", "date"] : s.sheet === "more" ? ["shot", "date"] : [s.sheet];
+  var title = s.sheet === "all" ? "Filters" : s.sheet === "more" ? "More filters" : { kind: "Photos and videos", shot: "Shot type", date: "Date" }[s.sheet];
+  var o = '<div class="scrim" data-a="close"></div><div class="sheet" role="dialog" aria-label="' + title + '"><div class="handle"></div><h3>' + title + '</h3>';
+  groups.forEach(function (k) {
+    if (groups.length > 1) o += '<div class="grp">' + { kind: "Type", shot: "Shot type", date: "Date" }[k] + '</div>';
+    o += opts(s, k, g[k]);
+  });
+  if (groups.length > 1) o += '<button class="done" data-a="apply">Show ' + vis(s.draft).length + ' items</button>';
+  return o + '</div>';
+}
+
+function act(s, a, v, k) {
+  if (a === "open") { s.sheet = v; s.draft = { kind: s.kind, shot: s.shot, date: s.date }; }
+  else if (a === "close") { s.sheet = null; }
+  else if (a === "pick") {
+    s.draft[k] = v;
+    if (s.sheet !== "all" && s.sheet !== "more") { s[k] = v; s.sheet = null; }
+  }
+  else if (a === "apply") { s.kind = s.draft.kind; s.shot = s.draft.shot; s.date = s.draft.date; s.sheet = null; }
+  else if (a === "kind") { s.kind = v; }
+  else if (a === "clear") { s[v] = v === "kind" ? "all" : "any"; }
+}
+
+document.querySelectorAll(".state").forEach(function (sec) {
+  var v = sec.dataset.v, pair = sec.querySelector(".pair"), s = start();
+  pair.innerHTML = ["dark", "light"].map(function (t) { return '<figure><div class="wrap"><div class="ph' + (t === "light" ? " light" : "") + '"></div></div><figcaption>' + t + '</figcaption></figure>'; }).join("");
+  function draw() { pair.querySelectorAll(".ph").forEach(function (ph) { ph.innerHTML = render(v, s); }); }
+  pair.addEventListener("click", function (e) { var b = e.target.closest("[data-a]"); if (!b) return; act(s, b.dataset.a, b.dataset.v, b.dataset.k); draw(); });
+  sec.querySelector("[data-reset]").addEventListener("click", function () { s = start(); draw(); });
+  draw();
+});
+(function () {
+  function fit() { document.querySelectorAll(".wrap").forEach(function (w) { var ph = w.firstElementChild; if (ph && w.clientWidth) ph.style.setProperty("--k", (w.clientWidth / 412).toFixed(4)); }); }
+  fit(); window.addEventListener("resize", fit);
+  if (window.ResizeObserver) { var ro = new ResizeObserver(fit); document.querySelectorAll(".wrap").forEach(function (w) { ro.observe(w); }); }
+})();
+</script>
+</body>
+</html>
