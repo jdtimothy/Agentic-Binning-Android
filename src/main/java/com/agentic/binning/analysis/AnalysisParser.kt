@@ -1,6 +1,7 @@
 package com.agentic.binning.analysis
 
 import com.agentic.binning.db.ItemKind
+import com.agentic.binning.sorting.cleanName
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -36,8 +37,6 @@ private data class RawAnalysis(
 
 object AnalysisParser {
     private val json = Json { ignoreUnknownKeys = true; isLenient = false }
-    private val illegalNameChars = Regex("""[/\\:*?"<>|]""")
-    private val whitespaceRun = Regex("""\s+""")
     private val shotTypes = setOf("wide", "medium", "close")
     private const val MAX_TAGS = 10
     private const val MAX_NAME = 60
@@ -53,7 +52,7 @@ object AnalysisParser {
         }
         val description = raw.description.trim()
         if (description.isEmpty()) return null
-        val name = cleanName(raw.suggestedName)
+        val name = cleanName(raw.suggestedName, MAX_NAME)
         if (name.isEmpty()) return null
         val tags = raw.tags.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.distinct().take(MAX_TAGS)
         return AnalysisResult(
@@ -63,15 +62,6 @@ object AnalysisParser {
             suggestedName = name,
             shotType = raw.shotType.trim().lowercase().takeIf { it in shotTypes } ?: "medium",
         )
-    }
-
-    private fun cleanName(name: String): String {
-        val cleaned = name
-            .replace(illegalNameChars, " ")
-            .replace(whitespaceRun, " ")
-            .trim()
-            .trimEnd { it == '.' || it.isWhitespace() }
-        return cleaned.take(MAX_NAME).trimEnd { it == '.' || it.isWhitespace() }
     }
 
     /**

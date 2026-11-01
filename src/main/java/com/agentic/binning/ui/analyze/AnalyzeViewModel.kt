@@ -5,14 +5,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.agentic.binning.analysis.ActionEntry
 import com.agentic.binning.db.ItemEntity
-import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.model.DownloadState
 import com.agentic.binning.pipeline.PipelineController
 import com.agentic.binning.pipeline.PipelinePhase
 import com.agentic.binning.pipeline.PipelineState
+import com.agentic.binning.pipeline.storedSortNotice
 import com.agentic.binning.project.OpenProject
 import com.agentic.binning.project.ProjectFolders
 import com.agentic.binning.project.ProjectRef
+import com.agentic.binning.settings.SortingModelChoice
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -38,25 +40,83 @@ class AnalyzeViewModel(
     private val pipeline: PipelineController,
     private val currentProject: StateFlow<OpenProject?>,
     modelState: Flow<DownloadState>,
-    /** Lifts a Stop and analyzes a project's waiting items in the foreground service (AppGraph.resumeAnalysis). */
+    /**
+     * Lifts a Stop and analyzes a project's waiting items in the foreground service, or with none
+     * categorizes its uncategorized ones (AppGraph.resumeAnalysis).
+     */
     private val resumeAnalysis: (ProjectRef) -> Unit,
     /** Stops the run and remembers it for the open project (AppGraph.stopAnalysis). */
     private val stopAnalysis: () -> Unit,
+    /** The user's max frames per clip, which sets how many frames a clip's card shows. */
+    maxFramesPerClip: Flow<Int>,
+    /** The sorting model from Settings, named in the model chip while categorizing. */
+    sortingModel: Flow<SortingModelChoice>,
 ) : ViewModel() {
-    private class ProjectItems(val project: OpenProject, val items: List<ItemEntity>)
+    private class ProjectItems(val project: OpenProject, val items: List<ItemEntity>, val categoryNames: Map<Long, String> = emptyMap())
 
     private val projectItems: StateFlow<ProjectItems?> = currentProject
         .flatMapLatest { project ->
             if (project == null) {
                 flowOf(null)
             } else {
-                project.db.items().observeAll()
-                    .map { ProjectItems(project, it) }
+                combine(project.db.items().observeAll(), project.db.sort().observeCategories()) { items, categories ->
+                    ProjectItems(project, items, categories.associate { it.id to it.name })
+                }
                     // The database closes on a project switch, possibly before this collector moves on.
                     .catch { e -> Log.w(TAG, "Item list of ${project.ref.name} stopped", e) }
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** The Stop remembered in the open project's database (AnalysisLauncher); false when none or unreadable. */
+    private val stoppedByUser: Flow<Boolean> = currentProject
+        .flatMapLatest { project ->
+            if (project == null) {
+                flowOf(false)
+            } else {
+                project.db.meta().observeStoppedByUser()
+                    .map { it == true }
+                    // The database closes on a project switch, possibly before this collector moves on.
+                    .catch { e ->
+                        Log.w(TAG, "Stop flag of ${project.ref.name} stopped", e)
+                        emit(false)
+                    }
+            }
+        }
+        .distinctUntilChanged()
+
+    /** Analyzed items of the open project still waiting for a category; 0 when none or unreadable. */
+    private val uncategorized: Flow<Int> = currentProject
+        .flatMapLatest { project ->
+            if (project == null) {
+                flowOf(0)
+            } else {
+                project.db.sort().observeUncategorizedCount()
+                    // The database closes on a project switch, possibly before this collector moves on.
+                    .catch { e ->
+                        Log.w(TAG, "Uncategorized count of ${project.ref.name} stopped", e)
+                        emit(0)
+                    }
+            }
+        }
+        .distinctUntilChanged()
+
+    /** Why the open project's last sort run left items uncategorized, read from its run records. */
+    private val storedNotice: Flow<String?> = currentProject
+        .flatMapLatest { project ->
+            if (project == null) {
+                flowOf(null)
+            } else {
+                project.db.sort().observeRecentRuns()
+                    .map { storedSortNotice(it) }
+                    // The database closes on a project switch, possibly before this collector moves on.
+                    .catch { e ->
+                        Log.w(TAG, "Sort runs of ${project.ref.name} stopped", e)
+                        emit(null)
+                    }
+            }
+        }
+        .distinctUntilChanged()
 
     /** The pipeline state if it belongs to the open project, else null. */
     private val live: Flow<PipelineState?> = combine(pipeline.state, currentProject) { state, project ->
@@ -69,13 +129,16 @@ class AnalyzeViewModel(
     /** Cards together with the project they were read from, so lookups never mix two projects. */
     private class ProjectCards(val project: OpenProject?, val cards: List<CardItem>)
 
-    private val cards: Flow<ProjectCards> = combine(projectItems, thumbTick) { pi, _ -> pi }
-        .mapLatest { pi ->
+    private val cards: Flow<ProjectCards> = combine(projectItems, thumbTick, maxFramesPerClip.distinctUntilChanged()) { pi, _, cap -> pi to cap }
+        .mapLatest { (pi, cap) ->
             if (pi == null) {
                 ProjectCards(null, emptyList())
             } else {
                 val thumbs = ProjectFolders.thumbsDir(File(pi.project.ref.path))
-                ProjectCards(pi.project, pi.items.map { cardOf(it, File(thumbs, "${it.id}.jpg").takeIf(File::isFile)) })
+                ProjectCards(
+                    pi.project,
+                    pi.items.map { cardOf(it, File(thumbs, "${it.id}.jpg").takeIf(File::isFile), cap, it.categoryId?.let(pi.categoryNames::get)) },
+                )
             }
         }
         .flowOn(Dispatchers.IO)
@@ -98,38 +161,42 @@ class AnalyzeViewModel(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, NoProgress)
 
-    val header: StateFlow<HeaderState> = combine(
+    /** The vision model's download state and the sorting model choice (null until read). */
+    private val models: Flow<Pair<DownloadState, SortingModelChoice?>> = combine(
         modelState.flowOn(Dispatchers.IO),
+        sortingModel.map<SortingModelChoice, SortingModelChoice?> { it }.onStart { emit(null) }.distinctUntilChanged(),
+        ::Pair,
+    )
+
+    val header: StateFlow<HeaderState> = combine(
+        models,
         projectItems,
         live,
         carousel,
-    ) { model, pi, state, carousel ->
+        combine(stoppedByUser, uncategorized, ::Pair),
+    ) { (vision, sorting), pi, state, carousel, (stopped, uncategorized) ->
         val statuses = pi?.items.orEmpty().map { it.status }
-        val (text, tone) = statusOf(pi != null, statuses, state, carousel.focus)
-        val analyzed = statuses.count { it.isAnalyzed }
-        val failed = statuses.count { it == ItemStatus.Failed || it == ItemStatus.Missing }
+        val (text, tone) = statusOf(pi != null, statuses, state, carousel.focus, stopped, uncategorized)
         HeaderState(
-            model = model,
+            model = modelChipOf(state, vision, sorting),
             projectName = pi?.project?.ref?.name ?: currentProject.value?.ref?.name,
             itemCount = statuses.size,
             statusText = text,
             statusTone = tone,
-            countText = if (pi == null) "" else "$analyzed of ${statuses.size} analyzed" + if (failed > 0) " · $failed failed" else "",
+            countText = countTextOf(pi != null, statuses, state),
             speedText = speedText(state),
         )
     }
         .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, HeaderState(null, null, 0, "", StatusTone.Quiet, ""))
+        .stateIn(viewModelScope, SharingStarted.Eagerly, HeaderState(modelChipOf(null, null, null), null, 0, "", StatusTone.Quiet, ""))
 
-    val controls: StateFlow<ControlsState> = combine(projectItems, live) { pi, state ->
-        val running = state?.phase?.isRunning == true
-        val paused = state?.phase == PipelinePhase.Paused
-        val hasPending = pi?.items.orEmpty().any { !it.status.isDone }
-        ControlsState(
-            canStop = running,
-            showResume = !running || paused,
-            canToggle = running || (pi != null && hasPending),
+    val controls: StateFlow<ControlsState> = combine(projectItems, live, uncategorized) { pi, state, uncategorized ->
+        controlsOf(
+            state,
+            hasProject = pi != null,
+            hasPending = pi?.items.orEmpty().any { !it.status.isDone },
             mediaCount = pi?.items?.size ?: 0,
+            uncategorized = uncategorized,
         )
     }
         .distinctUntilChanged()
@@ -161,7 +228,10 @@ class AnalyzeViewModel(
         carousel.map { it.focus }.distinctUntilChanged(),
         live,
         stored,
-    ) { (hasProject, empty), card, state, stored -> outputOf(hasProject, empty, card, state, stored) }
+        combine(uncategorized, storedNotice, ::Pair),
+    ) { (hasProject, empty), card, state, stored, (uncategorized, storedNotice) ->
+        outputOf(hasProject, empty, card, state, stored, uncategorized, storedNotice)
+    }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, EmptyOutput)
 
@@ -174,7 +244,7 @@ class AnalyzeViewModel(
         val live = state.project == project.ref
         when {
             live && state.phase == PipelinePhase.Paused -> pipeline.resume()
-            live && state.phase.isRunning -> pipeline.pause()
+            live && state.phase.isRunning -> if (state.phase.canPause) pipeline.pause()
             else -> resumeAnalysis(project.ref)
         }
     }

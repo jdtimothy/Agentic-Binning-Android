@@ -13,11 +13,16 @@ import com.agentic.binning.analysis.AnalysisResult
 import com.agentic.binning.analysis.MediaPreparer
 import com.agentic.binning.analysis.PreparedMedia
 import com.agentic.binning.db.AnalysisEntity
+import com.agentic.binning.db.Assignment
+import com.agentic.binning.db.CategoryEntity
+import com.agentic.binning.db.CategoryInfo
 import com.agentic.binning.db.ItemEntity
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.db.ProjectDatabase
 import com.agentic.binning.db.PROJECT_DB_VERSION
 import com.agentic.binning.db.ProjectMetaEntity
+import com.agentic.binning.db.SortRunEntity
+import com.agentic.binning.db.UncategorizedItem
 import com.agentic.binning.db.openProjectDatabase
 import com.agentic.binning.media.Candidate
 import com.agentic.binning.media.ItemStoreLookup
@@ -28,10 +33,14 @@ import com.agentic.binning.media.ProjectItemLookup
 import com.agentic.binning.media.Registrar
 import com.agentic.binning.media.RegistrationProgress
 import com.agentic.binning.media.RegistrationSummary
+import com.agentic.binning.model.ClaudeTextModel
 import com.agentic.binning.model.DownloadState
+import com.agentic.binning.model.GenieXTextModel
 import com.agentic.binning.model.GenieXVisionModel
 import com.agentic.binning.model.ModelCatalog
 import com.agentic.binning.model.ModelDownloader
+import com.agentic.binning.model.ModelSpec
+import com.agentic.binning.model.TextModel
 import com.agentic.binning.model.VisionModel
 import com.agentic.binning.model.VisionModelException
 import com.agentic.binning.model.VisionProfile
@@ -39,24 +48,34 @@ import com.agentic.binning.pipeline.AnalysisEngine
 import com.agentic.binning.pipeline.AnalysisLauncher
 import com.agentic.binning.pipeline.AnalysisService
 import com.agentic.binning.pipeline.AnalysisStore
-import com.agentic.binning.pipeline.BatchCompleteHandler
 import com.agentic.binning.pipeline.FailureReasons
 import com.agentic.binning.pipeline.ItemCounts
+import com.agentic.binning.pipeline.ModelArbiter
 import com.agentic.binning.pipeline.PipelineController
 import com.agentic.binning.pipeline.PipelineLog
 import com.agentic.binning.pipeline.Preparer
 import com.agentic.binning.pipeline.ProjectRunFlags
+import com.agentic.binning.pipeline.RunKind
+import com.agentic.binning.pipeline.SortStore
+import com.agentic.binning.pipeline.SortingCategorizer
 import com.agentic.binning.project.OpenProject
 import com.agentic.binning.project.ProjectFolders
 import com.agentic.binning.project.ProjectMissingException
 import com.agentic.binning.project.ProjectRef
 import com.agentic.binning.project.ProjectRegistry
 import com.agentic.binning.project.requireProjectFolder
+import com.agentic.binning.settings.AndroidKeyCipher
+import com.agentic.binning.settings.ApiKeyStore
+import com.agentic.binning.settings.ApiKeys
 import com.agentic.binning.settings.SettingsStore
+import com.agentic.binning.settings.SortingModelChoice
+import com.agentic.binning.sorting.SortBudgets
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -64,6 +83,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -78,6 +98,9 @@ private val Context.settingsDataStore by preferencesDataStore(
 /** Hand-rolled dependency container; later tasks add properties. */
 class AppGraph(val context: Context) {
     val settings: SettingsStore by lazy { SettingsStore(context.settingsDataStore) }
+
+    /** The Claude API key (Keystore-encrypted); save it through here so the sorting model default follows. */
+    val apiKeys: ApiKeys by lazy { ApiKeys(ApiKeyStore(context.settingsDataStore, AndroidKeyCipher()), settings) }
 
     val projectsRoot: File = File(Environment.getExternalStorageDirectory(), "Agentic Binning")
 
@@ -95,6 +118,34 @@ class AppGraph(val context: Context) {
     val modelDownloader: ModelDownloader by lazy { ModelDownloader(context) }
 
     val visionModel: VisionModel by lazy { GenieXVisionModel(ModelCatalog.LFM3_VL_2B) }
+
+    private val modelPulls = mutableMapOf<String, Job>()
+
+    /**
+     * Downloads [spec] (an on-device sorting model) in the app scope, so leaving Settings doesn't
+     * stop it; [ModelDownloader.state] shows its progress. Does nothing while [spec] is already pulling.
+     */
+    fun pullModel(spec: ModelSpec) {
+        synchronized(modelPulls) {
+            if (modelPulls[spec.id]?.isActive == true) return
+            modelPulls[spec.id] = appScope.launch { modelDownloader.pull(spec).collect {} }
+        }
+    }
+
+    /** Claude reads the saved key on every call, so a key changed in Settings applies to the next one. */
+    private val claudeTextModel: TextModel by lazy {
+        ClaudeTextModel(apiKey = apiKeys::load, log = { Log.d("ClaudeTextModel", it) })
+    }
+
+    private val lfmTextModel: TextModel by lazy {
+        GenieXTextModel(ModelCatalog.LFM3_1_7B, nCtx = SortBudgets.LFM3_1_7B.contextTokens)
+    }
+
+    /** The sorting backend for [choice]; the categorizer loads it and releases it when done. */
+    fun textModelFor(choice: SortingModelChoice): TextModel = when (choice) {
+        SortingModelChoice.Claude -> claudeTextModel
+        SortingModelChoice.Lfm3_1_7B -> lfmTextModel
+    }
 
     /** Frames and padded images go to the app's own cache, never next to the user's files. */
     private val mediaPreparer by lazy { MediaPreparer(File(context.cacheDir, "frames")) }
@@ -145,11 +196,38 @@ class AppGraph(val context: Context) {
         }
     }
 
+    /** The open project's categories and uncategorized items, for the categorizer. */
+    private val sortStore = object : SortStore {
+        override suspend fun categories(): List<CategoryInfo> = pipelineProject().db.sort().categories()
+
+        override suspend fun uncategorized(): List<UncategorizedItem> = pipelineProject().db.sort().uncategorized()
+
+        override suspend fun itemCount(): Int {
+            val items = pipelineProject().db.items()
+            return ItemStatus.entries.sumOf { items.countByStatus(it) }
+        }
+
+        override suspend fun applyChunk(newCategories: List<CategoryEntity>, assignments: List<Assignment>): Int =
+            pipelineProject().db.sort().applyChunk(newCategories, assignments)
+
+        override suspend fun startRun(run: SortRunEntity): Long = pipelineProject().db.sort().startRun(run)
+
+        override suspend fun finishRun(id: Long, finishedAt: Long, sorted: Int, newCategories: Int, outcome: String, message: String?) =
+            pipelineProject().db.sort().finishRun(id, finishedAt, sorted, newCategories, outcome, message)
+
+        override suspend fun closeOpenRuns(finishedAt: Long, message: String): Int =
+            pipelineProject().db.sort().closeOpenRuns(finishedAt, message)
+    }
+
+    /** One model job at a time: analysis, sorting and (later) Re-sort and Bin Files all go through it. */
+    val modelArbiter = ModelArbiter()
+
     private val preparer = object : Preparer {
-        override fun prepare(item: ItemEntity, onFrame: (ready: Int, total: Int) -> Unit): PreparedMedia = mediaPreparer.prepare(
+        override fun prepare(item: ItemEntity, maxFrames: Int, onFrame: (ready: Int, total: Int) -> Unit): PreparedMedia = mediaPreparer.prepare(
             item,
             ProjectFolders.thumbsDir(File(pipelineProject().ref.path)),
             visionModel.imageEdge,
+            maxFrames,
             onFrame,
         )
 
@@ -160,13 +238,20 @@ class AppGraph(val context: Context) {
     val pipeline: PipelineController by lazy {
         PipelineController(
             scope = appScope,
-            engineFactory = { AnalysisEngine(visionModel, preparer, analysisStore, Dispatchers.IO, pipelineLog) },
+            engineFactory = { cap -> AnalysisEngine(visionModel, preparer, analysisStore, cap, Dispatchers.IO, pipelineLog) },
             model = visionModel,
             store = analysisStore,
-            batchComplete = BatchCompleteHandler { }, // Plan 2 sorts the batch here.
+            categorizer = SortingCategorizer(
+                store = sortStore,
+                modelFor = ::textModelFor,
+                choice = { settings.settings.first().sortingModel },
+                log = pipelineLog,
+            ),
+            arbiter = modelArbiter,
             ensureModel = ::ensureVisionModel,
             log = pipelineLog,
             isCurrent = { it == pipelineTarget },
+            maxFramesPerClip = { settings.settings.first().maxFramesPerClip },
         )
     }
 
@@ -179,26 +264,28 @@ class AppGraph(val context: Context) {
 
     private val pipelineLog = PipelineLog { message, error -> Log.w(TAG, message, error) }
 
-    /** A start the system refused because the app was in the background; retried on the next resume. */
+    /** A start the system refused because the app was in the background (and what it was); retried on the next resume. */
+    private class DeferredStart(val ref: ProjectRef, val kind: RunKind)
+
     @Volatile
-    private var deferredStart: ProjectRef? = null
+    private var deferredStart: DeferredStart? = null
 
     /**
-     * Starts (or resumes) analysis of [ref] in [AnalysisService]. Never throws: if the app is in the
-     * background the system refuses to start a foreground service, so the start waits for
-     * [onAppResumed]. Returns whether the service was started.
+     * Starts (or resumes) analysis of [ref] in [AnalysisService], or with [kind] CategorizeOnly only
+     * its categorization. Never throws: if the app is in the background the system refuses to start a
+     * foreground service, so the start waits for [onAppResumed]. Returns whether the service was started.
      */
-    fun startAnalysis(ref: ProjectRef): Boolean = try {
-        AnalysisService.start(context, ref)
+    fun startAnalysis(ref: ProjectRef, kind: RunKind = RunKind.Analyze): Boolean = try {
+        AnalysisService.start(context, ref, kind)
         deferredStart = null
         true
     } catch (e: IllegalStateException) { // ForegroundServiceStartNotAllowedException
         Log.w(TAG, "Analysis start deferred until the app is back in the foreground", e)
-        deferredStart = ref
+        deferredStart = DeferredStart(ref, kind)
         false
     } catch (e: SecurityException) {
         Log.w(TAG, "Analysis start refused", e)
-        deferredStart = ref
+        deferredStart = DeferredStart(ref, kind)
         false
     }
 
@@ -210,6 +297,8 @@ class AppGraph(val context: Context) {
             val items = project.db.items()
             return items.countByStatus(ItemStatus.Pending) + items.countByStatus(ItemStatus.Analyzing) > 0
         }
+
+        override suspend fun hasUncategorizedItems(): Boolean = project.db.sort().observeUncategorizedCount().first() > 0
 
         override suspend fun isStoppedByUser(): Boolean = project.db.meta().isStoppedByUser() == true
 
@@ -225,9 +314,9 @@ class AppGraph(val context: Context) {
         launcher.autoStart(project.ref, runFlags(project))
     }
 
-    /** After media is added: lifts a Stop and starts anything waiting. */
+    /** After media is added: lifts a Stop and analyzes anything waiting (never a categorize-only run). */
     private suspend fun startAnalysisAfterAdd(project: OpenProject) {
-        launcher.userStart(project.ref, runFlags(project))
+        launcher.userAdd(project.ref, runFlags(project))
     }
 
     /** The Stop button (screen or notification): stops the run and remembers it for the open project. */
@@ -237,7 +326,8 @@ class AppGraph(val context: Context) {
             pipeline.stop()
             return
         }
-        appScope.launch {
+        // Undispatched so the call queues for the launcher's lock in call order (see AnalysisLauncher).
+        appScope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 launcher.userStop(runFlags(open))
             } catch (e: Exception) {
@@ -246,10 +336,13 @@ class AppGraph(val context: Context) {
         }
     }
 
-    /** The Resume button after a stop (or with nothing running): lifts the Stop and starts [ref]'s waiting items. */
+    /**
+     * The Resume button after a stop (or with nothing running): lifts the Stop and starts [ref]'s
+     * waiting items, or with none categorizes its analyzed items that have no category yet.
+     */
     fun resumeAnalysis(ref: ProjectRef) {
         val open = _currentProject.value?.takeIf { it.ref == ref } ?: return
-        appScope.launch {
+        appScope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 launcher.userStart(ref, runFlags(open))
             } catch (e: Exception) {
@@ -266,9 +359,9 @@ class AppGraph(val context: Context) {
         appScope.launch {
             val open = _currentProject.value ?: return@launch
             try {
-                val deferred = deferredStart == open.ref
+                val deferred = deferredStart?.takeIf { it.ref == open.ref }
                 deferredStart = null
-                if (deferred) launcher.retryDeferred(open.ref, runFlags(open)) else resumeAnalysisIfPending(open)
+                if (deferred != null) launcher.retryDeferred(open.ref, runFlags(open), deferred.kind) else resumeAnalysisIfPending(open)
             } catch (e: Exception) {
                 Log.w(TAG, "Could not start analysis on resume", e)
             }

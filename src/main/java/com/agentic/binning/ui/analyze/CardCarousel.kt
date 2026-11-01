@@ -1,7 +1,6 @@
 package com.agentic.binning.ui.analyze
 
 import android.content.Context
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -56,7 +55,6 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.video.VideoFrameDecoder
 import com.agentic.binning.db.ItemKind
-import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.ui.glass.GlassSurface
 import com.agentic.binning.ui.theme.LocalGlassTokens
 import kotlin.math.PI
@@ -165,14 +163,9 @@ private fun CardBody(card: CardItem, live: CurrentProgress?) {
                 if (card.kind == ItemKind.Video && card.duration != null) {
                     Badge(Modifier.align(Alignment.BottomEnd).padding(8.dp), AnalyzeIcons.Play, 10, card.duration)
                 }
-                when (card.status) {
-                    ItemStatus.Analyzed, ItemStatus.Sorted, ItemStatus.Binned ->
-                        Badge(Modifier.align(Alignment.TopStart).padding(8.dp), AnalyzeIcons.Check, 11, "Analyzed")
-                    ItemStatus.Failed ->
-                        Badge(Modifier.align(Alignment.TopStart).padding(8.dp), AnalyzeIcons.Alert, 11, "Failed")
-                    ItemStatus.Missing ->
-                        Badge(Modifier.align(Alignment.TopStart).padding(8.dp), AnalyzeIcons.Alert, 11, "Missing")
-                    ItemStatus.Pending, ItemStatus.Analyzing -> Unit
+                badgeOf(card)?.let { badge ->
+                    val icon = if (badge.kind == BadgeKind.Done) AnalyzeIcons.Check else AnalyzeIcons.Alert
+                    Badge(Modifier.align(Alignment.TopStart).padding(8.dp), icon, 11, badge.text)
                 }
             }
             Column(Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp)) {
@@ -220,17 +213,30 @@ private fun Badge(modifier: Modifier, icon: androidx.compose.ui.graphics.vector.
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(iconDp.dp))
-        Text(text, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, lineHeight = 13.sp)
+        // A category name can be long: one line, cut with an ellipsis at the card's edge.
+        Text(
+            text,
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
 /**
- * One tick per frame the model reads ([count], at most 16). Ticks turn blue as frames are extracted;
- * with [shimmer] a soft pulse sweeps across them while the model encodes them all in one pass.
+ * The frames the model reads ([count], up to the 64-frame cap): one tick per frame up to
+ * [MAX_FRAME_TICKS], beyond that each tick stands for a few frames and fills in proportion
+ * ([frameStripFills]). Ticks turn blue as frames are extracted; with [shimmer] a soft pulse sweeps
+ * across them while the model encodes them all in one pass.
  */
 @Composable
 private fun FrameStrip(count: Int, filled: Int, shimmer: Boolean = false) {
     val tokens = LocalGlassTokens.current
+    val fills = frameStripFills(count, filled)
+    val ticks = fills.size
     val phase = if (shimmer) {
         rememberInfiniteTransition(label = "frames").animateFloat(
             initialValue = 0f,
@@ -242,8 +248,8 @@ private fun FrameStrip(count: Int, filled: Int, shimmer: Boolean = false) {
         null
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        repeat(count.coerceAtLeast(1)) { k ->
-            val color by animateColorAsState(if (k < filled) tokens.accent else tokens.track, tween(220), label = "tick")
+        fills.forEachIndexed { k, target ->
+            val fill by animateFloatAsState(target, tween(220), label = "tick")
             Box(
                 Modifier
                     .weight(1f)
@@ -251,11 +257,14 @@ private fun FrameStrip(count: Int, filled: Int, shimmer: Boolean = false) {
                     .graphicsLayer {
                         // Read in the draw phase only: the pulse never recomposes the card.
                         if (phase != null) {
-                            val wave = (1f + cos(2f * PI.toFloat() * (phase.value - k.toFloat() / count))) / 2f
+                            val wave = (1f + cos(2f * PI.toFloat() * (phase.value - k.toFloat() / ticks))) / 2f
                             alpha = 0.55f + 0.45f * wave * wave
                         }
                     }
-                    .background(color, RoundedCornerShape(3.dp)),
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(tokens.track)
+                    // A tick that stands for several frames fills from the left as they are extracted.
+                    .drawBehind { drawRect(tokens.accent, size = size.copy(width = size.width * fill)) },
             )
         }
     }

@@ -16,15 +16,23 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.agentic.binning.model.ModelCatalog
 import com.agentic.binning.settings.AppSettings
+import com.agentic.binning.settings.SortingModelChoice
 import com.agentic.binning.ui.analyze.AnalyzeScreen
 import com.agentic.binning.ui.analyze.AnalyzeViewModel
 import com.agentic.binning.ui.permission.StorageAccessGate
 import com.agentic.binning.ui.project.ProjectSheetHost
 import com.agentic.binning.ui.project.rememberProjectSheetController
+import com.agentic.binning.ui.settings.KeyRow
+import com.agentic.binning.ui.settings.SettingsActions
 import com.agentic.binning.ui.settings.SettingsScreen
+import com.agentic.binning.ui.settings.specOf
 import com.agentic.binning.ui.theme.AgenticTheme
+import com.agentic.binning.ui.theme.ThemeMode
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -37,6 +45,20 @@ private suspend fun safeWrite(block: suspend () -> Unit) {
     } catch (e: IOException) {
         Log.e("MainActivity", "Failed to persist setting", e)
     }
+}
+
+/**
+ * Runs an API key write. Keystore and store failures are logged by type only: the message of a
+ * crypto exception could carry key material, and the key itself is never logged.
+ */
+private suspend fun saveApiKey(block: suspend () -> Unit): Boolean = try {
+    block()
+    true
+} catch (e: CancellationException) {
+    throw e
+} catch (e: Exception) {
+    Log.e("MainActivity", "Failed to save or remove the API key (${e.javaClass.simpleName})")
+    false
 }
 
 class MainActivity : ComponentActivity() {
@@ -87,6 +109,8 @@ class MainActivity : ComponentActivity() {
                             modelState = graph.modelDownloader.state(ModelCatalog.LFM3_VL_2B),
                             resumeAnalysis = graph::resumeAnalysis,
                             stopAnalysis = graph::stopAnalysis,
+                            maxFramesPerClip = graph.settings.settings.map { it.maxFramesPerClip },
+                            sortingModel = graph.settings.settings.map { it.sortingModel },
                         )
                     }
 
@@ -101,11 +125,53 @@ class MainActivity : ComponentActivity() {
                         }
                         Screen.Settings -> {
                             BackHandler { screen = Screen.Analyze }
+                            // Decrypting the key to show its last 4 is Keystore work: off the main thread.
+                            val keyRow by remember {
+                                graph.apiKeys.info.map { KeyRow(it) }.flowOn(Dispatchers.IO)
+                            }.collectAsState(initial = null)
+                            val sortingDownload by remember {
+                                graph.modelDownloader.state(ModelCatalog.LFM3_1_7B).flowOn(Dispatchers.IO)
+                            }.collectAsState(initial = null)
+                            val actions = remember {
+                                object : SettingsActions {
+                                    override fun onThemeMode(mode: ThemeMode) {
+                                        scope.launch { safeWrite { graph.settings.setThemeMode(mode) } }
+                                    }
+
+                                    override fun onKeepScreenOn(on: Boolean) {
+                                        scope.launch { safeWrite { graph.settings.setKeepScreenOn(on) } }
+                                    }
+
+                                    override fun onSortingModel(choice: SortingModelChoice) {
+                                        scope.launch { safeWrite { graph.settings.setSortingModel(choice) } }
+                                    }
+
+                                    override fun onDownloadSortingModel(choice: SortingModelChoice) {
+                                        specOf(choice)?.let(graph::pullModel)
+                                    }
+
+                                    override fun onSaveKey(key: String, onResult: (Boolean) -> Unit) {
+                                        scope.launch { onResult(saveApiKey { graph.apiKeys.save(key) }) }
+                                    }
+
+                                    override fun onRemoveKey() {
+                                        scope.launch { saveApiKey { graph.apiKeys.clear() } }
+                                    }
+
+                                    override fun onMaxFramesPerClip(cap: Int) {
+                                        scope.launch { safeWrite { graph.settings.setMaxFramesPerClip(cap) } }
+                                    }
+
+                                    override fun onBack() {
+                                        screen = Screen.Analyze
+                                    }
+                                }
+                            }
                             SettingsScreen(
                                 settings = settings,
-                                onThemeMode = { mode -> scope.launch { safeWrite { graph.settings.setThemeMode(mode) } } },
-                                onKeepScreenOn = { on -> scope.launch { safeWrite { graph.settings.setKeepScreenOn(on) } } },
-                                onBack = { screen = Screen.Analyze },
+                                keyRow = keyRow,
+                                sortingDownload = sortingDownload,
+                                actions = actions,
                             )
                         }
                     }

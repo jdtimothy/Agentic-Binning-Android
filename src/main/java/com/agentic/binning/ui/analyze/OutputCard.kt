@@ -13,12 +13,15 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.Placeholder
@@ -63,41 +67,72 @@ fun OutputCard(output: OutputState, modifier: Modifier = Modifier) {
         snapshotFlow { scroll.maxValue }.collect { bottom -> if (follow) scroll.scrollTo(bottom) }
     }
     GlassSurface(modifier, shape = RoundedCornerShape(28.dp)) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(scroll)
-                .padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (output.runError != null) {
-                Text(output.runError, color = tokens.warn, fontSize = 14.sp, lineHeight = 1.45.em)
-            }
-            Column {
-                SectionLabel("Description", Modifier.padding(bottom = 6.dp))
-                when {
-                    output.notice != null ->
-                        Text(output.notice, color = tokens.sub, fontSize = 14.sp, lineHeight = 1.45.em)
-                    output.failure != null ->
-                        Text(output.failure, color = tokens.warn, fontSize = 14.sp, lineHeight = 1.45.em)
-                    else -> Description(output.description, output.typing)
-                }
-            }
-            if (output.actions.isNotEmpty()) {
-                Column {
-                    SectionLabel("Action", Modifier.padding(bottom = 6.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        output.actions.forEach { ActionLine(it) }
+        Column(Modifier.fillMaxSize()) {
+            // Pinned above the scrolling output, so a reply followed to its bottom never hides them.
+            // At most about three lines tall (more scrolls inside), so they never squeeze the description.
+            if (output.runError != null || output.sortNotice != null) {
+                val bandMax = with(LocalDensity.current) { (NOTICE_TEXT_SIZE * NOTICE_LINE_HEIGHT * NOTICE_MAX_LINES).toDp() }
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 18.dp, end = 18.dp, top = 16.dp)
+                        .heightIn(max = bandMax)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (output.runError != null) {
+                        Text(output.runError, color = tokens.warn, fontSize = NOTICE_TEXT_SIZE, lineHeight = NOTICE_LINE_HEIGHT.em)
+                    }
+                    if (output.sortNotice != null) {
+                        Text(output.sortNotice, color = tokens.warn, fontSize = NOTICE_TEXT_SIZE, lineHeight = NOTICE_LINE_HEIGHT.em)
                     }
                 }
             }
-            if (output.tags.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    output.tags.forEach { TagChip(it) }
+            OutputBody(output, scroll, Modifier.weight(1f))
+        }
+    }
+}
+
+private val NOTICE_TEXT_SIZE = 14.sp
+private const val NOTICE_LINE_HEIGHT = 1.45f
+private const val NOTICE_MAX_LINES = 3
+
+/** The scrolling part of the output card: description, actions, tags. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OutputBody(output: OutputState, scroll: ScrollState, modifier: Modifier) {
+    val tokens = LocalGlassTokens.current
+    Column(
+        modifier
+            .fillMaxWidth()
+            .verticalScroll(scroll)
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column {
+            SectionLabel("Description", Modifier.padding(bottom = 6.dp))
+            when {
+                output.notice != null ->
+                    Text(output.notice, color = tokens.sub, fontSize = 14.sp, lineHeight = 1.45.em)
+                output.failure != null ->
+                    Text(output.failure, color = tokens.warn, fontSize = 14.sp, lineHeight = 1.45.em)
+                else -> Description(output.description, output.typing)
+            }
+        }
+        if (output.actions.isNotEmpty()) {
+            Column {
+                SectionLabel("Action", Modifier.padding(bottom = 6.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    output.actions.forEach { ActionLine(it) }
                 }
+            }
+        }
+        if (output.tags.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                output.tags.forEach { TagChip(it) }
             }
         }
     }

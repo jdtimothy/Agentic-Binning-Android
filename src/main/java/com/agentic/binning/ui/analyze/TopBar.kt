@@ -28,12 +28,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.agentic.binning.model.DownloadState
 import com.agentic.binning.ui.glass.GlassSurface
 import com.agentic.binning.ui.theme.LocalGlassTokens
-import kotlin.math.roundToInt
 
-/** Glass pill: model chip (download state), project chip, settings button. */
+/** Glass pill: model chip (the model running, or the vision model's download state), project chip, settings button. */
 @Composable
 fun TopBar(
     header: HeaderState,
@@ -55,16 +53,15 @@ fun TopBar(
 }
 
 @Composable
-private fun ModelChip(state: DownloadState?) {
+private fun ModelChip(chip: ModelChipState) {
     val tokens = LocalGlassTokens.current
-    val (sub, subColor) = when (state) {
-        DownloadState.Ready -> "NPU" to tokens.sub
-        is DownloadState.Downloading -> "${(state.fraction * 100).roundToInt()}%" to tokens.accent
-        is DownloadState.Failed -> "Download failed" to tokens.warn
-        DownloadState.Absent -> "Not downloaded" to tokens.sub
-        null -> "" to tokens.sub
+    val sub = chip.sub
+    val subColor = when (chip.subTone) {
+        ChipTone.Quiet -> tokens.sub
+        ChipTone.Accent -> tokens.accent
+        ChipTone.Warn -> tokens.warn
     }
-    val label = "Model: LFM3-VL-2B" + if (sub.isNotEmpty()) ", $sub" else ""
+    val label = "Model: ${chip.name}" + if (sub.isNotEmpty()) ", $sub" else ""
     Box(
         Modifier
             .height(44.dp)
@@ -79,17 +76,18 @@ private fun ModelChip(state: DownloadState?) {
         ) {
             Icon(AnalyzeIcons.Model, contentDescription = null, tint = tokens.text, modifier = Modifier.size(20.dp))
             Column {
-                Text("LFM3-VL-2B", color = tokens.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, lineHeight = 15.sp)
+                Text(chip.name, color = tokens.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, lineHeight = 15.sp)
                 Text(sub, color = subColor, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1)
             }
         }
-        if (state is DownloadState.Downloading) {
+        val fraction = chip.downloadFraction
+        if (fraction != null) {
             // Download progress along the chip's bottom edge; matchParentSize keeps the chip's width.
             Box(Modifier.matchParentSize().padding(horizontal = 14.dp, vertical = 4.dp)) {
                 Box(
                     Modifier
                         .align(Alignment.BottomStart)
-                        .fillMaxWidth(state.fraction.coerceIn(0f, 1f))
+                        .fillMaxWidth(fraction.coerceIn(0f, 1f))
                         .height(2.dp)
                         .background(tokens.accent, CircleShape),
                 )

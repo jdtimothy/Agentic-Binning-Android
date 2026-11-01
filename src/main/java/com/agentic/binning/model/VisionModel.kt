@@ -24,7 +24,11 @@ interface VisionModel {
     /** Square edge the vision encoder was trained at; valid after [load]. */
     val imageEdge: Int
 
-    suspend fun load()
+    /**
+     * Loads the model with a context sized for clips of up to [maxFrames] frames. A model already
+     * loaded with a different context (larger or smaller) is reloaded; one with the same context stays.
+     */
+    suspend fun load(maxFrames: Int)
 
     /** Single-turn analysis of [media]; [onToken] receives each piece of the reply as it streams. */
     suspend fun generate(media: PreparedMedia, onToken: (String) -> Unit): VisionReply

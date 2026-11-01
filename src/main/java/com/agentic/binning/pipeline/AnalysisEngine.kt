@@ -23,9 +23,10 @@ interface Preparer {
      * @throws IOException (any other) if the app's own work files or thumbnails cannot be written,
      * e.g. on a full disk: that is not the item's fault, so it stops the run.
      * @throws Exception (typically `MediaDecodeException`) if the item's file cannot be decoded.
-     * [onFrame] reports each video frame as it is extracted (frames ready, frames to extract).
+     * A video yields at most [maxFrames] frames. [onFrame] reports each as it is extracted (frames ready,
+     * frames to extract).
      */
-    fun prepare(item: ItemEntity, onFrame: (ready: Int, total: Int) -> Unit = { _, _ -> }): PreparedMedia
+    fun prepare(item: ItemEntity, maxFrames: Int, onFrame: (ready: Int, total: Int) -> Unit = { _, _ -> }): PreparedMedia
 
     /** Deletes the work files [prepare] wrote for [itemId]; never touches the item's own file. */
     fun cleanup(itemId: Long)
@@ -81,6 +82,8 @@ class AnalysisEngine(
     private val model: VisionModel,
     private val preparer: Preparer,
     private val store: AnalysisStore,
+    /** The most frames a video is sampled to; fixed for the engine's life (the controller makes one per batch). */
+    private val maxFrames: Int,
     /** Where the blocking [Preparer.prepare] runs; the app passes `Dispatchers.IO`. */
     private val prepareContext: CoroutineContext = EmptyCoroutineContext,
     private val log: PipelineLog = PipelineLog.None,
@@ -105,14 +108,15 @@ class AnalysisEngine(
     ): ItemOutcome {
         try {
             val media = try {
-                withContext(prepareContext) { preparer.prepare(item, onFrame) }
+                withContext(prepareContext) { preparer.prepare(item, maxFrames, onFrame) }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: FileNotFoundException) {
                 store.setStatus(item.id, ItemStatus.Missing)
                 return ItemOutcome.Missing
             } catch (e: IOException) {
-                throw StopRunException("Couldn't write the app's working files. The phone's storage may be full (${e.message}).", e)
+                log.warn("Cannot write the work files of item ${item.id}", e)
+                throw StopRunException(FailureReasons.OUT_OF_SPACE, e)
             } catch (e: Exception) {
                 log.warn("Cannot prepare item ${item.id} (${item.originalName})", e)
                 return fail(item, REASON_DECODE)
@@ -133,7 +137,8 @@ class AnalysisEngine(
                     log.warn("Prompt assembly failed for item ${item.id}", e) // Or the media-marker check.
                     return fail(item, REASON_PROMPT)
                 } catch (e: VisionModelException) {
-                    throw StopRunException("The vision model failed: ${e.message}", e)
+                    log.warn("The vision model failed on item ${item.id}", e)
+                    throw StopRunException(FailureReasons.MODEL_FAILED, e)
                 }
                 lastProfile = reply.profile
                 when (reply.profile.stopReason) {

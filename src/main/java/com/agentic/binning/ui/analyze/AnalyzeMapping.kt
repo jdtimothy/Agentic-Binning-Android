@@ -6,10 +6,12 @@ import com.agentic.binning.db.ItemEntity
 import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.model.DownloadState
+import com.agentic.binning.model.ModelCatalog
 import com.agentic.binning.pipeline.FailureReasons
 import com.agentic.binning.pipeline.PipelinePhase
 import com.agentic.binning.pipeline.PipelineState
 import com.agentic.binning.project.ProjectRef
+import com.agentic.binning.settings.SortingModelChoice
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,9 +38,25 @@ data class CardItem(
     val failureReason: String? = null,
     /** Frames the model reads from a video (its frame-strip ticks); 0 for a photo. */
     val frameCount: Int = 0,
+    /** The category a Sorted (or Binned) item is in, for its badge. */
+    val categoryName: String? = null,
 ) {
     val isDone: Boolean get() = status.isDone
     val isAnalyzed: Boolean get() = status.isAnalyzed
+}
+
+enum class BadgeKind { Done, Problem }
+
+/** The status badge in a card's top corner. */
+data class CardBadge(val text: String, val kind: BadgeKind)
+
+/** Analyzed, the category once sorted (or "Sorted" if its name is unknown), Failed or Missing; none while waiting. */
+fun badgeOf(card: CardItem): CardBadge? = when (card.status) {
+    ItemStatus.Analyzed -> CardBadge("Analyzed", BadgeKind.Done)
+    ItemStatus.Sorted, ItemStatus.Binned -> CardBadge(card.categoryName?.takeIf { it.isNotBlank() } ?: "Sorted", BadgeKind.Done)
+    ItemStatus.Failed -> CardBadge("Failed", BadgeKind.Problem)
+    ItemStatus.Missing -> CardBadge("Missing", BadgeKind.Problem)
+    ItemStatus.Pending, ItemStatus.Analyzing -> null
 }
 
 /** [current] is the index of the centre card, or -1 when there are no cards; [projectPath] identifies the project. */
@@ -65,8 +83,41 @@ val NoProgress = CurrentProgress(null, false, 0f, 0, FrameStage.Extracting)
 
 enum class StatusTone { Active, Paused, Quiet }
 
+enum class ChipTone { Quiet, Accent, Warn }
+
+/** The header's model chip: the model's name and where it runs (or its download state). */
+data class ModelChipState(
+    val name: String,
+    val sub: String,
+    val subTone: ChipTone,
+    /** Set while the vision model downloads; drawn along the chip's bottom edge. */
+    val downloadFraction: Float? = null,
+)
+
+/**
+ * The model that is running: the sorting model ([sorting], from Settings) while categorizing, else
+ * the vision model with its download state [vision].
+ */
+fun modelChipOf(state: PipelineState?, vision: DownloadState?, sorting: SortingModelChoice?): ModelChipState {
+    if (state?.phase == PipelinePhase.Categorizing) {
+        when (sorting) {
+            SortingModelChoice.Claude -> return ModelChipState("Claude", "Cloud", ChipTone.Quiet)
+            SortingModelChoice.Lfm3_1_7B -> return ModelChipState(ModelCatalog.LFM3_1_7B.displayName, "NPU", ChipTone.Quiet)
+            null -> Unit
+        }
+    }
+    val name = ModelCatalog.LFM3_VL_2B.displayName
+    return when (vision) {
+        DownloadState.Ready -> ModelChipState(name, "NPU", ChipTone.Quiet)
+        is DownloadState.Downloading -> ModelChipState(name, "${(vision.fraction * 100).roundToInt()}%", ChipTone.Accent, vision.fraction)
+        is DownloadState.Failed -> ModelChipState(name, "Download failed", ChipTone.Warn)
+        DownloadState.Absent -> ModelChipState(name, "Not downloaded", ChipTone.Quiet)
+        null -> ModelChipState(name, "", ChipTone.Quiet)
+    }
+}
+
 data class HeaderState(
-    val model: DownloadState?,
+    val model: ModelChipState,
     val projectName: String?,
     val itemCount: Int,
     val statusText: String,
@@ -84,6 +135,23 @@ data class ControlsState(
     val mediaCount: Int,
 )
 
+/**
+ * Stop while a run is going; Pause while it can pause (not while categorizing), Resume while paused,
+ * and with nothing running Resume when the project has items waiting to be analyzed or [uncategorized]
+ * analyzed items waiting for a category (Resume then only categorizes).
+ */
+fun controlsOf(state: PipelineState?, hasProject: Boolean, hasPending: Boolean, mediaCount: Int, uncategorized: Int = 0): ControlsState {
+    val phase = state?.phase
+    val running = phase?.isRunning == true
+    val paused = phase == PipelinePhase.Paused
+    return ControlsState(
+        canStop = running,
+        showResume = !running || paused,
+        canToggle = if (running) paused || phase.canPause else hasProject && (hasPending || uncategorized > 0),
+        mediaCount = mediaCount,
+    )
+}
+
 /** [time] is null when the chip is hidden. */
 data class ActionRow(val time: String?, val text: String)
 
@@ -99,8 +167,10 @@ data class OutputState(
     val itemId: Long? = null,
     /** True while the reply is streaming in, so the card follows it down. */
     val live: Boolean = false,
-    /** Why the run stopped on its own (e.g. the disk is full), shown in full above the item's output. */
+    /** Why the run stopped on its own (e.g. the disk is full), shown in full above the item's output, which scrolls under it. */
     val runError: String? = null,
+    /** Why items are still uncategorized after the last categorization, shown like [runError] (pinned above the scrolling output). */
+    val sortNotice: String? = null,
 )
 
 val EmptyOutput = OutputState(null, "", false, null, emptyList(), emptyList())
@@ -140,37 +210,44 @@ fun formatDuration(ms: Long): String {
     return "%d:%02d".format(total / 60, total % 60)
 }
 
-/** The last reply's decoding speed for the status row; [state] is the live state or null. */
-fun speedText(state: PipelineState?): String =
-    state?.lastProfile?.decodingSpeed?.takeIf { it > 0 }?.let { "${it.roundToInt()} tok/s" } ?: ""
+/**
+ * The last reply's decoding speed for the status row while the vision model is analyzing items
+ * (preparing or describing); [state] is the live state or null. Hidden when no model is generating,
+ * and while categorizing: the vision model's speed says nothing about the sorting model's work.
+ */
+fun speedText(state: PipelineState?): String {
+    if (state?.phase != PipelinePhase.Preparing && state?.phase != PipelinePhase.Describing) return ""
+    return state.lastProfile?.decodingSpeed?.takeIf { it > 0 }?.let { "${it.roundToInt()} tok/s" } ?: ""
+}
 
 /** The pipeline state if it belongs to the [open] project, else null (e.g. right after a switch). */
 fun liveState(state: PipelineState, open: ProjectRef?): PipelineState? =
     state.takeIf { open != null && it.project == open }
 
-/** A card for [item]; [thumb] is its prepared thumbnail if it exists. */
-fun cardOf(item: ItemEntity, thumb: File?): CardItem {
+/** A card for [item]; [thumb] is its prepared thumbnail if it exists, [categoryName] its category's name. */
+fun cardOf(item: ItemEntity, thumb: File?, maxFrames: Int, categoryName: String? = null): CardItem {
     val video = item.kind == ItemKind.Video
     return CardItem(
         id = item.id,
         name = item.originalName,
         kind = item.kind,
         status = item.status,
-        meta = metaOf(item),
+        meta = metaOf(item, maxFrames),
         duration = if (video) formatDuration(item.durationMs ?: 0) else null,
         durationMs = item.durationMs,
         image = thumb ?: File(item.currentPath),
         imageIsVideo = thumb == null && video,
         thumbnail = thumb,
         failureReason = item.failureReason,
-        frameCount = if (video) VideoTiming.sampleTimesMs(item.durationMs ?: 0).size else 0,
+        frameCount = if (video) VideoTiming.sampleTimesMs(item.durationMs ?: 0, maxFrames).size else 0,
+        categoryName = categoryName,
     )
 }
 
-private fun metaOf(item: ItemEntity): String = when (item.kind) {
+private fun metaOf(item: ItemEntity, maxFrames: Int): String = when (item.kind) {
     ItemKind.Video -> {
         val duration = item.durationMs ?: 0
-        val frames = VideoTiming.sampleTimesMs(duration).size
+        val frames = VideoTiming.sampleTimesMs(duration, maxFrames).size
         val atFps = duration <= 0 || frames * 1000L / VideoTiming.FPS.toLong() >= duration
         formatDuration(duration) + " · " + if (atFps) "$frames frames at 2 fps" else "$frames frames, evenly spaced"
     }
@@ -211,8 +288,19 @@ fun progressOf(state: PipelineState?): CurrentProgress {
     }
 }
 
-/** The status row: what the live run is doing, or how the project stands. [statuses] are the project's items. */
-fun statusOf(hasProject: Boolean, statuses: List<ItemStatus>, state: PipelineState?, focus: CardItem?): Pair<String, StatusTone> {
+/**
+ * The status row: what the live run is doing, or how the project stands. [statuses] are the project's
+ * items; [stoppedByUser] is the Stop remembered in the project's database, which outlives the run;
+ * [uncategorized] counts analyzed items still waiting for a category.
+ */
+fun statusOf(
+    hasProject: Boolean,
+    statuses: List<ItemStatus>,
+    state: PipelineState?,
+    focus: CardItem?,
+    stoppedByUser: Boolean = false,
+    uncategorized: Int = 0,
+): Pair<String, StatusTone> {
     if (!hasProject) return "No project open" to StatusTone.Quiet
     when (state?.phase) {
         PipelinePhase.LoadingModel -> {
@@ -227,25 +315,41 @@ fun statusOf(hasProject: Boolean, statuses: List<ItemStatus>, state: PipelineSta
         } to StatusTone.Active
         PipelinePhase.Paused -> return "Paused" to StatusTone.Paused
         PipelinePhase.Releasing -> return "Finishing up" to StatusTone.Active
+        // The progress ("40 of 120") is in the counts slot, see countTextOf.
+        PipelinePhase.Categorizing -> return "Categorizing" to StatusTone.Active
         // Kept short beside the speed; the reason, if any, is in the output card (OutputState.runError).
         PipelinePhase.Stopped -> return "Stopped" to StatusTone.Quiet
         PipelinePhase.Idle, null -> Unit
     }
     return when {
         statuses.isEmpty() -> "No media yet" to StatusTone.Quiet
-        statuses.any { !it.isDone } -> "Waiting to analyze" to StatusTone.Quiet
+        // A Stop is remembered across launches; without it nothing is live after a restart.
+        statuses.any { !it.isDone } -> (if (stoppedByUser) "Stopped" else "Waiting to analyze") to StatusTone.Quiet
+        uncategorized > 0 -> "$uncategorized to categorize" to StatusTone.Quiet
         else -> "All caught up" to StatusTone.Quiet
     }
 }
 
 /**
  * The output card for the centre [card]: the streaming reply while it is the live item, else its
- * saved analysis ([stored]), failure or a notice. A run that stopped with an error shows it on every card.
+ * saved analysis ([stored]), failure or a notice. A run that stopped with an error shows it on every card,
+ * and so does why the last categorization left some of the [uncategorized] items, while nothing runs:
+ * the live notice, else [storedNotice] (the last sort run's, read from the project after a cold launch
+ * or a project switch).
  */
-fun outputOf(hasProject: Boolean, empty: Boolean, card: CardItem?, state: PipelineState?, stored: StoredAnalysis?): OutputState {
+fun outputOf(
+    hasProject: Boolean,
+    empty: Boolean,
+    card: CardItem?,
+    state: PipelineState?,
+    stored: StoredAnalysis?,
+    uncategorized: Int = 0,
+    storedNotice: String? = null,
+): OutputState {
     val runError = state?.error?.takeIf { state.phase == PipelinePhase.Stopped }
+    val sortNotice = (state?.sortNotice ?: storedNotice)?.takeIf { state?.phase?.isRunning != true && uncategorized > 0 }
     val output = cardOutput(hasProject, empty, card, state, stored)
-    return if (runError == null) output else output.copy(runError = runError)
+    return if (runError == null && sortNotice == null) output else output.copy(runError = runError, sortNotice = sortNotice)
 }
 
 private fun cardOutput(hasProject: Boolean, empty: Boolean, card: CardItem?, state: PipelineState?, stored: StoredAnalysis?): OutputState {
@@ -294,4 +398,31 @@ private fun cardOutput(hasProject: Boolean, empty: Boolean, card: CardItem?, sta
             )
         }
     }
+}
+
+/**
+ * The counts slot of the status row: "40 of 120" while categorizing, else "3 of 10 analyzed"
+ * (with " · 1 failed" when any failed); empty without a project. [state] is the live state or null.
+ */
+fun countTextOf(hasProject: Boolean, statuses: List<ItemStatus>, state: PipelineState?): String {
+    if (!hasProject) return ""
+    if (state?.phase == PipelinePhase.Categorizing && state.sortTotal > 0) return "${state.sortDone} of ${state.sortTotal}"
+    val analyzed = statuses.count { it.isAnalyzed }
+    val failed = statuses.count { it == ItemStatus.Failed || it == ItemStatus.Missing }
+    return "$analyzed of ${statuses.size} analyzed" + if (failed > 0) " · $failed failed" else ""
+}
+
+/** The most ticks a video's frame strip draws; more frames share ticks, so 64 stay readable. */
+const val MAX_FRAME_TICKS = 16
+
+/**
+ * How full each tick of a frame strip is (0..1) with [filled] of [count] frames done: one tick per
+ * frame up to [MAX_FRAME_TICKS], else each tick stands for an equal share of the frames and fills
+ * in proportion. At least one tick.
+ */
+fun frameStripFills(count: Int, filled: Int): List<Float> {
+    val ticks = count.coerceIn(1, MAX_FRAME_TICKS)
+    val perTick = count.coerceAtLeast(1).toFloat() / ticks
+    val done = filled.coerceIn(0, count.coerceAtLeast(0)).toFloat()
+    return List(ticks) { k -> ((done - k * perTick) / perTick).coerceIn(0f, 1f) }
 }

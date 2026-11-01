@@ -11,8 +11,6 @@ object VideoTiming {
     /** LFM3-VL was trained on video sampled at 2 fps (model card). */
     const val FPS = 2f
 
-    const val MAX_FRAMES = 16
-
     private const val TIMESTAMP_INTERVAL_MS = 5000L
 
     /**
@@ -22,7 +20,7 @@ object VideoTiming {
      */
     fun sampleTimesMs(
         durationMs: Long,
-        maxFrames: Int = MAX_FRAMES,
+        maxFrames: Int,
     ): List<Long> {
         if (durationMs <= 0) return listOf(0L)
         val stepMs = (1000f / FPS).toLong()

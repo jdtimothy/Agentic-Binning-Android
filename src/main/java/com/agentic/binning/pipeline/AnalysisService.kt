@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
- * Keeps analysis alive with the screen off or the app in the background: a foreground service with
+ * Keeps analysis and categorizing alive with the screen off or the app in the background: a foreground service with
  * a progress notification (Pause/Resume and Stop actions) and a partial wake lock, held while the
  * [PipelineController] is working (not while Paused). It stops itself once the controller is Idle or Stopped.
  */
@@ -41,7 +41,10 @@ class AnalysisService : LifecycleService() {
                 goForeground()
                 val name = intent.getStringExtra(EXTRA_NAME)
                 val path = intent.getStringExtra(EXTRA_PATH)
-                if (name != null && path != null) controller.start(ProjectRef(name, path))
+                if (name != null && path != null) {
+                    val ref = ProjectRef(name, path)
+                    if (intent.getBooleanExtra(EXTRA_CATEGORIZE_ONLY, false)) controller.categorizeNow(ref) else controller.start(ref)
+                }
                 stopIfNotRunning(startId)
             }
             ACTION_RESUME -> {
@@ -153,7 +156,8 @@ class AnalysisService : LifecycleService() {
         }
         if (model.phase == PipelinePhase.Paused) {
             builder.addAction(0, "Resume", PendingIntent.getForegroundService(this, 2, action(this, ACTION_RESUME), PendingIntent.FLAG_IMMUTABLE))
-        } else {
+        } else if (model.phase.canPause) {
+            // Not while categorizing: there is nothing to pause between chunks.
             builder.addAction(0, "Pause", PendingIntent.getService(this, 1, action(this, ACTION_PAUSE), PendingIntent.FLAG_IMMUTABLE))
         }
         builder.addAction(0, "Stop", PendingIntent.getService(this, 3, action(this, ACTION_STOP), PendingIntent.FLAG_IMMUTABLE))
@@ -186,6 +190,13 @@ class AnalysisService : LifecycleService() {
                     s.phase == PipelinePhase.Paused -> NotificationModel(
                         s.phase, "Paused · $name · ${s.pending} left", tally, done, s.total,
                     )
+                    s.phase == PipelinePhase.Categorizing -> NotificationModel(
+                        s.phase,
+                        "Categorizing $name",
+                        "Categorizing ${s.sortDone} of ${s.sortTotal}",
+                        s.sortDone,
+                        s.sortTotal,
+                    )
                     else -> NotificationModel(
                         s.phase,
                         "Analyzing $name · ${s.pending} left",
@@ -213,15 +224,20 @@ class AnalysisService : LifecycleService() {
         private const val ACTION_STOP = "com.agentic.binning.action.STOP_ANALYSIS"
         private const val EXTRA_NAME = "project_name"
         private const val EXTRA_PATH = "project_path"
+        private const val EXTRA_CATEGORIZE_ONLY = "categorize_only"
 
         private fun action(context: Context, action: String) = Intent(context, AnalysisService::class.java).setAction(action)
 
-        /** Analyzes [project]'s Pending items in the foreground service. Call while the app is in the foreground. */
-        fun start(context: Context, project: ProjectRef) {
+        /**
+         * Analyzes [project]'s Pending items in the foreground service, or with [kind] CategorizeOnly
+         * only categorizes its analyzed items. Call while the app is in the foreground.
+         */
+        fun start(context: Context, project: ProjectRef, kind: RunKind = RunKind.Analyze) {
             context.startForegroundService(
                 action(context, ACTION_START)
                     .putExtra(EXTRA_NAME, project.name)
-                    .putExtra(EXTRA_PATH, project.path),
+                    .putExtra(EXTRA_PATH, project.path)
+                    .putExtra(EXTRA_CATEGORIZE_ONLY, kind == RunKind.CategorizeOnly),
             )
         }
     }

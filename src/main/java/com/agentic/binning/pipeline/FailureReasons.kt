@@ -20,6 +20,21 @@ object FailureReasons {
     /** The process died while analyzing the item, more than once. */
     const val INTERRUPTED = "interrupted"
 
+    // Run-level errors (PipelineState.error): fixed sentences for people. The raw exception text
+    // (paths, ENOSPC, SDK errors) goes to the log and the exception's cause only.
+
+    /** The app's own work files or thumbnails could not be written. */
+    const val OUT_OF_SPACE = "The phone ran out of space for analysis files"
+
+    /** The model failed while reading an item. */
+    const val MODEL_FAILED = "The vision model failed"
+
+    /** The model could not be loaded onto the NPU. */
+    const val MODEL_NOT_STARTED = "The vision model couldn't start"
+
+    /** The model could not be fetched. */
+    const val MODEL_NOT_DOWNLOADED = "The vision model couldn't be downloaded"
+
     /** A short sentence for [code]; unknown or missing codes get a generic one. */
     fun describe(code: String?): String = when (code) {
         DECODE -> "Couldn't read this file."

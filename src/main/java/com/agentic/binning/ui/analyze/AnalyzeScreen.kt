@@ -124,7 +124,8 @@ private fun StatusRow(header: HeaderState, modifier: Modifier = Modifier) {
                     color = tokens.text,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
+                    // Two lines rather than cutting a status short on a narrow phone.
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

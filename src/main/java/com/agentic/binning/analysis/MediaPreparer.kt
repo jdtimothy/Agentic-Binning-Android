@@ -35,7 +35,8 @@ class WorkFileException(message: String, cause: Throwable? = null) : IOException
  */
 class MediaPreparer(private val workDir: File) {
     /**
-     * [onFrame] is called after each video frame is written: (frames written, frames to sample).
+     * A video yields at most [maxFrames] frames. [onFrame] is called after each video frame is written:
+     * (frames written, frames to sample).
      *
      * @throws FileNotFoundException if [item]'s file is gone.
      * @throws MediaDecodeException if it cannot be decoded.
@@ -45,6 +46,7 @@ class MediaPreparer(private val workDir: File) {
         item: ItemEntity,
         thumbsDir: File,
         targetEdge: Int,
+        maxFrames: Int,
         onFrame: (ready: Int, total: Int) -> Unit = { _, _ -> },
     ): PreparedMedia {
         val source = File(item.currentPath)
@@ -56,7 +58,7 @@ class MediaPreparer(private val workDir: File) {
         val thumb = File(thumbsDir, "${item.id}.jpg")
         return when (item.kind) {
             ItemKind.Photo -> preparePhoto(source, dir, thumb, targetEdge)
-            ItemKind.Video -> prepareVideo(source, item.durationMs, dir, thumb, targetEdge, onFrame)
+            ItemKind.Video -> prepareVideo(source, item.durationMs, dir, thumb, targetEdge, maxFrames, onFrame)
         }
     }
 
@@ -99,6 +101,7 @@ class MediaPreparer(private val workDir: File) {
         dir: File,
         thumb: File,
         targetEdge: Int,
+        maxFrames: Int,
         onFrame: (ready: Int, total: Int) -> Unit,
     ): PreparedMedia {
         val retriever = MediaMetadataRetriever()
@@ -113,7 +116,7 @@ class MediaPreparer(private val workDir: File) {
                 ?: 0L
             val paths = ArrayList<String>()
             val times = ArrayList<Long>()
-            val sampleTimes = VideoTiming.sampleTimesMs(duration)
+            val sampleTimes = VideoTiming.sampleTimesMs(duration, maxFrames)
             for (t in sampleTimes) {
                 // OPTION_CLOSEST decodes the exact frame; CLOSEST_SYNC snaps to keyframes and can
                 // collapse every sample onto frame 0.

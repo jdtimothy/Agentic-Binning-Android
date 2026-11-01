@@ -10,8 +10,10 @@ import androidx.room.Transaction
 @Dao
 abstract class AnalysisDao {
     /**
-     * Saves [analysis] and its [tags] (stored trimmed and lowercased), marks the item Analyzed and
-     * refreshes its FTS row, all in one transaction.
+     * Saves [analysis] and its [tags] (stored trimmed and lowercased), marks the item Analyzed (or
+     * keeps it Sorted when it has a category, so a re-analysis doesn't send it back to sorting) and
+     * refreshes its FTS row (keeping the item's friendly name and category) and resets its attempts,
+     * all in one transaction.
      */
     @Transaction
     open suspend fun saveAnalysis(analysis: AnalysisEntity, tags: List<String>) {
@@ -24,14 +26,7 @@ abstract class AnalysisDao {
         }
         markAnalyzed(analysis.itemId)
         deleteFtsRow(analysis.itemId)
-        insertFtsRow(
-            itemId = analysis.itemId,
-            description = analysis.description,
-            actions = analysis.actionsJson,
-            tags = cleanTags.joinToString(" "),
-            friendlyName = "",
-            category = "",
-        )
+        rebuildFtsRow(analysis.itemId)
     }
 
     @Query("SELECT * FROM analysis WHERE itemId = :itemId")
@@ -63,24 +58,18 @@ abstract class AnalysisDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     protected abstract suspend fun insertItemTags(links: List<ItemTagEntity>)
 
-    @Query("UPDATE item SET status = 'Analyzed', failureReason = NULL WHERE id = :itemId")
+    @Query(
+        "UPDATE item SET status = CASE WHEN categoryId IS NULL THEN 'Analyzed' ELSE 'Sorted' END, " +
+            "failureReason = NULL, attempts = 0 WHERE id = :itemId",
+    )
     protected abstract suspend fun markAnalyzed(itemId: Long)
 
     @SkipQueryVerification
     @Query("DELETE FROM item_fts WHERE rowid = :itemId")
     protected abstract suspend fun deleteFtsRow(itemId: Long)
 
+    /** Rebuilds the row from the tables, so the item's current friendly name and category stay in it. */
     @SkipQueryVerification
-    @Query(
-        "INSERT INTO item_fts(rowid, description, actions, tags, friendly_name, category) " +
-            "VALUES (:itemId, :description, :actions, :tags, :friendlyName, :category)",
-    )
-    protected abstract suspend fun insertFtsRow(
-        itemId: Long,
-        description: String,
-        actions: String,
-        tags: String,
-        friendlyName: String,
-        category: String,
-    )
+    @Query(FTS_REBUILD_ROW)
+    protected abstract suspend fun rebuildFtsRow(itemId: Long)
 }

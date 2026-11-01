@@ -17,7 +17,10 @@ import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
 import java.io.File
 import java.io.FileNotFoundException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -49,7 +52,7 @@ class GenieXVisionModelTest {
         preparer = MediaPreparer(File(root, "work"))
         val source = File(root, "hello.png")
         saveBitmap(helloBitmap(), source, Bitmap.CompressFormat.PNG)
-        photo = preparer.prepare(photoItem(1L, source), thumbs, targetEdge = 512)
+        photo = preparer.prepare(photoItem(1L, source), thumbs, targetEdge = 512, maxFrames = 16)
     }
 
     @After fun tearDown() {
@@ -58,7 +61,7 @@ class GenieXVisionModelTest {
     }
 
     @Test fun photo_onNpu_returnsParseableJson() = runBlocking {
-        model.load()
+        model.load(maxFrames = 16)
         val reply = model.generate(photo) {}
         Log.i(TAG, "photo reply ${reply.profile}: ${reply.text}")
         val result = AnalysisParser.parse(reply.text, ItemKind.Photo)
@@ -71,7 +74,7 @@ class GenieXVisionModelTest {
     }
 
     @Test fun video_frames_interleaveWithTimestamps() = runBlocking {
-        model.load()
+        model.load(maxFrames = 16)
         val times = (0L..3500L step 500L).toList()
         val frameDir = File(root, "frames").apply { mkdirs() }
         val paths = times.map { t ->
@@ -114,8 +117,19 @@ class GenieXVisionModelTest {
 
     @Test fun preparer_missingFile_throwsFileNotFound() {
         assertThrows(FileNotFoundException::class.java) {
-            preparer.prepare(photoItem(2L, File(root, "gone.jpg")), thumbs, targetEdge = 512)
+            preparer.prepare(photoItem(2L, File(root, "gone.jpg")), thumbs, targetEdge = 512, maxFrames = 16)
         }
+    }
+
+    /** A caller that is already cancelled (Stop, project switch) must still free the NPU model. */
+    @Test fun releaseFromCancelledCaller_stillDestroys() = runBlocking {
+        model.load(maxFrames = 16)
+        launch(start = CoroutineStart.UNDISPATCHED) {
+            cancel()
+            model.release()
+        }.join()
+        val e = runCatching { model.generate(photo) {} }.exceptionOrNull()
+        assertTrue("expected 'not loaded' after release, got $e", e is VisionModelException && e.message.orEmpty().contains("not loaded"))
     }
 
     @Test fun modelId_namesRepoAndPrecision() {

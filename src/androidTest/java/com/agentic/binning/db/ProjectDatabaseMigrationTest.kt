@@ -89,4 +89,58 @@ class ProjectDatabaseMigrationTest {
             db.close()
         }
     }
+
+    /** A v2 database with an FTS row (the FTS5 table is not in Room's schema, so the test creates it). */
+    private fun SQLiteConnection.fillV2() {
+        fillV1()
+        execSQL(
+            "CREATE VIRTUAL TABLE item_fts USING fts5(description, actions, tags, friendly_name, category, " +
+                "tokenize='porter unicode61')",
+        )
+        execSQL(
+            "INSERT INTO item_fts(rowid, description, actions, tags, friendly_name, category) " +
+                "VALUES (1, 'A pier at dusk', '[]', 'pier', '', '')",
+        )
+    }
+
+    @Test fun migrate2To3_keepsData() {
+        helper.createDatabase(2).apply {
+            fillV2()
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(3)
+
+        assertEquals(3, db.long("PRAGMA user_version"))
+        assertEquals(2, db.long("SELECT COUNT(*) FROM item"))
+        assertEquals(1, db.long("SELECT COUNT(*) FROM analysis WHERE description = 'A pier at dusk'"))
+        assertEquals(1, db.long("SELECT COUNT(*) FROM item_tag"))
+        assertEquals(1, db.long("SELECT COUNT(*) FROM item_fts WHERE item_fts MATCH 'pier'"))
+        assertEquals(0, db.long("SELECT COUNT(*) FROM sort_run"))
+        db.close()
+    }
+
+    /** The real open path opens a v2 file at v3 and the new DAO works on it. */
+    @Test fun openProjectDatabase_migratesAV2File() = runTest {
+        helper.createDatabase(2).apply {
+            fillV2()
+            close()
+        }
+
+        val db = openProjectDatabase(context, dbFile)
+        try {
+            assertEquals(listOf(1L), db.analyses().search("pier"))
+            assertEquals(listOf(1L), db.sort().uncategorized().map { it.id })
+            assertEquals(listOf("pier"), db.sort().uncategorized().single().tags)
+            val runId = db.sort().startRun(
+                SortRunEntity(
+                    startedAt = 1L, finishedAt = null, modelId = "m", promptVersion = "1",
+                    items = 1, sorted = 0, newCategories = 0, outcome = "partial", message = null,
+                ),
+            )
+            assertEquals(1L, runId)
+        } finally {
+            db.close()
+        }
+    }
 }

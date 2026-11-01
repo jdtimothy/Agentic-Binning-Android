@@ -71,6 +71,7 @@ class ModelDownloader(context: Context) {
                 }
             }
             val ready = failure == null && isReady(spec)
+            if (failure == null && !ready) Log.e(TAG, "pull ${spec.repo} ended but getPaths is null")
             emit(
                 when {
                     failure != null -> DownloadState.Failed(failure!!)

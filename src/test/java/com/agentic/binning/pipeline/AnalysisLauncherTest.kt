@@ -1,6 +1,10 @@
 package com.agentic.binning.pipeline
 
 import com.agentic.binning.project.ProjectRef
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,15 +16,21 @@ class AnalysisLauncherTest {
     private val project = ProjectRef("Snapdragon Summit", "/sdcard/Agentic Binning/Snapdragon Summit")
     private var state = idle(null)
     private val started = mutableListOf<ProjectRef>()
+    private val kinds = mutableListOf<RunKind>()
     private var stops = 0
     private val launcher = AnalysisLauncher(
         state = { state },
-        startService = { started += it; true },
+        startService = { p, kind -> started += p; kinds += kind; true },
         stopPipeline = { stops++ },
     )
 
-    private class FakeFlags(var waiting: Boolean = true, var stoppedByUser: Boolean = false) : ProjectRunFlags {
+    private class FakeFlags(
+        var waiting: Boolean = true,
+        var stoppedByUser: Boolean = false,
+        var uncategorized: Boolean = false,
+    ) : ProjectRunFlags {
         override suspend fun hasWaitingItems() = waiting
+        override suspend fun hasUncategorizedItems() = uncategorized
         override suspend fun isStoppedByUser() = stoppedByUser
         override suspend fun setStoppedByUser(stopped: Boolean) {
             stoppedByUser = stopped
@@ -70,12 +80,33 @@ class AnalysisLauncherTest {
         assertTrue(launcher.autoStart(project, flags))
     }
 
-    /** Adding media also goes through userStart; with nothing new it still lifts the stop. */
     @Test
     fun userStart_withNothingWaiting_liftsTheStopWithoutStarting() = runTest {
         val flags = FakeFlags(waiting = false, stoppedByUser = true)
 
         assertFalse(launcher.userStart(project, flags))
+
+        assertFalse(flags.stoppedByUser)
+        assertTrue(started.isEmpty())
+    }
+
+    /** Adding media analyzes what it registered; with nothing new it still lifts the stop. */
+    @Test
+    fun userAdd_startsWaitingItems_andLiftsTheStop() = runTest {
+        val flags = FakeFlags(waiting = true, stoppedByUser = true)
+
+        assertTrue(launcher.userAdd(project, flags))
+
+        assertFalse(flags.stoppedByUser)
+        assertEquals(listOf(RunKind.Analyze), kinds)
+    }
+
+    /** An add that registered nothing new (all duplicates) never starts a categorization nobody asked for. */
+    @Test
+    fun userAdd_withOnlyUncategorizedItems_doesNotCategorize() = runTest {
+        val flags = FakeFlags(waiting = false, stoppedByUser = true, uncategorized = true)
+
+        assertFalse(launcher.userAdd(project, flags))
 
         assertFalse(flags.stoppedByUser)
         assertTrue(started.isEmpty())
@@ -94,8 +125,86 @@ class AnalysisLauncherTest {
     @Test
     fun retryDeferred_honoursAStop() = runTest {
         state = idle(project, PipelinePhase.Stopped)
-        assertTrue(launcher.retryDeferred(project, FakeFlags()))
-        assertFalse(launcher.retryDeferred(project, FakeFlags(stoppedByUser = true)))
+        assertTrue(launcher.retryDeferred(project, FakeFlags(), RunKind.Analyze))
+        assertFalse(launcher.retryDeferred(project, FakeFlags(stoppedByUser = true), RunKind.Analyze))
         assertEquals(listOf(project), started)
+    }
+
+    /** Writes take longer for a Stop than a Resume, as when the Stop has to wait for the pipeline: the order must still hold. */
+    @Test
+    fun stopThenResume_flagWrittenInOrder() = runTest {
+        val writes = mutableListOf<Boolean>()
+        val flags = object : ProjectRunFlags {
+            override suspend fun hasWaitingItems() = true
+            override suspend fun hasUncategorizedItems() = false
+            override suspend fun isStoppedByUser() = false
+            override suspend fun setStoppedByUser(stopped: Boolean) {
+                delay(if (stopped) 100 else 1)
+                writes += stopped
+            }
+        }
+        // Launched undispatched, as AppGraph does, so each call queues for the lock in call order.
+        launch(start = CoroutineStart.UNDISPATCHED) { launcher.userStop(flags) }
+        launch(start = CoroutineStart.UNDISPATCHED) { launcher.userStart(project, flags) }
+        advanceUntilIdle()
+
+        assertEquals(listOf(true, false), writes)
+    }
+
+    @Test
+    fun userStart_withOnlyUncategorizedItems_categorizes() = runTest {
+        val flags = FakeFlags(waiting = false, stoppedByUser = true, uncategorized = true)
+
+        assertTrue(launcher.userStart(project, flags))
+
+        assertFalse(flags.stoppedByUser)
+        assertEquals(listOf(project), started)
+        assertEquals(listOf(RunKind.CategorizeOnly), kinds)
+    }
+
+    /** Waiting items go first: the analysis run categorizes at its end anyway. */
+    @Test
+    fun userStart_withWaitingAndUncategorizedItems_analyzes() = runTest {
+        assertTrue(launcher.userStart(project, FakeFlags(waiting = true, uncategorized = true)))
+        assertEquals(listOf(RunKind.Analyze), kinds)
+    }
+
+    /** A Claude run costs money: opening a project never starts categorizing on its own. */
+    @Test
+    fun autoStart_withOnlyUncategorizedItems_doesNotStart() = runTest {
+        assertFalse(launcher.autoStart(project, FakeFlags(waiting = false, uncategorized = true)))
+        assertTrue(started.isEmpty())
+    }
+
+    @Test
+    fun retryDeferred_categorizesOnlyWhenTheDeferredStartDid() = runTest {
+        val flags = FakeFlags(waiting = false, uncategorized = true)
+        assertFalse(launcher.retryDeferred(project, flags, RunKind.Analyze))
+        assertTrue(launcher.retryDeferred(project, flags, RunKind.CategorizeOnly))
+        assertFalse(launcher.retryDeferred(project, FakeFlags(waiting = false, uncategorized = true, stoppedByUser = true), RunKind.CategorizeOnly))
+        assertEquals(listOf(RunKind.CategorizeOnly), kinds)
+    }
+
+    /** Stop during Categorizing, then Resume: the flag order holds and Resume categorizes again. */
+    @Test
+    fun stopThenResume_whileCategorizing_flagWrittenInOrder_andCategorizes() = runTest {
+        val writes = mutableListOf<Boolean>()
+        val flags = object : ProjectRunFlags {
+            override suspend fun hasWaitingItems() = false
+            override suspend fun hasUncategorizedItems() = true
+            override suspend fun isStoppedByUser() = writes.lastOrNull() ?: false
+            override suspend fun setStoppedByUser(stopped: Boolean) {
+                delay(if (stopped) 100 else 1)
+                writes += stopped
+            }
+        }
+        state = idle(project, PipelinePhase.Categorizing)
+        launch(start = CoroutineStart.UNDISPATCHED) { launcher.userStop(flags) }
+        launch(start = CoroutineStart.UNDISPATCHED) { launcher.userStart(project, flags) }
+        advanceUntilIdle()
+
+        assertEquals(1, stops)
+        assertEquals(listOf(true, false), writes)
+        assertEquals(listOf(RunKind.CategorizeOnly), kinds)
     }
 }

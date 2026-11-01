@@ -126,6 +126,22 @@ data class MoveStepEntity(
     val state: String,
 )
 
+/** One run of the sorting model over the uncategorized items (schema v3). */
+@Entity(tableName = "sort_run")
+data class SortRunEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val startedAt: Long,
+    val finishedAt: Long?,
+    val modelId: String,
+    val promptVersion: String,
+    val items: Int,
+    val sorted: Int,
+    val newCategories: Int,
+    /** done | partial | failed | unavailable */
+    val outcome: String,
+    val message: String?,
+)
+
 @Entity(tableName = "project_meta")
 data class ProjectMetaEntity(
     @PrimaryKey val id: Int = 1,

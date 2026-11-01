@@ -36,6 +36,8 @@ android {
     }
     packaging {
         jniLibs.useLegacyPackaging = true
+        // httpclient5 and httpcore5 (pulled in by the Anthropic SDK) each ship this file.
+        resources.excludes += ['META-INF/DEPENDENCIES']
     }
 
     buildFeatures {
@@ -56,6 +58,9 @@ ksp {
 dependencies {
     // GenieX Android binding (published to Maven Central).
     implementation 'com.qualcomm.qti:geniex-android:0.10.0'
+
+    // Claude (sorting backend), official SDK.
+    implementation("com.anthropic:anthropic-java:2.34.0")
 
     // Compose
     implementation platform('androidx.compose:compose-bom:2025.06.01')

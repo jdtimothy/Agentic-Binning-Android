@@ -6,6 +6,7 @@ import com.agentic.binning.model.VisionModelException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -14,7 +15,7 @@ import org.junit.Test
 class AnalysisEngineTest {
     private val model = FakeModel()
 
-    private fun engine(store: FakeStore, preparer: FakePreparer = FakePreparer()) = AnalysisEngine(model, preparer, store)
+    private fun engine(store: FakeStore, preparer: FakePreparer = FakePreparer()) = AnalysisEngine(model, preparer, store, maxFrames = 16)
 
     @Test
     fun validReply_isSaved() = runTest {
@@ -167,8 +168,7 @@ class AnalysisEngineTest {
             e
         }
 
-        assertTrue(error!!.message!!.startsWith("The vision model failed"))
-        assertTrue(error.message!!.contains("Generation failed: boom"))
+        assertEquals("The vision model failed", error!!.message)
         assertEquals(ItemStatus.Analyzing, store.status(1))
         assertNull(store.reason(1))
         assertEquals(listOf(1L), preparer.cleaned)
@@ -188,11 +188,43 @@ class AnalysisEngineTest {
             e
         }
 
-        assertTrue(error!!.message!!.contains("storage"))
+        assertEquals("The phone ran out of space for analysis files", error!!.message)
         assertEquals(ItemStatus.Analyzing, store.status(1))
         assertNull(store.reason(1))
         assertEquals(0, model.generateCalls)
         assertEquals(listOf(1L), preparer.cleaned)
+    }
+
+    /** The user sees fixed sentences; the raw exception text (paths, ENOSPC, SDK errors) stays in the log and the cause. */
+    @Test
+    fun environmentalErrors_areWorded() = runTest {
+        val logged = mutableListOf<String>()
+        val log = PipelineLog { message, error -> logged += message + " " + error?.message }
+        suspend fun stopMessage(model: FakeModel, preparer: FakePreparer): StopRunException {
+            val store = FakeStore(listOf(item(1, ItemStatus.Analyzing)))
+            try {
+                AnalysisEngine(model, preparer, store, maxFrames = 16, log = log).analyze(store.items.getValue(1)) {}
+            } catch (e: StopRunException) {
+                return e
+            }
+            fail("should stop the run")
+            throw AssertionError()
+        }
+
+        val disk = stopMessage(model, FakePreparer(unwritable = setOf(1)))
+        assertEquals("The phone ran out of space for analysis files", disk.message)
+        assertTrue(disk.cause!!.message!!.contains("ENOSPC"))
+
+        model.failure = VisionModelException("Generation failed: QNN error 1002 at /data/local/tmp/x")
+        val npu = stopMessage(model, FakePreparer())
+        assertEquals("The vision model failed", npu.message)
+        assertTrue(npu.cause!!.message!!.contains("QNN error 1002"))
+
+        for (text in listOf(disk.message!!, npu.message!!)) {
+            assertFalse(text, text.contains("ENOSPC") || text.contains("/cache") || text.contains("QNN"))
+        }
+        assertTrue(logged.any { it.contains("ENOSPC") })
+        assertTrue(logged.any { it.contains("QNN error 1002") })
     }
 
     @Test

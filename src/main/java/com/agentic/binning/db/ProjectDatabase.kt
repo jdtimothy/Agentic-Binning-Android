@@ -13,9 +13,10 @@ import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import java.io.File
+import kotlinx.coroutines.flow.Flow
 
 /** Room's schema version of the project database; every change needs a migration, never a destructive one. */
-const val PROJECT_DB_VERSION = 2
+const val PROJECT_DB_VERSION = 3
 
 @Database(
     entities = [
@@ -27,17 +28,21 @@ const val PROJECT_DB_VERSION = 2
         MoveRunEntity::class,
         MoveStepEntity::class,
         ProjectMetaEntity::class,
+        SortRunEntity::class,
     ],
     version = PROJECT_DB_VERSION,
     exportSchema = true,
     autoMigrations = [
         // v2: item.attempts and project_meta.stoppedByUser.
         AutoMigration(from = 1, to = 2),
+        // v3: the sort_run table.
+        AutoMigration(from = 2, to = 3),
     ],
 )
 abstract class ProjectDatabase : RoomDatabase() {
     abstract fun items(): ItemDao
     abstract fun analyses(): AnalysisDao
+    abstract fun sort(): SortDao
     abstract fun meta(): ProjectMetaDao
 }
 
@@ -51,6 +56,9 @@ interface ProjectMetaDao {
 
     @Query("SELECT stoppedByUser FROM project_meta WHERE id = 1")
     suspend fun isStoppedByUser(): Boolean?
+
+    @Query("SELECT stoppedByUser FROM project_meta WHERE id = 1")
+    fun observeStoppedByUser(): Flow<Boolean?>
 
     @Query("UPDATE project_meta SET stoppedByUser = :stopped WHERE id = 1")
     suspend fun setStoppedByUser(stopped: Boolean)

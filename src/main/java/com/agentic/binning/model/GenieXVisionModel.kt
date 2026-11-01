@@ -4,6 +4,7 @@ import android.util.Log
 import com.agentic.binning.analysis.AnalysisPrompt
 import com.agentic.binning.analysis.PreparedMedia
 import com.agentic.binning.analysis.PromptAssembly
+import com.agentic.binning.analysis.VisionBudget
 import com.agentic.binning.db.ItemKind
 import com.geniex.sdk.ModelManagerWrapper
 import com.geniex.sdk.VlmWrapper
@@ -55,16 +56,25 @@ class GenieXVisionModel(
     @Volatile
     private var wrapper: VlmWrapper? = null
 
-    override suspend fun load() = lock.withLock { withContext(Dispatchers.IO) { loadLocked() } }
+    /** The context size of the loaded [wrapper]; 0 when none is loaded. */
+    @Volatile
+    private var loadedContext = 0
 
-    private suspend fun loadLocked() {
-        if (wrapper != null) return
+    override suspend fun load(maxFrames: Int) = lock.withLock { withContext(Dispatchers.IO) { loadLocked(maxFrames) } }
+
+    private suspend fun loadLocked(maxFrames: Int) {
         val paths = ModelManagerWrapper.getPaths(spec.repo)
             ?: throw VisionModelException("${spec.displayName} is not downloaded")
         val mmproj = paths.mmproj_path?.takeIf { it.isNotEmpty() }
             ?: throw VisionModelException("${spec.displayName} has no vision projector (mmproj)")
         val vision = GgufVisionReader.read(File(mmproj))
         imageEdge = vision?.imageSize ?: FALLBACK_IMAGE_EDGE
+        val nCtx = VisionBudget.contextFor(maxFrames, vision?.tokenCount ?: FALLBACK_TOKENS_PER_FRAME)
+        if (wrapper != null) {
+            if (loadedContext == nCtx) return
+            Log.d(TAG, "reloading $modelId: nCtx $loadedContext does not fit $maxFrames frames (needs $nCtx)")
+            destroyLocked()
+        }
         Log.d(
             TAG,
             vision?.let { "vision tower ${it.imageSize}px patch ${it.patchSize} merge ${it.spatialMergeSize} -> ${it.tokenCount} tokens" }
@@ -73,14 +83,15 @@ class GenieXVisionModel(
         val input = VlmCreateInput(
             model_path = paths.model_path,
             mmproj_path = mmproj,
-            config = ModelConfig(nCtx = N_CTX, nThreads = 4, nBatch = 2048, nUBatch = 512, nGpuLayers = 999),
+            config = ModelConfig(nCtx = nCtx, nThreads = 4, nBatch = 2048, nUBatch = 512, nGpuLayers = 999),
             runtime_id = paths.runtime_id?.takeIf { it.isNotEmpty() } ?: "llama_cpp",
             compute_unit = COMPUTE_UNIT,
         )
         wrapper = VlmWrapper.builder().vlmCreateInput(input).build().getOrElse {
             throw VisionModelException("Loading ${spec.displayName} on $COMPUTE_UNIT failed: ${it.message}", it)
         }
-        Log.d(TAG, "loaded $modelId on $COMPUTE_UNIT (runtime ${input.runtime_id}, nCtx $N_CTX)")
+        loadedContext = nCtx
+        Log.d(TAG, "loaded $modelId on $COMPUTE_UNIT (runtime ${input.runtime_id}, up to $maxFrames frames, nCtx $nCtx)")
     }
 
     override suspend fun generate(media: PreparedMedia, onToken: (String) -> Unit): VisionReply =
@@ -183,15 +194,20 @@ class GenieXVisionModel(
 
     override suspend fun cancel() = stopStream()
 
-    override suspend fun release() {
+    /** Runs whole even for a cancelled caller (Stop, project switch), so the NPU model is always freed. */
+    override suspend fun release(): Unit = withContext(NonCancellable) {
         stopStream()
-        lock.withLock {
-            nativeLock.withLock {
-                val vlm = wrapper ?: return@withLock
-                wrapper = null
-                withContext(Dispatchers.IO + NonCancellable) { vlm.destroy() }
-                Log.d(TAG, "released $modelId")
-            }
+        lock.withLock { destroyLocked() }
+    }
+
+    /** Frees the model; the caller holds [lock]. */
+    private suspend fun destroyLocked() {
+        nativeLock.withLock {
+            val vlm = wrapper ?: return
+            wrapper = null
+            loadedContext = 0
+            withContext(Dispatchers.IO + NonCancellable) { vlm.destroy() }
+            Log.d(TAG, "released $modelId")
         }
     }
 
@@ -204,7 +220,8 @@ class GenieXVisionModel(
     private companion object {
         const val TAG = "VisionModel"
         const val FALLBACK_IMAGE_EDGE = 512
-        const val N_CTX = 16384
+        /** Image tokens per frame when the mmproj does not say (Instructions.md: 256 at 512 px). */
+        const val FALLBACK_TOKENS_PER_FRAME = 256
         const val PROMPT_LOG_CHARS = 2000
         val COMPUTE_UNIT: String = ComputeUnitValue.NPU.value ?: "npu"
     }
