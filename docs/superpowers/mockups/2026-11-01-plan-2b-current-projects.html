@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Current Projects Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+/* Same review-sheet layout and phone tokens as 2026-10-31-plan-2b-project-media.html. */
+:root {
+  --pg-bg: #EDF0F5; --pg-fg: #11151C; --pg-sub: #4D5666; --pg-line: rgba(17, 21, 28, 0.12);
+  --pg-card: #FFFFFF; --pg-accent: #0A63D1; --pg-bezel: #0C0E12;
+  --font-ui: "Inter", "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pg-bg: #0B0D12; --pg-fg: #EDF0F5; --pg-sub: #A3ACBB; --pg-line: rgba(255, 255, 255, 0.10);
+    --pg-card: #141820; --pg-accent: #6CB6FF; --pg-bezel: #000000; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --pg-bg: #0B0D12; --pg-fg: #EDF0F5; --pg-sub: #A3ACBB; --pg-line: rgba(255, 255, 255, 0.10);
+  --pg-card: #141820; --pg-accent: #6CB6FF; --pg-bezel: #000000; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--pg-bg); color: var(--pg-fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 80px; -webkit-font-smoothing: antialiased;
+}
+.page { width: 100%; max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+.intro { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pg-sub); margin: 0; }
+h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+.intro p { margin: 0; color: var(--pg-sub); max-width: 68ch; }
+code { font-family: var(--font-mono); font-size: 0.86em; }
+.index { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 4px 0 0; list-style: none; }
+.index a { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--pg-line); background: var(--pg-card); color: var(--pg-fg); text-decoration: none; font-size: 13px; }
+.index a span { font-family: var(--font-mono); font-size: 11px; color: var(--pg-sub); }
+.index a:hover, .index a:focus-visible { border-color: var(--pg-accent); }
+.state { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; scroll-margin-top: 24px; }
+@media (min-width: 1240px) { .state { grid-template-columns: 330px minmax(0, 1fr); gap: 36px; } }
+.notes { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 68ch; }
+.notes .no { font-family: var(--font-mono); font-size: 12px; color: var(--pg-accent); margin: 0; letter-spacing: 0.04em; }
+.notes h2 { margin: 0; font-size: 22px; line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
+.notes p { margin: 0; color: var(--pg-sub); }
+.notes ul { margin: 0; padding-left: 18px; color: var(--pg-sub); display: flex; flex-direction: column; gap: 4px; }
+.notes .tag { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pg-fg); margin-top: 6px; }
+.reset { align-self: flex-start; margin-top: 6px; font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--pg-line); background: var(--pg-card); color: var(--pg-fg); cursor: pointer; }
+.reset:hover, .reset:focus-visible { border-color: var(--pg-accent); }
+.pair { display: flex; flex-wrap: wrap; gap: 40px 36px; align-items: flex-start; min-width: 0; }
+.pair figure { margin: 0; display: flex; flex-direction: column; gap: 12px; align-items: center; width: min(412px, 100%); }
+.pair figcaption { font-family: var(--font-mono); font-size: 12px; color: var(--pg-sub); text-transform: uppercase; letter-spacing: 0.08em; }
+.wrap { position: relative; width: 100%; aspect-ratio: 412 / 915; max-width: 100%; }
+.wrap::before { content: ""; position: absolute; inset: -9px; border-radius: 54px; background: var(--pg-bezel); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22); }
+.footer { color: var(--pg-sub); font-size: 13px; border-top: 1px solid var(--pg-line); padding-top: 20px; }
+
+/* ---------- The phone (tokens copied from the Project Media mockups) ---------- */
+.ph {
+  --bg: #06070B; --sheet: rgba(20, 23, 31, 0.90); --border: rgba(255, 255, 255, 0.13); --hi: rgba(255, 255, 255, 0.20);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.45); --text: #F4F6FA; --sub: rgba(226, 232, 244, 0.72);
+  --chip: rgba(255, 255, 255, 0.08); --chip2: rgba(255, 255, 255, 0.12); --accent: #6CB6FF; --on-accent: #04121F;
+  --ink: #8CC6FF; --asoft: rgba(108, 182, 255, 0.18); --warn: #FFB547; --wsoft: rgba(255, 181, 71, 0.16);
+  --track: rgba(255, 255, 255, 0.14); --blob: 0.5; --scrim: rgba(0, 0, 0, 0.5); --danger: #FFB4A8;
+  --field: rgba(255, 255, 255, 0.06); --line: rgba(255, 255, 255, 0.12); --rowbg: rgba(255, 255, 255, 0.05);
+  position: absolute; left: 0; top: 0; width: 412px; height: 915px; transform-origin: 0 0; transform: scale(var(--k, 1));
+  border-radius: 46px; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: var(--font-ui); font-size: 14px; line-height: 1.35; -webkit-font-smoothing: antialiased; isolation: isolate; color-scheme: dark;
+}
+.ph.light {
+  --bg: #E8ECF2; --sheet: rgba(245, 247, 251, 0.92); --border: rgba(255, 255, 255, 0.85); --hi: rgba(255, 255, 255, 1);
+  --shadow: 0 12px 32px rgba(40, 52, 80, 0.16); --text: #0E1116; --sub: #4A5263;
+  --chip: rgba(20, 28, 45, 0.06); --chip2: rgba(255, 255, 255, 0.78); --accent: #0A63D1; --on-accent: #FFFFFF;
+  --ink: #0A55B5; --asoft: rgba(10, 99, 209, 0.12); --warn: #9A5A00; --wsoft: rgba(163, 95, 0, 0.12);
+  --track: rgba(20, 28, 45, 0.10); --blob: 0.45; --scrim: rgba(20, 26, 40, 0.34); --danger: #B3261E;
+  --field: rgba(255, 255, 255, 0.72); --line: rgba(20, 28, 45, 0.12); --rowbg: rgba(255, 255, 255, 0.66); color-scheme: light;
+}
+:where(.ph) button { font: inherit; color: inherit; }
+.ph button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ph button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ph button[disabled] { cursor: default; }
+.ph svg { flex: none; }
+.blobs { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.blobs i { position: absolute; border-radius: 50%; opacity: var(--blob); }
+.blobs i:nth-child(1) { width: 340px; height: 340px; left: -120px; top: 40px; background: #2F6E8F; filter: blur(80px); }
+.blobs i:nth-child(2) { width: 300px; height: 300px; right: -120px; top: 320px; background: #F2A65A; filter: blur(80px); }
+.blobs i:nth-child(3) { width: 320px; height: 320px; left: 20px; top: 640px; background: #3E8F6E; filter: blur(90px); }
+.scrim { position: absolute; inset: 0; background: var(--scrim); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 88%; border-radius: 30px 30px 0 0; background: var(--sheet); backdrop-filter: blur(30px) saturate(170%); -webkit-backdrop-filter: blur(30px) saturate(170%); border: 1px solid var(--border); border-bottom: 0; box-shadow: inset 0 1px 0 var(--hi), 0 -12px 40px rgba(0, 0, 0, 0.3); display: flex; flex-direction: column; }
+.handle { width: 40px; height: 5px; border-radius: 3px; background: var(--track); margin: 10px auto 6px; flex: none; }
+.sbody { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 20px 34px; display: flex; flex-direction: column; scrollbar-width: none; }
+.sbody::-webkit-scrollbar { display: none; }
+.sbody.withtoast { padding-bottom: 92px; }
+.lbl { font-size: 12px; color: var(--sub); }
+.pname { font-size: 18px; font-weight: 600; margin-top: 2px; }
+.counts { font-size: 13px; color: var(--sub); margin-top: 2px; }
+.pill { height: 48px; border-radius: 24px; border: 0; padding: 0 18px; font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: var(--chip2); }
+.pill.p { background: var(--accent); color: var(--on-accent); }
+.pill[disabled] { background: var(--chip); color: var(--sub); }
+.sec { display: flex; align-items: center; justify-content: space-between; margin-top: 28px; }
+.sec h3 { margin: 0; font-size: 18px; font-weight: 600; }
+.txtbtn { border: 0; background: transparent; color: var(--ink); font-weight: 600; font-size: 15px; padding: 8px 4px 8px 12px; min-height: 44px; }
+.txtbtn[disabled] { color: var(--sub); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.two .pill { height: 44px; font-size: 14px; padding: 0 12px; }
+.list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 8px 8px 16px; border-radius: 16px; background: var(--rowbg); border: 1px solid var(--line); text-align: left; width: 100%; }
+.row .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.row .nm { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .sb { font-size: 12px; color: var(--sub); }
+.row .sb.warn { color: var(--warn); }
+.row .end { width: 40px; height: 40px; display: grid; place-items: center; color: var(--sub); flex: none; }
+.row.open { border-color: var(--accent); }
+.row .openpill { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: var(--asoft); color: var(--ink); text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; flex: none; }
+.x { width: 40px; height: 40px; border: 0; background: transparent; display: grid; place-items: center; flex: none; padding: 0; }
+.x span { width: 26px; height: 26px; border-radius: 50%; background: var(--chip2); display: grid; place-items: center; color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+.x[disabled] span { opacity: 0.4; }
+.empty { margin-top: 14px; color: var(--sub); font-size: 14px; text-align: center; padding: 18px 0 6px; }
+.err { margin-top: 10px; font-size: 13px; color: var(--warn); display: flex; gap: 6px; align-items: flex-start; }
+.hint { margin-top: 10px; font-size: 13px; color: var(--sub); }
+.toast { position: absolute; left: 16px; right: 16px; bottom: 26px; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 16px; min-height: 52px; border-radius: 18px; background: rgba(14, 16, 22, 0.94); color: #F4F6FA; box-shadow: var(--shadow); font-size: 14px; }
+.toast .tx { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toast button { border: 0; background: transparent; color: #8CC6FF; font-weight: 700; padding: 10px 12px; min-height: 44px; }
+.ph.light .toast { background: rgba(20, 26, 40, 0.92); }
+.dlgwrap { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; padding: 24px; background: var(--scrim); }
+.dlg { width: 100%; border-radius: 26px; padding: 22px 20px 16px; background: var(--sheet); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.dlg h4 { margin: 0 0 18px; font-size: 18px; font-weight: 600; line-height: 1.3; text-wrap: balance; }
+.dlg .acts { display: flex; gap: 8px; }
+.dlg .acts .pill { height: 44px; }
+.dlg .acts .pill.d { color: var(--danger); }
+@media (prefers-reduced-motion: no-preference) { .toast { animation: rise 200ms ease-out; } }
+@keyframes rise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="intro">
+    <p class="eyebrow">Plan 2b · Task 6A · Nov 1, 2026</p>
+    <h1 class="pg">Current projects: open, create, remove</h1>
+    <p>The project sheet's list becomes <b>Current projects</b>: the projects loaded into the app. Two buttons, <b>Open project</b> and <b>New project</b>, sit under the heading. <b>Edit</b> puts a small × on each row; tapping × takes the project off the list and never deletes its database or files. Each phone is live: try Edit, ×, Undo and Done.</p>
+    <p>Owner's direction (Nov 1): the two buttons, Edit with ×, the name "Current projects", and no long explanations in the UI. Points marked <b>Open</b> are proposals for the owner.</p>
+    <ul class="index">
+      <li><a href="#s1"><span>1</span>Sheet</a></li>
+      <li><a href="#s2"><span>2</span>Edit</a></li>
+      <li><a href="#s3"><span>3</span>Removed, Undo</a></li>
+      <li><a href="#s4"><span>4</span>Removing during analysis</a></li>
+      <li><a href="#s5"><span>5</span>No projects</a></li>
+      <li><a href="#s6"><span>6</span>Open project refused</a></li>
+    </ul>
+  </header>
+
+  <section class="state" id="s1" data-start="main">
+    <div class="notes">
+      <p class="no">STATE 1</p>
+      <h2>The project sheet</h2>
+      <ul>
+        <li>The open project's block keeps 2a's Add a folder and Pick photos and clips. Its label changes from "Current project" to <b>Now open</b>, so it doesn't read like the list heading below (<b>Open</b>, P7a).</li>
+        <li><b>Current projects</b> lists every project in the app, the open one first with an <b>Open</b> pill. Tap a row to switch.</li>
+        <li><b>Open project</b> opens the system folder picker; <b>New project</b> opens 2a's New project page.</li>
+        <li>A project whose folder is gone shows <b>Folder missing</b>; it can still be removed.</li>
+      </ul>
+      <button class="reset" data-reset>Reset</button>
+    </div>
+    <div class="pair"></div>
+  </section>
+
+  <section class="state" id="s2" data-start="edit">
+    <div class="notes">
+      <p class="no">STATE 2</p>
+      <h2>Edit: a small × on each project</h2>
+      <ul>
+        <li><b>Edit</b> turns into <b>Done</b>. Rows show × in place of the chevron and don't switch projects.</li>
+        <li>Open project and New project hide while editing, so the only action is removing.</li>
+        <li>× takes the project off the list at once. Its media, folders, database and thumbnails stay where they are; Open project brings it back.</li>
+        <li>Edit is disabled while media is being added or a project is being created.</li>
+      </ul>
+      <button class="reset" data-reset>Reset</button>
+    </div>
+    <div class="pair"></div>
+  </section>
+
+  <section class="state" id="s3" data-start="removed">
+    <div class="notes">
+      <p class="no">STATE 3</p>
+      <h2>Removed, with Undo</h2>
+      <ul>
+        <li>A short toast, "Removed Sort Test", with <b>Undo</b> for a mis-tap on a small target. It puts the row back where it was (<b>Open</b>, P7b).</li>
+        <li>No dialog for a project that isn't working: nothing is lost, and Open project brings it back after the toast is gone.</li>
+        <li>Removing the open project when nothing runs works the same way, then the next project in the list opens.</li>
+      </ul>
+      <button class="reset" data-reset>Reset</button>
+    </div>
+    <div class="pair"></div>
+  </section>
+
+  <section class="state" id="s4" data-start="busy">
+    <div class="notes">
+      <p class="no">STATE 4</p>
+      <h2>Removing the open project while it analyzes</h2>
+      <ul>
+        <li>The only confirmation: × on a project with analysis or sorting running asks "Stop analysis and remove Hawaii Photos?" (<b>Open</b>, P7c).</li>
+        <li>Remove stops the run (the model is released), takes the project off the list and opens the next project, Maui here.</li>
+      </ul>
+      <button class="reset" data-reset>Reset</button>
+    </div>
+    <div class="pair"></div>
+  </section>
+
+  <section class="state" id="s5" data-start="none">
+    <div class="notes">
+      <p class="no">STATE 5</p>
+      <h2>No projects</h2>
+      <ul>
+        <li>On first launch, after a reinstall, or after removing the last project, the sheet shows the same two buttons over an empty list (<b>Open</b>, P7d). Today 2a opens straight on the New project form, which hides Open project from someone reinstalling.</li>
+        <li>No Edit while the list is empty.</li>
+      </ul>
+      <button class="reset" data-reset>Reset</button>
+    </div>
+    <div class="pair"></div>
+  </section>
+
+  <section class="state" id="s6" data-start="refused">
+    <div class="notes">
+      <p class="no">STATE 6</p>
+      <h2>Open project refused</h2>
+      <ul>
+        <li>One short line under the buttons; nothing on disk changes. The lines, by case:</li>
+        <li>"No project in this folder" · "This project can't be opened" · "Made with a newer app version. Update to open it." · "This folder is inside Hawaii Photos" · "Pick a folder on this phone or its SD card".</li>
+        <li>Picking a project that is already listed just switches to it; no second row appears.</li>
+      </ul>
+      <button class="reset" data-reset>Reset</button>
+    </div>
+    <div class="pair"></div>
+  </section>
+
+  <p class="footer">Goes with Plan 2b Task 6A in <code>docs/superpowers/plans/2026-10-31-plan-2b-project-media.md</code>. Layout and tokens follow <code>2026-10-31-plan-2b-project-media.html</code> and 2a's <code>ui/project/ProjectSheet.kt</code>.</p>
+</main>
+
+<script>
+var IC = {
+  chevR: '<path d="M9 6l6 6-6 6"/>',
+  x: '<path d="M7 7l10 10M17 7L7 17"/>',
+  folderPlus: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5h5"/>',
+  folderOpen: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1"/><path d="M3 7v10a2 2 0 0 0 2 2h12.5a2 2 0 0 0 1.9-1.4l1.9-6A1.5 1.5 0 0 0 19.9 10H8.2a2 2 0 0 0-1.9 1.4L3.5 19"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  photo: '<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
+  alert: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>'
+};
+function ic(n, s, w) { return '<svg width="' + (s || 18) + '" height="' + (s || 18) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (w || 2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>'; }
+function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+var ALL = [
+  { id: "hawaii", name: "Hawaii Photos", sub: "136 items · 31 left" },
+  { id: "maui", name: "Maui", sub: "48 items" },
+  { id: "sort", name: "Sort Test", sub: "50 items" },
+  { id: "plan1", name: "Plan1 E2E", sub: "7 items" },
+  { id: "old", name: "Old Trip", sub: "Folder missing", missing: true }
+];
+function startState(kind) {
+  var s = { projects: ALL.slice(), open: "hawaii", edit: false, toast: null, undo: null, dialog: null, busy: false, error: null };
+  if (kind === "edit") s.edit = true;
+  if (kind === "removed") { s.edit = true; remove(s, "sort"); }
+  if (kind === "busy") { s.edit = true; s.busy = true; s.dialog = "hawaii"; }
+  if (kind === "none") { s.projects = []; s.open = null; }
+  if (kind === "refused") { s.error = "No project in this folder"; }
+  return s;
+}
+function byId(s, id) { for (var i = 0; i < s.projects.length; i++) if (s.projects[i].id === id) return s.projects[i]; return null; }
+function remove(s, id) {
+  var i = s.projects.map(function (p) { return p.id; }).indexOf(id);
+  if (i < 0) return;
+  var p = s.projects[i];
+  s.undo = { project: p, index: i, wasOpen: s.open === id };
+  s.projects.splice(i, 1);
+  if (s.open === id) {
+    var next = s.projects.filter(function (q) { return !q.missing; })[0];
+    s.open = next ? next.id : null;
+    s.busy = false;
+  }
+  s.toast = "Removed " + p.name;
+  if (!s.projects.length) s.edit = false;
+}
+
+function render(s) {
+  var open = s.open ? byId(s, s.open) : null;
+  var o = '<div class="blobs"><i></i><i></i><i></i></div><div class="scrim"></div><div class="sheet"><div class="handle"></div><div class="sbody' + (s.toast ? ' withtoast' : '') + '">';
+  if (open) {
+    o += '<div class="lbl">Now open</div><div class="pname">' + esc(open.name) + '</div><div class="counts">' + esc(s.busy ? "136 items · 31 left · Analyzing" : open.sub) + '</div>';
+    o += '<div style="height:16px"></div><button class="pill p">' + ic("folderPlus") + 'Add a folder</button><div style="height:10px"></div><button class="pill">' + ic("photo") + 'Pick photos and clips</button>';
+  }
+  o += '<div class="sec"' + (open ? '' : ' style="margin-top:4px"') + '><h3>Current projects</h3>';
+  if (s.projects.length) o += '<button class="txtbtn" data-a="edit">' + (s.edit ? "Done" : "Edit") + '</button>';
+  o += '</div>';
+  if (!s.edit) {
+    o += '<div class="two"><button class="pill" data-a="openproj">' + ic("folderOpen") + 'Open project</button><button class="pill" data-a="new">' + ic("plus") + 'New project</button></div>';
+    if (s.error) o += '<div class="err">' + ic("alert", 16) + '<span>' + esc(s.error) + '</span></div>';
+  }
+  if (!s.projects.length) {
+    o += '<div class="empty">No projects yet</div>';
+  } else {
+    o += '<div class="list">';
+    s.projects.forEach(function (p) {
+      var isOpen = p.id === s.open;
+      var sub = p.missing ? '<span class="sb warn">Folder missing</span>' : '<span class="sb">' + esc(isOpen && s.busy ? "Analyzing" : p.sub) + '</span>';
+      var lead = '<span class="tx"><span class="nm">' + esc(p.name) + '</span>' + sub + '</span>' + (isOpen ? '<span class="openpill">Open</span>' : '');
+      if (s.edit) {
+        o += '<div class="row' + (isOpen ? ' open' : '') + '">' + lead + '<button class="x" data-a="x" data-id="' + p.id + '" aria-label="Remove ' + esc(p.name) + ' from the list"><span>' + ic("x", 14, 2.6) + '</span></button></div>';
+      } else {
+        o += '<button class="row' + (isOpen ? ' open' : '') + '" data-a="switch" data-id="' + p.id + '">' + lead + (isOpen ? '' : '<span class="end">' + ic("chevR") + '</span>') + '</button>';
+      }
+    });
+    o += '</div>';
+  }
+  o += '</div></div>';
+  if (s.toast) o += '<div class="toast" role="status"><span class="tx">' + esc(s.toast) + '</span>' + (s.undo ? '<button data-a="undo">Undo</button>' : '') + '</div>';
+  if (s.dialog) {
+    var d = byId(s, s.dialog);
+    o += '<div class="dlgwrap"><div class="dlg" role="dialog" aria-modal="true"><h4>Stop analysis and remove ' + esc(d.name) + '?</h4><div class="acts"><button class="pill" data-a="cancel">Cancel</button><button class="pill d" data-a="confirm">Remove</button></div></div></div>';
+  }
+  return o;
+}
+
+function act(s, a, id) {
+  s.toast = s.toast && a === "undo" ? s.toast : null;
+  if (a === "edit") { s.edit = !s.edit; s.error = null; s.undo = null; }
+  else if (a === "x") {
+    if (id === s.open && s.busy) s.dialog = id; else remove(s, id);
+  }
+  else if (a === "confirm") { var d = s.dialog; s.dialog = null; remove(s, d); }
+  else if (a === "cancel") { s.dialog = null; }
+  else if (a === "undo" && s.undo) {
+    var u = s.undo; s.projects.splice(u.index, 0, u.project); if (u.wasOpen) s.open = u.project.id; s.undo = null; s.toast = null;
+  }
+  else if (a === "switch") { if (byId(s, id).missing) { s.error = "Old Trip's folder is missing"; } else { s.open = id; s.busy = false; s.error = null; } }
+  else if (a === "openproj") { s.error = "No project in this folder"; }
+  else if (a === "new") { s.toast = "Opens the New project page"; s.undo = null; }
+}
+
+document.querySelectorAll(".state").forEach(function (sec) {
+  var pair = sec.querySelector(".pair");
+  var s = startState(sec.dataset.start);
+  pair.innerHTML = ["dark", "light"].map(function (t) {
+    return '<figure><div class="wrap"><div class="ph' + (t === "light" ? " light" : "") + '"></div></div><figcaption>' + t + '</figcaption></figure>';
+  }).join("");
+  function draw() { pair.querySelectorAll(".ph").forEach(function (ph) { ph.innerHTML = render(s); }); }
+  pair.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-a]"); if (!b) return;
+    act(s, b.dataset.a, b.dataset.id); draw();
+  });
+  sec.querySelector("[data-reset]").addEventListener("click", function () { s = startState(sec.dataset.start); draw(); });
+  draw();
+});
+
+(function () {
+  function fit() { document.querySelectorAll(".wrap").forEach(function (w) { var ph = w.firstElementChild; if (ph && w.clientWidth) ph.style.setProperty("--k", (w.clientWidth / 412).toFixed(4)); }); }
+  fit(); window.addEventListener("resize", fit);
+  if (window.ResizeObserver) { var ro = new ResizeObserver(fit); document.querySelectorAll(".wrap").forEach(function (w) { ro.observe(w); }); }
+})();
+</script>
+</body>
+</html>

@@ -14,7 +14,14 @@ says otherwise. "State N" refers to the numbered states in the HTML file.
 | 2 | Removed binned item: file stays, its path is remembered so the count check skips it | Approved Oct 31 |
 | 5 | Locks on what you set, with an Unlock link | Approved Oct 31 |
 | 7 | Waiting items keep blocking Bin Files, with Waiting chip, Categorize now and set-by-hand as the ways out | Approved Oct 31 |
-| 1, 3, 4, 6, 8–19 | Everything else | Open: recommended answers shown in the mockups |
+| 1 | Remove from project never deletes the media | Approved Nov 1 |
+| 4 | Re-sort keeps your edits by default | Approved Nov 1 |
+| 6 | Save and Cancel are scoped per sheet | Approved Nov 1 |
+| 10 | Merge two categories at a time; you choose the surviving name | Approved Nov 1 |
+| 12 | Sorting actions are disabled while analysis runs, not queued | Approved Nov 1 |
+| 19 (retry) | An explicit Retry resets the attempts counter | Approved Nov 1 (setting by hand is still open) |
+| P1–P6 | Follow-ups from checking against Plan 2a (end of this file) | Approved Nov 1; P5 with the owner's wording |
+| 3, 8, 9, 11, 13–18, 19 (by hand), P7a–P7d, P8, P9 | Everything else | Open: recommended answers shown in the mockups or the plan |
 
 Every *(my call)* in the spec's Project Media section is here: secondary
 filters (Q3), Keep my edits ticked by default (Q4) and Remove from project
@@ -23,7 +30,7 @@ never deletes the file (Q1). The lock on user edits (Q5) is a *(my call)* from
 
 ## 1. Remove from project only forgets the item, never deletes the file *(my call)*
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted).
 
 Spec: "Remove from project deletes only the item's database row and never the
 file." The mockups follow it: the dialog says where the files stay (state 4b),
@@ -67,7 +74,7 @@ the phone, move them behind a button later.
 
 ## 4. Re-sort keeps your edits by default *(my call)*
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted).
 
 Spec: "Categories and items you set yourself are kept unless you untick Keep
 my edits, which is ticked by default." The Re-sort sheet (state 7) shows the
@@ -98,7 +105,7 @@ of them.
 
 ## 6. Save per sheet, not a screen-wide "unsaved changes" bar
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted).
 
 Spec: "Nothing changes until you press Save." The mockups put the Save in each
 editing surface: the detail sheet, the Move to category sheet ("Save · move
@@ -153,7 +160,7 @@ the quickest way to find a few items among hundreds.
 
 ## 10. Merge: two at a time, survivor keeps one of the two names
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted).
 
 Spec: "rename a category or merge two." Mocked (state 5b): tick two, then
 choose which name survives. The choice says what happens to files: keeping a
@@ -181,7 +188,7 @@ Analyze screen's Project Media pill shows "Saving…" until it finishes.
 
 ## 12. Re-sort while analysis is running
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved Nov 1, 2026** (recommended answer accepted). Both Re-sort and Categorize now are disabled, not queued. Wording note from the plan: a paused run still holds the vision model, so the reason reads "Re-sort is available when analysis is stopped or done", not "paused or done".
 
 The "one model loaded" rule means Re-sort and Categorize now can't run while
 the vision model is busy. **Recommend:** disable both while analysis runs and
@@ -190,7 +197,7 @@ them silently. Not drawn in the mockups.
 
 ## 13. The Re-sort cost note
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: open, except one sentence.** P5 (approved Nov 1) fixes the uncertainty wording: the note says "Estimated base cost; thinking and retries may increase it." The rest of the recommendation below is not yet confirmed.
 
 Mocked: "About $0.05. Sends the text of 43 items … roughly 12K tokens in and
 3K out, at $2 and $10 per million tokens on your API key." That is the
@@ -258,7 +265,7 @@ bin · 3 waiting to be categorized", "37 files ready to bin · 1 failed",
 
 ## 19. Failed item: retry and set by hand
 
-**Status: open.** Recommended answer not yet confirmed.
+**Status: approved in part, Nov 1, 2026.** An explicit Retry resets the attempts counter (and, by P6, lifts a remembered Stop). Setting a failed item's name and category by hand is still open.
 
 Mocked (state 8): Retry analysis, Set name and category by hand, Remove from
 project. Setting by hand gives the clip a name and category with both locks
@@ -267,3 +274,23 @@ on and no description, so search finds it only by name and category.
 Question from the Plan 1 notes: should a retry reset the attempts counter?
 **Recommend: yes**, reset on a user retry, so a clip that failed twice to an
 interruption can be tried again.
+
+## Follow-ups from checking against Plan 2a (Nov 1)
+
+Raised while confirming the plan against the merged Plan 2a code. Full text and the tasks they affect: `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`, "Product decisions".
+
+| # | Question | Status |
+| --- | --- | --- |
+| P1 | A Re-sort first checks that the chosen model can run, and only then clears and re-sorts | Approved Nov 1 |
+| P2 | Unlock keeps the item's category until the next Re-sort | Approved Nov 1 |
+| P3 | The same-name check is Plan 2a's normalizer | Approved Nov 1 |
+| P4 | Category names are capped at 40 characters | Approved Nov 1 |
+| P5 | Claude's cost note says "Estimated base cost; thinking and retries may increase it." | Approved Nov 1, owner's wording (replaces the recommended "at least") |
+| P6 | Retry analysis lifts a remembered Stop; Categorize now doesn't | Approved Nov 1 |
+| P7 | Current projects: Open project and New project buttons, Edit puts × on each project, × only takes it off the list | Approved Nov 1, owner's design (mockup `2026-11-01-plan-2b-current-projects.html`) |
+| P7a | Relabel the open project's block "Now open" | Open |
+| P7b | "Removed <name>" toast with Undo after × | Open |
+| P7c | Confirm only when × would stop running analysis | Open |
+| P7d | With no projects, show the two buttons and an empty list, not the New project form | Open |
+| P8 | Registration skips any folder holding `.binning/project.db`, registered or not | Open |
+| P9 | Back up an older-schema project database before upgrading it on open | Open |
