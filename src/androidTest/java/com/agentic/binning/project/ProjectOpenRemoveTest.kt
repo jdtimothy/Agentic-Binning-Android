@@ -153,7 +153,14 @@ class ProjectOpenRemoveTest {
     }
 
     @Test fun openExisting_noMetaRow_refused() = runTest {
-        openProjectDatabase(context, dbFile).close() // Room creates the schema; no project_meta row
+        // Room is lazy: build()+close() does not create the file. A real query does, with no meta row.
+        val db = openProjectDatabase(context, dbFile)
+        try {
+            assertEquals(null, db.meta().get())
+        } finally {
+            db.close()
+        }
+        assertTrue(dbFile.isFile)
         assertEquals(DatabaseDecision.Refused(OpenRefusal.CantOpen), decide(ProjectDatabaseProbe.probe(dbFile)))
     }
 
