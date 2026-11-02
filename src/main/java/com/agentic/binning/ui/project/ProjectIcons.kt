@@ -28,6 +28,15 @@ internal object ProjectIcons {
         "M19 15.5l-4-4L5.5 20",
     )
 
+    val FolderOpen: ImageVector = AnalyzeIcons.icon(
+        "folder-open",
+        1.8f,
+        "M3 7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1",
+        "M3 7v10a2 2 0 0 0 2 2h12.5a2 2 0 0 0 1.9-1.4l1.9-6A1.5 1.5 0 0 0 19.9 10H8.2a2 2 0 0 0-1.9 1.4L3.5 19",
+    )
+
+    val Close: ImageVector = AnalyzeIcons.icon("close", 2.6f, "M7 7l10 10M17 7L7 17")
+
     val Plus: ImageVector = AnalyzeIcons.icon("plus", 2.2f, "M12 5v14M5 12h14")
 
     val ChevronRight: ImageVector = AnalyzeIcons.icon("chevron-right", 2f, "M9 6l6 6-6 6")

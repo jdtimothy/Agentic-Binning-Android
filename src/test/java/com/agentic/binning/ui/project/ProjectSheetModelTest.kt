@@ -77,9 +77,96 @@ class ProjectSheetModelTest {
     }
 
     @Test
-    fun startPageIsNewProjectWithoutACurrentProject() {
-        assertEquals(SheetPage.NewProject, startPage(null))
+    fun startPageIsMainEvenWithoutAProject() {
+        // Plan 2b P7d: with no projects the main page shows Open project and New project.
+        assertEquals(SheetPage.Main, startPage(null))
         assertEquals(SheetPage.Main, startPage(trip))
+    }
+
+    @Test
+    fun openProjectPickIsRoutedToOpenProject() {
+        assertEquals(PickRoute.OpenProject, routePick(PickFor.OpenProject, hasResult = true))
+        assertEquals(PickRoute.Ignore, routePick(PickFor.OpenProject, hasResult = false))
+    }
+
+    // ---- Current projects (plan 2b Task 6A) ----
+
+    private fun ui(
+        projects: List<ProjectRef> = listOf(maui, trip, beach),
+        current: ProjectRef? = trip,
+        missing: Set<String> = emptySet(),
+        editing: Boolean = false,
+        busy: Boolean = false,
+    ) = currentProjectsUi(projects, current, "136 items · 31 left", missing, editing, busy)
+
+    @Test
+    fun theOpenProjectIsListedFirstWithItsCounts() {
+        val u = ui()
+        assertEquals(listOf(trip, maui, beach), u.rows.map { it.ref })
+        assertEquals(listOf(true, false, false), u.rows.map { it.isOpen })
+        assertEquals("136 items · 31 left", u.rows[0].subline)
+        assertEquals(listOf(RowEnd.None, RowEnd.Chevron, RowEnd.Chevron), u.rows.map { it.end })
+        assertEquals(listOf(false, true, true), u.rows.map { it.switches })
+        assertTrue(u.showButtons)
+        assertEquals("Edit", u.editLabel)
+        assertEquals(null, u.emptyText)
+    }
+
+    @Test
+    fun edit_showsRemoveOnEveryRowAndHidesTheTwoButtons() {
+        val u = ui(editing = true)
+        assertEquals(listOf(RowEnd.Remove, RowEnd.Remove, RowEnd.Remove), u.rows.map { it.end })
+        assertTrue(u.rows.none { it.switches })
+        assertEquals(false, u.showButtons)
+        assertEquals("Done", u.editLabel)
+    }
+
+    @Test
+    fun edit_disabledWhileRegisteringOrCreating() {
+        assertEquals(false, ui(busy = true).editEnabled)
+        assertEquals("Done stays usable", true, ui(busy = true, editing = true).editEnabled)
+        assertEquals(true, ui().editEnabled)
+    }
+
+    @Test
+    fun edit_endsWhenTheListEmpties() {
+        assertEquals(false, editingAfterRemoval(editing = true, remaining = 0))
+        assertEquals(true, editingAfterRemoval(editing = true, remaining = 2))
+        assertEquals(false, editingAfterRemoval(editing = false, remaining = 2))
+        val empty = ui(projects = emptyList(), current = null, editing = true)
+        assertEquals(true, empty.showButtons)
+        assertEquals(null, empty.editLabel)
+    }
+
+    @Test
+    fun noProjects_showsTheTwoButtons() {
+        val u = ui(projects = emptyList(), current = null)
+        assertEquals(emptyList<ProjectRowUi>(), u.rows)
+        assertTrue(u.showButtons)
+        assertEquals("No projects yet", u.emptyText)
+        assertEquals(null, u.editLabel)
+    }
+
+    @Test
+    fun missingFolder_isMarkedAndStillRemovable() {
+        val u = ui(missing = setOf(beach.path), editing = true)
+        val row = u.rows.single { it.ref == beach }
+        assertEquals("Folder missing", row.subline)
+        assertTrue(row.warn)
+        assertEquals(RowEnd.Remove, row.end)
+    }
+
+    @Test
+    fun noOpenProject_listsEveryProjectAsSwitchable() {
+        val u = ui(current = null)
+        assertEquals(listOf(maui, trip, beach), u.rows.map { it.ref })
+        assertTrue(u.rows.all { it.switches && !it.isOpen })
+    }
+
+    @Test
+    fun removeCopyIsShort() {
+        assertEquals("Stop analysis and remove Trip?", removeConfirmTitle("Trip"))
+        assertEquals("Removed Trip", removedToastText("Trip"))
     }
 
     @Test

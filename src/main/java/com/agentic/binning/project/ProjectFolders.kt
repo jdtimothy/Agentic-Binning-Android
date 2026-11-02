@@ -5,6 +5,9 @@ import java.io.File
 /** Layout of a project folder: user media lives in the folder, app data under `.binning/`. */
 object ProjectFolders {
     private const val MAX_NAME_LENGTH = 80
+
+    /** The hidden folder that holds the project's database and thumbnails. */
+    const val BINNING_DIR = ".binning"
     private val illegal = charArrayOf('/', '\\', ':', '*', '?', '"', '<', '>', '|')
 
     /** Turns a user-typed project name into a safe folder name. */
@@ -14,7 +17,7 @@ object ProjectFolders {
             .trimEnd(' ', '.')
     }
 
-    fun binningDir(projectDir: File): File = File(projectDir, ".binning")
+    fun binningDir(projectDir: File): File = File(projectDir, BINNING_DIR)
 
     fun databaseFile(projectDir: File): File = File(binningDir(projectDir), "project.db")
 

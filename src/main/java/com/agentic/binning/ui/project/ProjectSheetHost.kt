@@ -19,9 +19,13 @@ import com.agentic.binning.db.ItemTotals
 import com.agentic.binning.media.MediaUris
 import com.agentic.binning.media.RegistrationProgress
 import com.agentic.binning.media.RegistrationSummary
+import com.agentic.binning.project.OpenRefusal
 import com.agentic.binning.project.ProjectExistsException
+import com.agentic.binning.project.ProjectListUnreadableException
 import com.agentic.binning.project.ProjectMissingException
 import com.agentic.binning.project.ProjectRef
+import com.agentic.binning.project.RemovedProject
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +39,7 @@ private const val ADDING_IN_PROGRESS = "Wait for adding to finish"
 
 private fun createErrorMessage(t: Throwable): String = when (t) {
     is ProjectExistsException -> "A project folder with that name already exists"
+    is ProjectListUnreadableException -> OpenRefusal.ListUnreadable.message
     is IllegalArgumentException -> "Enter a project name"
     else -> "Could not create the project"
 }
@@ -74,16 +79,29 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
     private var registering by mutableStateOf(false)
     private var creating by mutableStateOf(false)
 
+    // Current projects (plan 2b Task 6A).
+    private var editing by mutableStateOf(false)
+    private var missing by mutableStateOf(emptySet<String>())
+    private var confirmRemove by mutableStateOf<ProjectRef?>(null)
+    private var undo by mutableStateOf<PendingUndo?>(null)
+    private var undoIds = 0L
+
+    /** The last removal, offered for Undo until [UNDO_MILLIS] pass or another action replaces it. */
+    private class PendingUndo(val id: Long, val removed: RemovedProject)
+
     /** Set by [ProjectSheetHost], which owns the system picker launchers and records where the result goes. */
     internal var launchFolderPicker: (PickFor) -> Unit = {}
     internal var launchFilesPicker: (PickFor) -> Unit = {}
 
     internal val currentProject get() = graph.currentProject
 
-    /** Opens the sheet on the main page, or on New project when there is no project yet. */
+    /** Opens the sheet on its main page (Current projects, with Open project and New project). */
     fun open() {
         createError = null
         switchError = null
+        editing = false
+        confirmRemove = null
+        undo = null
         if (!registering) registrationSummary = null
         page = startPage(graph.currentProject.value?.ref)
         resetNewProject()
@@ -103,6 +121,11 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
         registration = registration,
         registrationSummary = registrationSummary,
         creating = creating,
+        editing = editing,
+        missing = missing,
+        confirmRemove = confirmRemove,
+        undoText = undo?.let { removedToastText(it.removed.ref.name) },
+        undoId = undo?.id ?: 0L,
     )
 
     /** A folder from the system picker, for the [target] recorded when the picker was launched. */
@@ -113,6 +136,38 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
             PickRoute.Ignore -> Unit
             PickRoute.AddToCurrent -> runRegistration { progress -> graph.addFolder(uri, progress) }
             PickRoute.HoldForNewProject -> holdForNewProject(HeldMedia.Folder(uri))
+            PickRoute.OpenProject -> openExisting(uri)
+        }
+    }
+
+    /**
+     * Open project: the picked folder is checked and opened by [AppGraph.openExistingProject]; a
+     * refusal is one line under the two buttons. The sheet reopens on its main page if the activity
+     * was recreated while the picker was open.
+     */
+    private fun openExisting(uri: Uri) {
+        page = SheetPage.Main
+        editing = false
+        undo = null
+        switchError = null
+        visible = true
+        val dir: File = MediaUris.treeUriToDir(uri) ?: run {
+            switchError = OpenRefusal.NotOnDevice.message
+            return
+        }
+        scope.launch {
+            try {
+                when (val result = graph.openExistingProject(dir)) {
+                    is AppGraph.OpenExistingResult.Opened -> visible = false
+                    is AppGraph.OpenExistingResult.Refused -> switchError = result.message
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Open project failed", e)
+                switchError = OpenRefusal.CantOpen.message
+            }
+            refreshProjects()
         }
     }
 
@@ -122,6 +177,8 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
             PickRoute.Ignore -> Unit
             PickRoute.AddToCurrent -> runRegistration { progress -> graph.addFiles(uris, progress) }
             PickRoute.HoldForNewProject -> holdForNewProject(HeldMedia.Files(uris))
+            // Open project only ever launches the folder picker.
+            PickRoute.OpenProject -> Unit
         }
     }
 
@@ -151,7 +208,83 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
 
     override fun onNewProject() {
         resetNewProject()
+        switchError = null
+        undo = null
         page = SheetPage.NewProject
+    }
+
+    override fun onOpenProject() {
+        if (creating) return
+        switchError = null
+        undo = null
+        if (registering) {
+            switchError = ADDING_IN_PROGRESS
+            return
+        }
+        launchFolderPicker(PickFor.OpenProject)
+    }
+
+    override fun onToggleEdit() {
+        if (!editing && (registering || creating)) return
+        editing = !editing
+        switchError = null
+    }
+
+    /** × on a row: removes at once, or asks first when that would stop running analysis (plan 2b P7c). */
+    override fun onRemove(ref: ProjectRef) {
+        if (registering || creating) return
+        switchError = null
+        if (graph.isRunning(ref)) confirmRemove = ref else remove(ref)
+    }
+
+    override fun onConfirmRemove() {
+        val ref = confirmRemove ?: return
+        confirmRemove = null
+        remove(ref)
+    }
+
+    override fun onCancelRemove() {
+        confirmRemove = null
+    }
+
+    /** Takes [ref] off the list; only the registry entry goes (see [AppGraph.removeProject]). */
+    private fun remove(ref: ProjectRef) {
+        undo = null
+        scope.launch {
+            try {
+                when (val result = graph.removeProject(ref)) {
+                    is AppGraph.RemoveResult.Removed -> undo = PendingUndo(++undoIds, result.removed)
+                    AppGraph.RemoveResult.NotListed -> Unit
+                    is AppGraph.RemoveResult.Refused -> switchError = result.message
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to remove project", e)
+                switchError = "Could not remove that project"
+            }
+            refreshProjects()
+        }
+    }
+
+    override fun onUndo() {
+        val pending = undo ?: return
+        undo = null
+        scope.launch {
+            switchError = try {
+                graph.restoreProject(pending.removed)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Undo failed", e)
+                "Could not put that project back"
+            }
+            refreshProjects()
+        }
+    }
+
+    override fun onUndoExpired(id: Long) {
+        if (undo?.id == id) undo = null
     }
 
     override fun onBack() {
@@ -168,8 +301,9 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
     }
 
     override fun onSwitch(ref: ProjectRef) {
-        if (creating) return
+        if (creating || editing) return
         switchError = null
+        undo = null
         if (registering) {
             switchError = ADDING_IN_PROGRESS
             return
@@ -240,8 +374,17 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
         createError = null
     }
 
+    /** Re-reads the list and which folders are missing; Edit ends once the list is empty. */
     private fun refreshProjects() {
-        scope.launch { projects = withContext(Dispatchers.IO) { graph.registry.list() } }
+        scope.launch {
+            val (listed, gone) = withContext(Dispatchers.IO) {
+                val listed = graph.registry.list()
+                listed to listed.filter { !File(it.path).isDirectory }.map { it.path }.toSet()
+            }
+            projects = listed
+            missing = gone
+            editing = editingAfterRemoval(editing, listed.size)
+        }
     }
 
     /** Runs one registration, mirroring its progress and result into the sheet state. */
