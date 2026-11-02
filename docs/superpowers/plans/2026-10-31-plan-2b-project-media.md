@@ -452,9 +452,9 @@ Phone check (Task 17's media, never Hawaii Photos or Maui):
 | `autoSort_neverRenamesUserCategory` | No code path renames a category; nothing to test until Re-sort adds one (Task 9) |
 | `autoSort_canAddNewItemsToUserCategory` | Not covered: write it |
 
-- [ ] **Step 1:** Write `SortDaoTest.applyChunk_canAddItemsToAUserCategory` (a `createdBy = "user"` category receives a model assignment and keeps its name and `createdBy`). That the prompt lists it as `locked` is already covered by `SortPromptTest.categoryLine_showsLockedOrOpen`.
-- [ ] **Step 2:** Run them (device test by direct instrumentation). They should pass without production changes; if one fails, stop and report rather than changing 2a's sorter.
-- [ ] **Step 3: Commit.**
+- [x] **Step 1:** Write `SortDaoTest.applyChunk_canAddItemsToAUserCategory` (a `createdBy = "user"` category receives a model assignment and keeps its name and `createdBy`). That the prompt lists it as `locked` is already covered by `SortPromptTest.categoryLine_showsLockedOrOpen`.
+- [x] **Step 2:** Run on S26: `applyChunk_canAddItemsToAUserCategory` **OK (1)**; full `SortDaoTest` **OK (18)**. No production change.
+- [x] **Step 3: Commit.**
 
 ### Task 9: Categorize now and Re-sort as Sorting jobs
 
