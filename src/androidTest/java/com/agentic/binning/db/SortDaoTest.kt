@@ -256,6 +256,26 @@ class SortDaoTest {
         assertEquals(emptyList<CategoryInfo>(), db.sort().categories())
     }
 
+    @Test fun applyChunk_canAddItemsToAUserCategory() = runTest {
+        val catId = db.media().insertCategory(
+            CategoryEntity(name = "Beach", description = "Mine", createdBy = "user", folderName = null),
+        )
+        val id = addItem("a")
+
+        val applied = db.sort().applyChunk(emptyList(), listOf(Assignment(id, "Beach", "Waves at noon")))
+
+        assertEquals(1, applied)
+        val saved = item(id)
+        assertEquals(catId, saved.categoryId)
+        assertEquals(ItemStatus.Sorted, saved.status)
+        assertEquals("Waves at noon", saved.friendlyName)
+        val cat = db.sort().categories().single()
+        assertEquals("Beach", cat.name)
+        assertEquals("user", cat.createdBy)
+        assertEquals("Mine", cat.description)
+        assertEquals(1, cat.items)
+    }
+
     /** M6: an item removed meanwhile is skipped; the rest of the chunk is written. */
     @Test fun applyChunk_unknownItem_isSkipped() = runTest {
         val a = addItem("a")
