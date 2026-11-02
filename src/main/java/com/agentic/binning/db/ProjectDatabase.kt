@@ -44,6 +44,7 @@ abstract class ProjectDatabase : RoomDatabase() {
     abstract fun analyses(): AnalysisDao
     abstract fun sort(): SortDao
     abstract fun meta(): ProjectMetaDao
+    abstract fun media(): ProjectMediaDao
 }
 
 @Dao
