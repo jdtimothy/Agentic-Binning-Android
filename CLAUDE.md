@@ -21,10 +21,11 @@ Jetpack Compose app (package `com.agentic.binning`). Plans live under
   (`docs/superpowers/notes/2026-11-01-plan-2a-phone-recheck.md`); keep LFM3-1.7B
   selected and never make a paid Claude call without the owner.
 - **Plan 2b** (Project Media, editing, Re-sort, and Task 6A: Open project and
-  Edit/× on Current projects) is in progress on `plan-2b-draft`:
+  Edit/× on Current projects) is in progress:
   `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Tasks 1–6 are
-  done; its "Product decisions" section holds every owner decision and the one
-  open question. Mockups are in `docs/superpowers/mockups/` (open the HTML
+  in `main`; Task 6A's code is on its own branch with its device tests and
+  phone check pending. Its "Product decisions" section holds every owner
+  decision (none open). Mockups are in `docs/superpowers/mockups/` (open the HTML
   files in a browser; GitHub doesn't render them).
 - **Plan 3** (binning: moving files) is not started.
 
@@ -94,12 +95,15 @@ Analyzed with `stopReason` `eos`.
 - Caps to compare `generatedTokens` against: 400 for photos, 520 for videos
   (`AnalysisPrompt.MAX_TOKENS_*`).
 - Drive the add-media flow with `uiautomator dump` + `input tap`: the project
-  chip opens the sheet on the current project ("Add a folder" / "Pick photos
-  and clips", then the other projects; on the New project page when there is
-  no project). "Add a folder" opens the system picker (breadcrumbs work), then
-  "USE THIS FOLDER" and "ALLOW". "+ New project" opens the New project page:
-  name, optional "A folder" / "Photos and clips" tile (held until "Create and
-  analyze"), back arrow or system Back to return. Don't swipe on the sheet
+  chip opens the sheet: "Current project" with "Add a folder" / "Pick photos
+  and clips", then "Current projects" with "Open project" / "New project",
+  "Edit" (× on each row, "Done" to leave), and the list (the open project
+  first; without a project only the Current projects section shows). "Add a
+  folder" and "Open project" open the system folder picker (breadcrumbs work),
+  then "USE THIS FOLDER" and "ALLOW". "New project" opens the New project
+  page: name, optional "A folder" / "Photos and clips" tile (held until
+  "Create and analyze"), back arrow or system Back to return. × only takes a
+  project off the list; its files and database stay. Don't swipe on the sheet
   while the keyboard is up: the swipe types into the name field.
 - Registration matches files across projects by content hash: media already in
   another project is reported "in another project (<name>)", not added. The

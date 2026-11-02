@@ -141,19 +141,20 @@ code { font-family: var(--font-mono); font-size: 0.86em; }
     <p class="eyebrow">Plan 2b · Q3 · Nov 1, 2026</p>
     <h1 class="pg">Where the secondary filters go</h1>
     <p>Three ways to place the photo/video, shot type and date filters on Project Media. Everything else on the screen is the same as the approved mockup. Each phone is live: tap the filters and watch the grid and the result count change.</p>
+    <p><b>Decided Nov 2, 2026: option C</b>, with the button labelled <b>Filters</b> instead of "More" (owner's choice).</p>
     <div class="tablewrap"><table class="cmp">
       <thead><tr><th>Option</th><th>"Videos only"</th><th>Shot type or date</th><th>Space above the grid</th></tr></thead>
       <tbody>
         <tr><th>A. Always visible</th><td>2 taps (chip, then Videos)</td><td>2 taps</td><td>One extra row (34 px)</td></tr>
         <tr><th>B. Filters button</th><td>3 taps (Filters, Videos, Done)</td><td>3 taps</td><td>None until a filter is set</td></tr>
-        <tr><th>C. Type toggle plus More</th><td>1 tap</td><td>3 taps (More, choice, Done)</td><td>One extra row (34 px)</td></tr>
+        <tr><th>C. Type toggle plus Filters (chosen)</th><td>1 tap</td><td>3 taps (Filters, choice, Show)</td><td>One extra row (34 px)</td></tr>
       </tbody>
     </table></div>
   </header>
 
   <section class="state" data-v="A">
     <div class="notes">
-      <p class="no">OPTION A · recommended so far</p>
+      <p class="no">OPTION A</p>
       <h2>A row of three dropdown chips, always visible</h2>
       <ul>
         <li>As in the approved Project Media mockup: "Photos and videos", "Any shot type", "Any date" under the category chips.</li>
@@ -181,11 +182,11 @@ code { font-family: var(--font-mono); font-size: 0.86em; }
 
   <section class="state" data-v="C">
     <div class="notes">
-      <p class="no">OPTION C</p>
-      <h2>Type toggle, the rest behind More</h2>
+      <p class="no">OPTION C · chosen Nov 2</p>
+      <h2>Type toggle, the rest behind Filters</h2>
       <ul>
         <li>An <b>All · Photos · Videos</b> toggle is always visible: "videos only" is one tap.</li>
-        <li><b>More</b> opens a sheet for shot type and date; once set they show as blue chips beside the toggle.</li>
+        <li><b>Filters</b> opens a sheet for shot type and date; once set they show as blue chips beside the toggle.</li>
         <li>Same height as A, with the most common filter fastest.</li>
       </ul>
       <button class="reset" data-reset>Reset</button>
@@ -268,7 +269,7 @@ function render(v, s) {
     if (s.shot !== "any") o += setChip(SHOTS[s.shot], "shot");
     if (s.date !== "any") o += setChip("Jul " + s.date, "date");
     var more = (s.shot !== "any") + (s.date !== "any");
-    o += '<button class="fchip' + (more ? " set" : "") + '" data-a="open" data-v="more">More' + ic("chev", 14) + '</button></div>';
+    o += '<button class="fchip' + (more ? " set" : "") + '" data-a="open" data-v="more">Filters' + ic("chev", 14) + '</button></div>';
   }
 
   o += '<div class="result" style="top:' + resultTop + 'px"><span>All categories · ' + shown.length + (shown.length === 1 ? " item" : " items") + '</span>';
@@ -292,7 +293,7 @@ function sheet(v, s) {
     shot: [["any", "Any shot type"]].concat(Object.keys(SHOTS).map(function (k) { return [k, SHOTS[k]]; })),
     date: [["any", "Any date"]].concat(DATES.map(function (d) { return [d, "Jul " + d]; })) };
   var groups = s.sheet === "all" ? ["kind", "shot", "date"] : s.sheet === "more" ? ["shot", "date"] : [s.sheet];
-  var title = s.sheet === "all" ? "Filters" : s.sheet === "more" ? "More filters" : { kind: "Photos and videos", shot: "Shot type", date: "Date" }[s.sheet];
+  var title = s.sheet === "all" ? "Filters" : s.sheet === "more" ? "Filters" : { kind: "Photos and videos", shot: "Shot type", date: "Date" }[s.sheet];
   var o = '<div class="scrim" data-a="close"></div><div class="sheet" role="dialog" aria-label="' + title + '"><div class="handle"></div><h3>' + title + '</h3>';
   groups.forEach(function (k) {
     if (groups.length > 1) o += '<div class="grp">' + { kind: "Type", shot: "Shot type", date: "Date" }[k] + '</div>';
