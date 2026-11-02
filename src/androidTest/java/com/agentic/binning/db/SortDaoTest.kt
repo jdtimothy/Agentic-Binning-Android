@@ -8,9 +8,11 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -351,5 +353,63 @@ class SortDaoTest {
         assertEquals(2, run.newCategories)
         assertEquals("done", run.outcome)
         assertEquals(5, run.items)
+    }
+
+    @Test fun prepareResort_deletesEmptyModelCategoriesAndRefreshesFts() = runTest {
+        val a = addItem("a")
+        val b = addItem("b")
+        db.sort().applyChunk(listOf(newCategory("Beach")), listOf(Assignment(a, "Beach", "One")))
+        db.sort().applyChunk(listOf(newCategory("Food")), listOf(Assignment(b, "Food", "Two")))
+        assertEquals(listOf(a), db.analyses().search("category:beach"))
+
+        val waiting = db.sort().prepareResort(keepEdits = true)
+
+        assertEquals(2, waiting)
+        assertEquals(ItemStatus.Analyzed, item(a).status)
+        assertNull(item(a).categoryId)
+        assertEquals(emptyList<CategoryInfo>(), db.sort().categories())
+        assertEquals(emptyList<Long>(), db.analyses().search("category:beach"))
+        assertEquals(listOf(a), db.analyses().search("friendly_name:one"))
+        assertEquals(2, db.sort().uncategorized().size)
+    }
+
+    @Test fun prepareResort_keepEdits_leavesLockedItems() = runTest {
+        val locked = addItem("a")
+        val open = addItem("b")
+        db.sort().applyChunk(listOf(newCategory("Beach")), listOf(Assignment(locked, "Beach", "One")))
+        db.sort().applyChunk(listOf(newCategory("Food")), listOf(Assignment(open, "Food", "Two")))
+        val beachId = item(locked).categoryId!!
+        db.media().updateItemEdit(
+            locked, "One", nameSetByUser = true, categoryId = beachId,
+            categorySetByUser = true, status = ItemStatus.Sorted,
+        )
+
+        val waiting = db.sort().prepareResort(keepEdits = true)
+
+        assertEquals(1, waiting)
+        assertEquals(beachId, item(locked).categoryId)
+        assertEquals(ItemStatus.Sorted, item(locked).status)
+        assertTrue(item(locked).categorySetByUser)
+        assertEquals(ItemStatus.Analyzed, item(open).status)
+        assertEquals("Beach", db.sort().categories().single().name)
+    }
+
+    @Test fun prepareResort_withoutKeepEdits_clearsLocks() = runTest {
+        val locked = addItem("a")
+        db.sort().applyChunk(listOf(newCategory("Beach")), listOf(Assignment(locked, "Beach", "One")))
+        val beachId = item(locked).categoryId!!
+        db.media().updateItemEdit(
+            locked, "One", nameSetByUser = true, categoryId = beachId,
+            categorySetByUser = true, status = ItemStatus.Sorted,
+        )
+
+        val waiting = db.sort().prepareResort(keepEdits = false)
+
+        assertEquals(1, waiting)
+        assertFalse(item(locked).nameSetByUser)
+        assertFalse(item(locked).categorySetByUser)
+        assertEquals(ItemStatus.Analyzed, item(locked).status)
+        assertNull(item(locked).categoryId)
+        assertEquals(emptyList<CategoryInfo>(), db.sort().categories())
     }
 }
