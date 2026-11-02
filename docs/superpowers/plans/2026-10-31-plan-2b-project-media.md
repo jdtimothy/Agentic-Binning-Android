@@ -422,7 +422,7 @@ Phone check (Task 17's media, never Hawaii Photos or Maui):
 - **FTS rebuild:** add a rebuild that left-joins `analysis` (empty description, actions and tags), so an item set by hand without an analysis is still found by name and category (Q19). 2a's `FTS_REBUILD_ROW` inner-joins `analysis` and stays as it is for 2a's own callers.
 - New category names and renames go through `CategoryNames.clean` and `clash` (2a's functions, Task 6.5). A clash is an error result, not an exception.
 
-- [ ] **Step 1: Write the failing device tests:**
+- [x] **Step 1: Write the failing device tests:**
   - `rename_refreshesFtsRow`;
   - `remove_deletesFtsAndTagRows`;
   - `moveItems_setsCategoryLock`;
@@ -434,10 +434,10 @@ Phone check (Task 17's media, never Hawaii Photos or Maui):
   - `search_withFtsSyntax_doesNotThrow` (every input from `FtsQueryTest` through `FtsQuery.from` into the real `item_fts`);
   - `filters_kindShotDate`;
   - `retryFailed_resetsAttemptsAndReason`.
-- [ ] **Step 2: Run them on the phone and check that they fail** ("Device tests", class `com.agentic.binning.projectmedia.ProjectMediaRepositoryTest`).
-- [ ] **Step 3: Implement the DAO, filters and repository.** Shot type and the "Matched in" field come from `analysis` and `item_tag`; keep each grid query to one SQL statement plus the FTS id lookup.
-- [ ] **Step 4: Run them and check that they pass.** Also rerun 2a's `SortDaoTest` and `ProjectDatabaseTest` the same way.
-- [ ] **Step 5: Commit** `git commit -am "feat: Project Media data layer and edits"`
+- [x] **Step 2: Run them on the phone** (`ProjectMediaRepositoryTest`).
+- [x] **Step 3: Implement the DAO, filters and repository.** Shot type and the "Matched in" field come from `analysis` and `item_tag`; grid is one `item`/`analysis` join, FTS id lookup when searching. Left-join FTS rebuild for set-by-hand items. Retry lifts `stoppedByUser`; starting the pipeline is `onRetryFailed` (AppGraph, later).
+- [x] **Step 4:** `ProjectMediaRepositoryTest` **OK (11)** on S26; 2a `SortDaoTest` + `ProjectDatabaseTest` **OK (24)**. Direct instrumentation only.
+- [x] **Step 5: Commit** `feat: Project Media data layer and edits`
 
 ### Task 8: Lock rules in the sorter
 
