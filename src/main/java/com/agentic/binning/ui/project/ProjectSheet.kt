@@ -9,6 +9,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -186,8 +188,13 @@ fun ProjectSheet(state: ProjectSheetState, actions: ProjectSheetActions) {
                         transitionSpec = { fadeIn(tween(PAGE_FADE_MS)) togetherWith fadeOut(tween(PAGE_FADE_MS)) },
                         label = "sheet page",
                     ) { page ->
+                        val undoInset = sheetBottomInsetForUndo(
+                            showingUndo = state.undoText != null && page == SheetPage.Main,
+                        )
                         Column(
                             Modifier
+                                // Inset outside the scroll so the last × cannot sit under the toast.
+                                .padding(bottom = undoInset.dp)
                                 .verticalScroll(rememberScrollState())
                                 .navigationBarsPadding()
                                 .imePadding()
@@ -197,8 +204,6 @@ fun ProjectSheet(state: ProjectSheetState, actions: ProjectSheetActions) {
                                 SheetPage.Main -> MainPage(state, actions)
                                 SheetPage.NewProject -> NewProjectPage(state, actions, back)
                             }
-                            // Room for the Undo toast over the end of the list.
-                            if (state.undoText != null && page == SheetPage.Main) Spacer(Modifier.height(64.dp))
                         }
                     }
                 }
@@ -252,6 +257,12 @@ private fun UndoToast(text: String, modifier: Modifier, onUndo: () -> Unit) {
             .heightIn(min = 52.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(Color(0xF00E1016))
+            // Swallow taps on the bar so they cannot hit an × behind it.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            )
             .padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

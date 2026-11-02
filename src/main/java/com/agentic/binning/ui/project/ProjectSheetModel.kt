@@ -170,3 +170,11 @@ fun removedToastText(name: String): String = "Removed $name"
 
 /** How long Undo stays offered after × (plan 2b P7b). */
 const val UNDO_MILLIS = 5_000L
+
+/**
+ * Bottom inset (dp) so Current projects rows and their × sit above the Undo toast.
+ * Matches the Undo toast: 16 dp padding above and below a 52 dp bar.
+ */
+const val UNDO_TOAST_RESERVE_DP = 84
+
+fun sheetBottomInsetForUndo(showingUndo: Boolean): Int = if (showingUndo) UNDO_TOAST_RESERVE_DP else 0

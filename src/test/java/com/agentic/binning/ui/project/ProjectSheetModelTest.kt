@@ -170,6 +170,14 @@ class ProjectSheetModelTest {
     }
 
     @Test
+    fun undoToastReservesSpaceSoRowsSitAboveIt() {
+        assertEquals(0, sheetBottomInsetForUndo(showingUndo = false))
+        // Toast min height 52 + 16 dp padding above and below; the list inset must cover that
+        // so an × is never under the toast (phone check: Undo tap hit the last row's ×).
+        assertTrue(sheetBottomInsetForUndo(showingUndo = true) >= 84)
+    }
+
+    @Test
     fun pickFromTheMainPageIsAddedToTheCurrentProject() {
         assertEquals(PickRoute.AddToCurrent, routePick(PickFor.Current, hasResult = true))
     }
