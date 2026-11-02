@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: Tasks 1–6 done Nov 1, 2026; Task 6A code done Nov 2 (device tests and phone check pending, see Task 6A).** Drafted Oct 31 before Plan 2a reached GitHub. 2a merged into `main` as `24aa3bd` (PR #4) and was merged into `plan-2b-draft` on Nov 1. Task 6 checked every 2a dependency against the merged code; its findings (section "Task 6" below) replace the old **CONFIRM against 2a** markers, and Tasks 7–17 were updated to match. On Nov 1 the owner approved P1–P6 (P5 with its own wording) and Q1, Q4, Q6, Q10, Q12 and Q19's retry rule, and asked for **Task 6A** (open an existing project, remove a project from the app), planned below. Later on Nov 1 the owner settled every remaining question but Q3, including no Re-sort cost note (Task 4 dropped); on Nov 2 Q3 was settled too (option C, with a "Filters" button). PRs #5 and #6 are merged; Task 6A is on `claude/pensive-hopper-2cv11g`. **Next: Task 6A's device tests and phone check, then Task 7.** Before building a task, check "Product decisions" for answers it depends on.
+**Status: Tasks 1–6 done Nov 1, 2026; Task 6A code done Nov 2 (device tests and phone check pending, see Task 6A).** Drafted Oct 31 before Plan 2a reached GitHub. 2a merged into `main` as `24aa3bd` (PR #4) and was merged into `plan-2b-draft` on Nov 1. Task 6 checked every 2a dependency against the merged code; its findings (section "Task 6" below) replace the old **CONFIRM against 2a** markers, and Tasks 7–17 were updated to match. On Nov 1 the owner approved P1–P6 (P5 with its own wording) and Q1, Q4, Q6, Q10, Q12 and Q19's retry rule, and asked for **Task 6A** (open an existing project, remove a project from the app), planned below. Later on Nov 1 the owner settled every remaining question but Q3, including no Re-sort cost note (Task 4 dropped); on Nov 2 Q3 was settled too (option C, with a "Filters" button). PRs #5 and #6 are merged; Task 6A is on `plan-2b-task-6a`. **Next: Task 6A's device tests and phone check, then Task 7.** Before building a task, check "Product decisions" for answers it depends on.
 
 **Goal:** The Project Media screen from the approved mockups: browse, search and filter a project's items; edit names and categories for one item or many; rename and merge categories; remove items; handle failed items; and re-sort the whole project with a chosen model. All edits change the database only, because nothing is binned until Plan 3.
 
@@ -271,7 +271,7 @@ These are additions Task 9 must make; none exists today.
 
 ### Task 6A: Open an existing project, and remove a project from the app
 
-Requested by the owner on Nov 1, 2026. **Code done Nov 2 on `claude/pensive-hopper-2cv11g` (Steps 1–4); device tests and the phone check (Step 5) are pending on the PC.**
+Requested by the owner on Nov 1, 2026. **Code done Nov 2 on `plan-2b-task-6a` (Steps 1–4); device tests and the phone check (Step 5) are pending on the PC.**
 
 **Built (Nov 2):**
 - `project/ProjectRegistry.kt`: canonical-path matching (`find`, `samePath`), strict writes (`ProjectListUnreadableException` from `create`, `setCurrent`, `clearCurrent`, `remove`, `restore`), `remove` returning `RemovedProject`, `restore`.
