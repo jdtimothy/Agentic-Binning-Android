@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: Tasks 1–6 done, Nov 1, 2026.** Drafted Oct 31 before Plan 2a reached GitHub. 2a merged into `main` as `24aa3bd` (PR #4) and was merged into `plan-2b-draft` on Nov 1. Task 6 checked every 2a dependency against the merged code; its findings (section "Task 6" below) replace the old **CONFIRM against 2a** markers, and Tasks 7–17 were updated to match. On Nov 1 the owner approved P1–P6 (P5 with its own wording) and Q1, Q4, Q6, Q10, Q12 and Q19's retry rule, and asked for **Task 6A** (open an existing project, remove a project from the app), planned below. Later on Nov 1 the owner settled every remaining question except Q3 (filter placement; options mockup pending review), including no Re-sort cost note (Task 4 dropped). **Next: merge this PR after review, then Task 6A on a new branch, then Task 7.** Before building a task, check "Product decisions" for answers it depends on.
+**Status: Tasks 1–6 done Nov 1, 2026; Task 6A code done Nov 2 (device tests and phone check pending, see Task 6A).** Drafted Oct 31 before Plan 2a reached GitHub. 2a merged into `main` as `24aa3bd` (PR #4) and was merged into `plan-2b-draft` on Nov 1. Task 6 checked every 2a dependency against the merged code; its findings (section "Task 6" below) replace the old **CONFIRM against 2a** markers, and Tasks 7–17 were updated to match. On Nov 1 the owner approved P1–P6 (P5 with its own wording) and Q1, Q4, Q6, Q10, Q12 and Q19's retry rule, and asked for **Task 6A** (open an existing project, remove a project from the app), planned below. Later on Nov 1 the owner settled every remaining question but Q3, including no Re-sort cost note (Task 4 dropped); on Nov 2 Q3 was settled too (option C, with a "Filters" button). PRs #5 and #6 are merged; Task 6A is on `plan-2b-task-6a`. **Next: Task 6A's device tests and phone check, then Task 7.** Before building a task, check "Product decisions" for answers it depends on.
 
 **Goal:** The Project Media screen from the approved mockups: browse, search and filter a project's items; edit names and categories for one item or many; rename and merge categories; remove items; handle failed items; and re-sort the whole project with a chosen model. All edits change the database only, because nothing is binned until Plan 3.
 
@@ -14,7 +14,7 @@
 - `docs/superpowers/specs/2026-10-28-agentic-binning-design.md`, "Project Media screen", "3. Categorize", "4. Bin Files".
 - Mockups: `docs/superpowers/mockups/2026-10-31-plan-2b-project-media.html` (open in a browser).
 - Current projects mockup (Task 6A): `docs/superpowers/mockups/2026-11-01-plan-2b-current-projects.html`.
-- Decisions: `docs/superpowers/mockups/2026-10-31-plan-2b-questions.md`. Every question is settled except Q3 (see "Product decisions"); Q11 is deferred to Plan 3. If the user changes an answer, update the affected task before building it.
+- Decisions: `docs/superpowers/mockups/2026-10-31-plan-2b-questions.md`. Every question is settled (see "Product decisions"); Q11 is deferred to Plan 3. If the user changes an answer, update the affected task before building it.
 - Filter placement options for Q3: `docs/superpowers/mockups/2026-11-01-plan-2b-filters-options.html`.
 - `docs/superpowers/plan-2-notes.md` and `CLAUDE.md`.
 - Plan 2a: `docs/superpowers/plans/2026-10-30-plan-2a-sorting.md`, `docs/superpowers/notes/2026-11-01-plan-2a-phone-recheck.md` (the deferred Claude test and the Hawaii Photos rule, see "Handoff notes").
@@ -96,9 +96,13 @@ The owner approved the recommended answer of each, with P5's wording replaced by
 
 Q1 (Remove from project never deletes media), Q2, Q4 (Re-sort keeps edits by default), Q5, Q6 (Save and Cancel are scoped per sheet), Q7, Q8 (Re-sort and Edit on the categories header, Select on the result line, as mocked), Q9 (Waiting and Failed as chips), Q10 (merge two categories at a time; the user chooses the surviving name), Q12 (sorting actions are disabled during analysis, not queued; reason "Re-sort is available when analysis is stopped or done"), Q13 (**no cost note**), Q14 (the Re-sort picker lists exactly what Settings lists), Q15 (search as mocked), Q16 (tile markers as mocked, no locks on tiles), Q17 (oldest first), Q18 (two facts at most in the status line), Q19 (an explicit Retry resets attempts; a failed item can be set by hand with both locks). **Q11 is deferred to Plan 3** (nothing is binned in 2b).
 
+### Approved Nov 2, 2026
+
+- **Q3. Filters: option C, with the button labelled "Filters".** An All / Photos / Videos toggle is always visible ("videos only" is one tap); a **Filters** button beside it (the mockup's "More", renamed by the owner) opens a sheet for shot type and date; set ones show as blue chips with × beside the toggle. Mockup: `docs/superpowers/mockups/2026-11-01-plan-2b-filters-options.html`, option C.
+
 ### Open
 
-- **Q3. Where the secondary filters go** (Task 11). The owner asked to compare options first: `docs/superpowers/mockups/2026-11-01-plan-2b-filters-options.html` shows (A) three dropdown chips always visible, (B) one Filters button on the result line with set filters shown as chips, (C) an All / Photos / Videos toggle always visible with shot type and date behind More. Task 11's filter row waits for this answer.
+None.
 
 ---
 
@@ -267,7 +271,20 @@ These are additions Task 9 must make; none exists today.
 
 ### Task 6A: Open an existing project, and remove a project from the app
 
-Requested by the owner on Nov 1, 2026. Planned only; not started.
+Requested by the owner on Nov 1, 2026. **Code done Nov 2 on `plan-2b-task-6a` (Steps 1–4); device tests and the phone check (Step 5) are pending on the PC.**
+
+**Built (Nov 2):**
+- `project/ProjectRegistry.kt`: canonical-path matching (`find`, `samePath`), strict writes (`ProjectListUnreadableException` from `create`, `setCurrent`, `clearCurrent`, `remove`, `restore`), `remove` returning `RemovedProject`, `restore`.
+- `project/ProjectOpenRules.kt` (pure): placement, the decision table, backup naming, listed name, next project after removal, the short refusal lines. `db/ProjectSchema.kt`: Room identity hashes for schemas 1–3, checked against `schemas/` by `ProjectSchemaTest`.
+- `project/ProjectDatabaseProbe.kt`: the read-only probe (bundled driver, `SQLITE_OPEN_READONLY`).
+- `AppGraph`: `openExistingProject`, `removeProject`, `restoreProject` (Undo), `isRunning`; `openLocked` gains `existingOnly`, lists the project only after its database opened, and matches the open project by canonical path.
+- Sheet: Current projects (`currentProjectsUi` in `ProjectSheetModel.kt`), Open project / New project buttons, Edit/Done with ×, the "Stop analysis and remove …?" dialog, the Undo toast, `startPage` always Main.
+
+**Deviations from the spec below** (for the owner's review):
+- Rows other than the open project show no item counts (the mockup did): counts would mean opening every project's database each time the sheet opens. The open row shows its counts; a missing folder shows "Folder missing".
+- The device tests never construct `AppGraph`: instrumented tests run in the app's own process, so it would read and write the real `projects.json` and could remove real projects. Removing the active project while it runs, opening the next project, Undo reopening, and the Open project picker are checked in the phone check instead; the device tests cover the probe, reopening, the backup, the `/sdcard` spelling and file preservation.
+- No Compose previews: the app has none set up. Step 4 compares with the mockup on the phone with `screencap`.
+- The Undo toast sits at the bottom of the sheet (a sheet is its own window), not over the screen.
 
 **Where it fits:** first, before Task 7, on a fresh branch after PR #5 is merged (approved merge plan). It doesn't depend on Project Media (Tasks 7–17), and it changes the open and switch path in `AppGraph` that Task 9's Re-sort builds on, so doing it first means Task 9 is written against the final open/close rules. It also gives a way back to a project after a reinstall or a cleared app data, which a 2b tester will need before the end-to-end check (Task 17). It touches the registry, `AppGraph`'s open path, registration's scan exclusions and the project sheet; nothing in `projectmedia/`, the sorter or the model backends.
 
@@ -357,29 +374,31 @@ JVM (temp directories, no Android):
   - `removeCurrent_opensFirstOpenableProject_elseEmptyList`;
   - `noProjects_showsTheTwoButtons` (P7d).
 
-Device (`ProjectOpenRemoveTest`, run by direct instrumentation; fixtures under the app's external files dir, never a user project):
-- `openExisting_reopensSavedAnalysis`: a project with analyses, tags, categories, locks, a sort run and `stoppedByUser = 1` is removed and reopened. Items, analyses, categories, locks, run rows, `project_meta.createdAt` and the Stop flag are unchanged, FTS search still finds an item by friendly name, and no second `project_meta` row exists.
-- `openExisting_twiceAndByAnotherPath_oneEntry`.
-- `openExisting_missingDatabase_createsNothing` (no `.binning/` afterwards).
-- `openExisting_newerVersion_refusedAndByteIdentical` (a copy with `user_version = 99`).
-- `openExisting_invalidFile_refusedAndByteIdentical` (a text file named `project.db`; a database with no `project_meta`).
-- `openExisting_olderVersion_backsUpThenMigrates` (a v2 fixture from `MigrationTestHelper`; the backup is byte-identical to the original).
-- `removeActive_whileARunIsGoing_stopsReleasesAndCloses` (fake models: the run ends, models are released, the database is closed, the next project opens).
-- `removeActive_lastProject_leavesNoCurrent`.
+Device (`src/androidTest/java/com/agentic/binning/project/ProjectOpenRemoveTest.kt`, 11 tests, run by direct instrumentation; fixtures under the app's external files dir, deleted afterwards; never a user project or the real `projects.json`):
+- `probe_missingDatabase_createsNothing` (no `.binning/` afterwards).
+- `openExisting_reopensSavedAnalysis`: a project with an analysis, tags, its FTS row and `stoppedByUser = 1`; the probe leaves the file byte-identical and decides Open; reopening keeps `project_meta` (name, `createdAt`), the Stop flag, the analysis, tags and FTS search.
+- `openExisting_newerVersion_refusedAndByteIdentical` (`user_version = 99`).
+- `openExisting_invalidFile_refusedAndByteIdentical` (a text file named `project.db`).
+- `openExisting_foreignDatabase_refusedAndByteIdentical` (SQLite, but not Room's schema).
+- `openExisting_noMetaRow_refused`.
+- `openExisting_olderVersion_backsUpThenMigrates` (a v2 fixture from `MigrationTestHelper`; the backup is byte-identical to the original; the upgraded file then opens without a backup).
+- `registry_sdcardAndStorageSpellings_areOneEntry` (`/sdcard/...` and `/storage/emulated/0/...`).
+- `remove_preservesFiles` (media, database, thumbnails: same path, size and SHA-256 after removal, on shared storage).
 - `remove_missingFolder_doesNotRecreateIt`.
-- `remove_preservesFiles` (the same file snapshot as the JVM test, on shared storage).
+- Covered by the phone check instead (see Deviations): removing the active project while it runs, the next project, removing the last project.
 
 Phone check (Task 17's media, never Hawaii Photos or Maui):
 1. Remove a project, force-stop the app (`adb shell am force-stop com.agentic.binning`), relaunch, and confirm it stays removed. Then bring it back with Open project, force-stop and relaunch, and confirm it is still there and current. Read the registry with `adb shell run-as com.agentic.binning cat files/projects.json`.
-2. In Edit, tap × on the active project while it is analysing and confirm. The notification goes away, logcat shows the model released, and the app lands on another project or on New project.
+2. In Edit, tap × on the active project while it is analysing: "Stop analysis and remove …?" appears; confirm. The notification goes away, logcat shows the model released, and the next project opens (or, with none left, the sheet shows Current projects with the two buttons and "No projects yet"). Tap Undo within 5 seconds on another removal: the row comes back in place.
 3. Rename a project folder on the PC side (`adb shell mv`), then remove the project; the renamed folder is untouched.
 4. `adb shell ls -lR` of the project folder (and its media folder), before and after each removal, is identical.
+5. Open project on a folder with no project ("No project in this folder"), on a project's own folder that is already listed (it just switches, no second row), and on the `.binning` folder of a removed project (it reopens). Compare the sheet with the mockup in dark and light with `screencap`.
 
-- [ ] **Step 1:** Write the JVM tests; check they fail.
-- [ ] **Step 2:** Implement `ProjectRegistry` canonical matching, strict `remove`, and `ProjectOpenRules`; JVM tests pass.
-- [ ] **Step 3:** Write the device tests; implement `ProjectDatabaseProbe` and `AppGraph.openExistingProject` / `removeProject`; device tests pass (direct instrumentation, on an identified device).
-- [ ] **Step 4:** Sheet UI per P7, P7a–P7d and the mockup, with light and dark previews; compare with the mockup on the phone with `screencap`.
-- [ ] **Step 5:** Phone check; full JVM suite; commit `feat: open an existing project and remove a project from the app`.
+- [x] **Step 1:** JVM tests (`ProjectRegistryTest` +13, `ProjectOpenRulesTest` 15, `ProjectSchemaTest` 1, `ProjectSheetModelTest` +10).
+- [x] **Step 2:** `ProjectRegistry` canonical matching and strict writes, `remove` / `restore`, `ProjectOpenRules`; JVM tests pass.
+- [ ] **Step 3:** Device tests written and compiled; `ProjectDatabaseProbe` and the `AppGraph` paths implemented. **Pending: run `ProjectOpenRemoveTest` on the S26** (direct instrumentation), plus 2a's `ProjectDatabaseTest`, `ProjectDatabaseMigrationTest` and `SortDaoTest` as a regression check.
+- [ ] **Step 4:** Sheet UI built per P7, P7a–P7d and the mockup. **Pending: compare on the phone with `screencap`** (dark and light).
+- [ ] **Step 5:** Phone check above; then the PR can leave draft.
 
 ### Task 7: Project Media data layer and edits
 
@@ -483,7 +502,7 @@ Match mockup states 1, 2, 9 and 10, and the status line strip:
 - **Search field** with a clear button. Debounce about 150 ms, then `FtsQuery.from`.
 - **"CATEGORIES · N"** with Re-sort and Edit.
 - **Chips row:** All, then amber Waiting and Failed when there are any (Q9, approved), then the categories, with a lock on yours.
-- **Filters:** photo/video, shot type and date. **Placement waits for Q3** (open): option A, B or C in `docs/superpowers/mockups/2026-11-01-plan-2b-filters-options.html`. Whichever is chosen, each choice shows its count and a set filter is always visible above the grid.
+- **Filters (Q3, option C):** one row under the category chips: an **All · Photos · Videos** toggle, then a chip for each set shot type or date filter (blue, with × to clear), then a **Filters** button that opens a sheet with Shot type and Date (each choice with its count) and "Show N items". Mockup `docs/superpowers/mockups/2026-11-01-plan-2b-filters-options.html`, option C.
 - **Result line** with Select.
 - **3-column grid of tiles** (Coil thumbnails; badges per Q16, approved: duration, Waiting / Failed, no locks).
 - **Dock:** the `mediaStatus` text with Categorize now, Analyze, and Bin Files. Categorize now calls `AppGraph.startAnalysis(ref, RunKind.CategorizeOnly)` (Task 6.2); like Re-sort it is disabled, with the reason, while a run is in progress (Q12, approved). Disabled Bin Files shows the reason in a toast; enabled Bin Files shows "comes with Plan 3" until Plan 3.

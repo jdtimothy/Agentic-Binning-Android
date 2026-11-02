@@ -31,7 +31,7 @@ says otherwise. "State N" refers to the numbered states in the HTML file.
 | 18 | Status line: two facts at most | Approved Nov 1 |
 | 19 (by hand) | A failed item can be set by hand with both locks | Approved Nov 1 |
 | P1–P9 | Follow-ups from checking against Plan 2a and Task 6A (end of this file) | Settled Nov 1 (P5 superseded by Q13, P8 declined) |
-| 3 | Secondary filters | **Open:** compare options A, B and C in `2026-11-01-plan-2b-filters-options.html` |
+| 3 | Secondary filters | Decided Nov 2: option C (All / Photos / Videos toggle, shot type and date behind a **Filters** button) |
 
 Every *(my call)* in the spec's Project Media section is here: secondary
 filters (Q3), Keep my edits ticked by default (Q4) and Remove from project
@@ -71,7 +71,7 @@ move files, and the user can see where the file is. (b) is a hidden file move;
 
 ## 3. Secondary filters: photo/video, shot type and date *(my call)*
 
-**Status: open.** The owner asked to compare placements before choosing: `2026-11-01-plan-2b-filters-options.html` shows (A) always-visible dropdown chips, as below, (B) one Filters button, and (C) an All / Photos / Videos toggle with shot type and date behind More.
+**Status: decided Nov 2, 2026: option C, with the button labelled "Filters".** After comparing `2026-11-01-plan-2b-filters-options.html`, the owner chose an always-visible All / Photos / Videos toggle with shot type and date behind a button, and asked for that button to say **Filters** instead of "More". The always-visible chips below were the earlier recommendation (option A).
 
 Spec: these replace the earlier Subject/Setting/Shot/Date selector, because
 categories are now the main way to group. The mockups show them as a row of

@@ -18,8 +18,9 @@ import com.agentic.binning.db.CategoryEntity
 import com.agentic.binning.db.CategoryInfo
 import com.agentic.binning.db.ItemEntity
 import com.agentic.binning.db.ItemStatus
-import com.agentic.binning.db.ProjectDatabase
+import com.agentic.binning.db.PROJECT_DB_IDENTITY_HASHES
 import com.agentic.binning.db.PROJECT_DB_VERSION
+import com.agentic.binning.db.ProjectDatabase
 import com.agentic.binning.db.ProjectMetaEntity
 import com.agentic.binning.db.SortRunEntity
 import com.agentic.binning.db.UncategorizedItem
@@ -58,11 +59,18 @@ import com.agentic.binning.pipeline.ProjectRunFlags
 import com.agentic.binning.pipeline.RunKind
 import com.agentic.binning.pipeline.SortStore
 import com.agentic.binning.pipeline.SortingCategorizer
+import com.agentic.binning.project.DatabaseDecision
 import com.agentic.binning.project.OpenProject
+import com.agentic.binning.project.OpenRefusal
+import com.agentic.binning.project.Placement
+import com.agentic.binning.project.ProjectDatabaseProbe
 import com.agentic.binning.project.ProjectFolders
+import com.agentic.binning.project.ProjectListUnreadableException
 import com.agentic.binning.project.ProjectMissingException
+import com.agentic.binning.project.ProjectOpenRules
 import com.agentic.binning.project.ProjectRef
 import com.agentic.binning.project.ProjectRegistry
+import com.agentic.binning.project.RemovedProject
 import com.agentic.binning.project.requireProjectFolder
 import com.agentic.binning.settings.AndroidKeyCipher
 import com.agentic.binning.settings.ApiKeyStore
@@ -71,6 +79,7 @@ import com.agentic.binning.settings.SettingsStore
 import com.agentic.binning.settings.SortingModelChoice
 import com.agentic.binning.sorting.SortBudgets
 import java.io.File
+import java.nio.file.Files
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -78,12 +87,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -393,10 +402,16 @@ class AppGraph(val context: Context) {
      * @throws ProjectMissingException if the project folder no longer exists; nothing is touched on
      * disk in that case, because opening the database would recreate the folder.
      */
-    suspend fun openProject(ref: ProjectRef): OpenProject {
+    suspend fun openProject(ref: ProjectRef): OpenProject = openProject(ref, existingOnly = false)
+
+    /**
+     * [existingOnly]: the database must already exist (Open project); it is never created and no
+     * `project_meta` row is written, and a missing file throws [ProjectMissingException].
+     */
+    private suspend fun openProject(ref: ProjectRef, existingOnly: Boolean): OpenProject {
         val opened = openLock.withLock {
             try {
-                openLocked(ref)
+                openLocked(ref, existingOnly)
             } finally {
                 // Whatever happened, the pipeline may run for exactly the project that is open now.
                 pipelineTarget = _currentProject.value?.ref
@@ -412,9 +427,11 @@ class AppGraph(val context: Context) {
         return opened
     }
 
-    private suspend fun openLocked(ref: ProjectRef): OpenProject {
+    private suspend fun openLocked(ref: ProjectRef, existingOnly: Boolean = false): OpenProject {
         withContext(Dispatchers.IO) { requireProjectFolder(ref) }
-        _currentProject.value?.takeIf { it.ref == ref }?.let { return it }
+        _currentProject.value?.takeIf { ProjectRegistry.samePath(it.ref.path, ref.path) }?.let { return it }
+        val dbFile = ProjectFolders.databaseFile(File(ref.path))
+        if (existingOnly && !withContext(Dispatchers.IO) { dbFile.isFile }) throw ProjectMissingException(dbFile.path)
         // The pipeline works on the open database, which is about to be closed: refuse new starts,
         // stop it, wait for its cleanup and make it forget the old project.
         if (_currentProject.value != null) {
@@ -422,9 +439,10 @@ class AppGraph(val context: Context) {
             pipeline.stopAndReset()
             deferredStart = null
         }
-        val db = openProjectDatabase(context, ProjectFolders.databaseFile(File(ref.path)))
-        try {
+        val db = openProjectDatabase(context, dbFile)
+        val stored = try {
             if (db.meta().get() == null) {
+                check(!existingOnly) { "An existing project database has no project_meta row" }
                 db.meta().insert(
                     ProjectMetaEntity(
                         name = ref.name,
@@ -433,13 +451,14 @@ class AppGraph(val context: Context) {
                     ),
                 )
             }
+            // Listed only once the database opened; an existing entry for the folder keeps its name.
+            withContext(Dispatchers.IO) { registry.setCurrent(ref) }
         } catch (t: Throwable) {
             db.close()
             throw t
         }
-        registry.setCurrent(ref)
         val previous = _currentProject.value
-        val opened = OpenProject(ref, db)
+        val opened = OpenProject(stored, db)
         _currentProject.value = opened
         previous?.db?.close()
         return opened
@@ -454,7 +473,169 @@ class AppGraph(val context: Context) {
         try {
             openProject(ref)
         } catch (_: ProjectMissingException) {
-            withContext(Dispatchers.IO) { registry.clearCurrent() }
+            try {
+                withContext(Dispatchers.IO) { registry.clearCurrent() }
+            } catch (e: ProjectListUnreadableException) {
+                Log.w(TAG, "Could not clear the missing current project", e)
+            }
+        }
+    }
+
+    /** What Open project did with a picked folder. */
+    sealed interface OpenExistingResult {
+        data class Opened(val project: OpenProject) : OpenExistingResult
+
+        /** One short line for the sheet; nothing on disk was changed. */
+        data class Refused(val message: String) : OpenExistingResult
+    }
+
+    /**
+     * Open project (plan 2b Task 6A): opens the project in [picked] (or in its parent when [picked]
+     * is the `.binning` folder). A listed folder just switches to its entry. Otherwise the database
+     * is probed read-only first ([ProjectDatabaseProbe]); a missing, unreadable, foreign or newer one
+     * is refused with nothing changed on disk, an older one is copied to `project.db.v<N>.bak` before
+     * Room upgrades it, and the saved analysis opens as it is, never recreated.
+     */
+    suspend fun openExistingProject(picked: File): OpenExistingResult {
+        val dir = ProjectOpenRules.projectDir(picked)
+        val listed = withContext(Dispatchers.IO) { registry.list() }
+        when (val placement = ProjectOpenRules.placement(dir.path, listed)) {
+            is Placement.Listed -> return openRefusingFailures { openProject(placement.ref) }
+            is Placement.Inside, is Placement.Contains ->
+                return OpenExistingResult.Refused(checkNotNull(ProjectOpenRules.placementMessage(placement)))
+            Placement.Unlisted -> Unit
+        }
+        val dbFile = ProjectFolders.databaseFile(dir)
+        val facts = withContext(Dispatchers.IO) { ProjectDatabaseProbe.probe(dbFile) }
+        return when (val decision = ProjectOpenRules.decide(facts, PROJECT_DB_VERSION, PROJECT_DB_IDENTITY_HASHES)) {
+            is DatabaseDecision.Refused -> OpenExistingResult.Refused(decision.reason.message)
+            is DatabaseDecision.Open -> openRefusingFailures {
+                decision.backupFromVersion?.let { version ->
+                    withContext(Dispatchers.IO) {
+                        val backup = ProjectOpenRules.backupFile(dbFile, version)
+                        Files.copy(dbFile.toPath(), backup.toPath()) // fails rather than overwrite
+                    }
+                }
+                val ref = ProjectRef(ProjectOpenRules.listedName(facts, dir), ProjectRegistry.canonical(dir.path))
+                openProject(ref, existingOnly = true)
+            }
+        }
+    }
+
+    private suspend fun openRefusingFailures(open: suspend () -> OpenProject): OpenExistingResult = try {
+        OpenExistingResult.Opened(open())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: ProjectListUnreadableException) {
+        Log.w(TAG, "Open project: the project list can't be read", e)
+        OpenExistingResult.Refused(OpenRefusal.ListUnreadable.message)
+    } catch (e: ProjectMissingException) {
+        OpenExistingResult.Refused(OpenRefusal.NoProject.message)
+    } catch (e: Exception) {
+        Log.w(TAG, "Open project failed", e)
+        OpenExistingResult.Refused(OpenRefusal.CantOpen.message)
+    }
+
+    /** What removing a project from Current projects did. */
+    sealed interface RemoveResult {
+        /** [opened] is the project opened in place of a removed open one, or null (none, or it wasn't open). */
+        data class Removed(val removed: RemovedProject, val wasOpen: Boolean, val opened: OpenProject?) : RemoveResult
+
+        data object NotListed : RemoveResult
+
+        data class Refused(val message: String) : RemoveResult
+    }
+
+    /** Whether analysis or sorting is running for [ref] right now (removing it would stop that). */
+    fun isRunning(ref: ProjectRef): Boolean {
+        val state = pipeline.state.value
+        val project = state.project ?: return false
+        return state.phase.isRunning && ProjectRegistry.samePath(project.path, ref.path)
+    }
+
+    /**
+     * Takes [ref] off Current projects (plan 2b Task 6A): only its registry entry goes; its folder,
+     * media, database and thumbnails are never touched, and a missing folder is fine. If it is the
+     * open project, its run is stopped and the models released exactly as a switch does, its database
+     * is closed, and the first remaining project that opens cleanly is opened instead (or none).
+     * Refused, with nothing changed, if the list file can't be read.
+     */
+    suspend fun removeProject(ref: ProjectRef): RemoveResult {
+        val (removed, wasOpen) = openLock.withLock {
+            try {
+                val removed = try {
+                    withContext(Dispatchers.IO) { registry.remove(ref.path) }
+                } catch (e: ProjectListUnreadableException) {
+                    Log.w(TAG, "Remove: the project list can't be read", e)
+                    return RemoveResult.Refused(OpenRefusal.ListUnreadable.message)
+                } ?: return RemoveResult.NotListed
+                val open = _currentProject.value
+                val wasOpen = open != null && ProjectRegistry.samePath(open.ref.path, removed.ref.path)
+                if (open != null && wasOpen) {
+                    withContext(NonCancellable) {
+                        pipelineTarget = null
+                        pipeline.stopAndReset()
+                        deferredStart = null
+                        _currentProject.value = null
+                        withContext(Dispatchers.IO) { open.db.close() }
+                    }
+                }
+                removed to wasOpen
+            } finally {
+                pipelineTarget = _currentProject.value?.ref
+            }
+        }
+        val opened = if (wasOpen) openNextAfterRemoval() else null
+        return RemoveResult.Removed(removed, wasOpen, opened)
+    }
+
+    /**
+     * Opens the first listed project whose folder exists and whose database opens as it is (current
+     * schema, no backup needed); null if none does.
+     */
+    private suspend fun openNextAfterRemoval(): OpenProject? {
+        val next = withContext(Dispatchers.IO) {
+            ProjectOpenRules.nextAfterRemoval(registry.list()) { candidate ->
+                val dir = File(candidate.path)
+                dir.isDirectory && ProjectOpenRules.decide(
+                    ProjectDatabaseProbe.probe(ProjectFolders.databaseFile(dir)),
+                    PROJECT_DB_VERSION,
+                    PROJECT_DB_IDENTITY_HASHES,
+                ) == DatabaseDecision.Open(backupFromVersion = null)
+            }
+        } ?: return null
+        return try {
+            openProject(next)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not open ${next.name} after a removal", e)
+            null
+        }
+    }
+
+    /**
+     * Undo for [removeProject]: puts the entry back where it was and, if it was the open project,
+     * reopens it. Returns a short message if that failed, else null.
+     */
+    suspend fun restoreProject(removed: RemovedProject): String? {
+        try {
+            withContext(Dispatchers.IO) { registry.restore(removed) }
+        } catch (e: ProjectListUnreadableException) {
+            Log.w(TAG, "Undo: the project list can't be read", e)
+            return OpenRefusal.ListUnreadable.message
+        }
+        if (!removed.wasCurrent) return null
+        return try {
+            openProject(removed.ref)
+            null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: ProjectMissingException) {
+            "That project's folder is missing"
+        } catch (e: Exception) {
+            Log.w(TAG, "Undo: could not reopen ${removed.ref.name}", e)
+            "Could not open that project"
         }
     }
 
