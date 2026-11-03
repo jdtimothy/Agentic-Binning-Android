@@ -24,8 +24,10 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,7 +62,11 @@ private fun ColumnScope.FailedContent(sheet: FailedSheetState, vm: ProjectMediaV
         MediaBox(sheet.image, sheet.imageIsVideo, ui.isVideo, ui.duration) {
             MediaBadge(MediaIcons.Alert, ui.badge, Alignment.TopStart, iconTint = tokens.warn)
         }
-        Section(ui.fileName) { Text(ui.reason, color = tokens.text, fontSize = 14.sp, lineHeight = 20.sp) }
+        // Not a Section: its heading is uppercased, and a file name must keep its case.
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(ui.fileName, Modifier.semantics { heading() }, color = tokens.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(ui.reason, color = tokens.text, fontSize = 14.sp, lineHeight = 20.sp)
+        }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ui.details.forEach { (k, v) ->
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
