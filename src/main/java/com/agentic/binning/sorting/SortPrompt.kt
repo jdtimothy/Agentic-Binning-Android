@@ -8,7 +8,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /** Changing any prompt text or reply shape requires bumping this. */
-const val SORT_PROMPT_VERSION = "sort-v3"
+const val SORT_PROMPT_VERSION = "sort-v4"
 
 /** One analyzed item as the sorting model sees it: text only. */
 data class SortItem(
@@ -57,7 +57,7 @@ object SortPrompt {
         - Never rename or merge existing categories. A "locked" category was set by the user: it can receive items, nothing else.
         - Avoid one-item categories unless an item truly fits nowhere else.
         - No catch-all category such as "Misc" or "Other", unless a handful of items fit nowhere.
-        - Category names are short nouns that make good folder names: at most 3 words and 40 characters.
+        - A new category name is one general word that makes a good folder name, such as Animals, People, Food or Sunsets: never two subjects joined, and at most 40 characters. The specific subject (a turtle, a seal, a dish) belongs in the friendly name, not the category.
         - A category describes what is in the media (its subject, place or event), never the file type.
         - Each new category gets a one-line description.
         - Give every item a friendly name of 2-6 words that describes it. No dates unless they matter, and no file extension.
@@ -92,7 +92,7 @@ object SortPrompt {
             .joinToString("\t")
 
     fun proposeUser(items: List<SortItem>): String = buildString {
-        appendLine("Propose categories for this library. Reply with only new_categories: broad groups, at most 12, each with a one-line description.")
+        appendLine("Propose categories for this library. Reply with only new_categories: broad groups named with one general word each, at most 12, each with a one-line description.")
         appendLine()
         appendLine("Items (suggested name, tags):")
         items.forEach { appendLine(proposeLine(it)) }

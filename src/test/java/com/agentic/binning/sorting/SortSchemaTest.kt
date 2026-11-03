@@ -78,4 +78,20 @@ class SortSchemaTest {
         assertTrue(rule(g, "newcats")!!.contains("{0,11}"))
         assertEquals("[ \\t\\n]{0,4}", rule(g, "ws"))
     }
+
+    /** LFM's grammar allows only one-word new names: no spaces and no joining punctuation. */
+    @Test fun grammars_allowOnlyOneWordNewCategoryNames() {
+        for (g in listOf(SortSchema.assignGrammar(listOf(1L), listOf("Sunset Over Sea")), SortSchema.proposeGrammar())) {
+            val catname = rule(g, "catname")!!
+            // The rule's character class is also a valid Java regex class.
+            val chars = Regex(Regex("""\[[^\]]*\]""").find(catname)!!.value)
+            fun fits(name: String) = name.all { chars.matches(it.toString()) }
+            for (ok in listOf("Animals", "Mama's", "Café")) assertTrue("$ok in $catname", fits(ok))
+            for (bad in listOf("Sea Turtles", "Turtles&Seals", "Sea-Life", "Food/Drink", "Water_Sports", "Surf+Sail")) {
+                assertFalse("$bad in $catname", fits(bad))
+            }
+        }
+        // An existing multi-word category is still a literal the model may pick.
+        assertTrue(rule(SortSchema.assignGrammar(listOf(1L), listOf("Sunset Over Sea")), "category")!!.contains("Sunset Over Sea"))
+    }
 }

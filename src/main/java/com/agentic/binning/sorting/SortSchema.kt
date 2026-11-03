@@ -83,11 +83,17 @@ object SortSchema {
     private const val NEWCAT =
         """newcat   ::= "{" ws "\"name\":" ws catname "," ws "\"description\":" ws desc ws "}$Q"""
 
+    /**
+     * A new category name's character: one word, so no space and no joiner ("&", "+", "/", "_", "-").
+     * An existing multi-word category stays reachable as a literal in `category`.
+     */
+    private const val WORD_CHAR = """[^"\\\x7F\x00-\x20&+/_\x2D]"""
+
     /** Any character a JSON string may hold unescaped. */
     private const val CHAR = """[^"\\\x7F\x00-\x1F]"""
 
     private const val SHARED =
-        """catname  ::= "\"" $CHAR{1,$MAX_CATEGORY_CHARS} "\"$Q
+        """catname  ::= "\"" $WORD_CHAR{1,$MAX_CATEGORY_CHARS} "\"$Q
 fname    ::= "\"" $CHAR{1,$MAX_NAME_CHARS} "\"$Q
 desc     ::= "\"" $CHAR{1,$MAX_DESCRIPTION_CHARS} "\"$Q
 ws       ::= [ \t\n]{0,4}"""
