@@ -24,8 +24,8 @@ Jetpack Compose app (package `com.agentic.binning`). Plans live under
   Edit/× on Current projects) is in progress:
   `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Tasks 1–14, 6A
   and the one-word category rule are in `main`; Tasks 16–17 are on
-  `feat/plan-2b-task-16`.
-  Task 15 (the Re-sort sheet) is left. Its "Product decisions" section holds
+  `feat/plan-2b-task-16` and Task 15 on `feat/plan-2b-task-15` (on top of it).
+  Every task is done. Its "Product decisions" section holds
   every owner decision (none open). Mockups are in `docs/superpowers/mockups/` (open the HTML
   files in a browser; GitHub doesn't render them).
 - **Plan 3** (binning: moving files) is not started.
