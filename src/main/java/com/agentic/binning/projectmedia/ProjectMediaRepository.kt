@@ -26,16 +26,7 @@ class ProjectMediaRepository(
     }
 
     fun observeCounts(): Flow<MediaCounts> = db.media().observeGrid().map { grid ->
-        MediaCounts(
-            total = grid.size,
-            pending = grid.count { it.status == ItemStatus.Pending },
-            analyzing = grid.count { it.status == ItemStatus.Analyzing },
-            waiting = grid.count { waiting(it) },
-            failed = grid.count { it.status == ItemStatus.Failed },
-            missing = grid.count { it.status == ItemStatus.Missing },
-            readyToBin = grid.count { it.status == ItemStatus.Sorted },
-            binned = grid.count { it.status == ItemStatus.Binned },
-        )
+        mediaCountsOf(grid, { it.status }, ::waiting)
     }
 
     fun observeChips(filter: MediaFilter): Flow<List<ChipCount>> = flow {
@@ -205,8 +196,7 @@ class ProjectMediaRepository(
         return shown.map { it.toRow(matched[it.id]) }
     }
 
-    private fun waiting(row: MediaGridRow): Boolean =
-        row.status == ItemStatus.Analyzed && row.categoryId == null && !row.categorySetByUser
+    private fun waiting(row: MediaGridRow): Boolean = isWaiting(row.status, row.categoryId, row.categorySetByUser)
 
     private fun applyFilter(grid: List<MediaGridRow>, filter: MediaFilter): List<MediaGridRow> =
         grid.filter { row ->
