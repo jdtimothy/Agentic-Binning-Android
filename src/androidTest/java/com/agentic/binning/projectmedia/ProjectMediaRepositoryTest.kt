@@ -275,4 +275,60 @@ class ProjectMediaRepositoryTest {
         assertEquals(null, items.getValue(failed).categoryId)
         assertEquals(ItemStatus.Failed, items.getValue(failed).status)
     }
+
+    private suspend fun category(name: String, vararg items: Long): Long {
+        val id = (repo.ensureCategory(name) as EditResult.Created).id
+        if (items.isNotEmpty()) repo.moveItems(items.toList(), CategoryChoice.Existing(id))
+        return id
+    }
+
+    @Test fun applyCategoryEdits_renamesAndMergesInOneSave() = runTest {
+        val a = photo("c1")
+        val b = photo("c2")
+        val c = photo("c3")
+        val turtle = category("Turtle Beach", a)
+        val scenes = category("Beach Scenes", b)
+        val luau = category("Luau", c)
+
+        assertEquals(EditResult.Ok, repo.applyCategoryEdits(renames = mapOf(luau to "Fire Show"), merges = listOf(scenes to turtle)))
+
+        val cats = db.media().categories().associateBy { it.id }
+        assertEquals(setOf(scenes, luau), cats.keys)
+        assertEquals("Fire Show", cats.getValue(luau).name)
+        assertEquals("user", cats.getValue(luau).createdBy)
+        assertEquals("user", cats.getValue(scenes).createdBy)
+        val items = db.items().observeAll().first().associateBy { it.id }
+        assertEquals(scenes, items.getValue(a).categoryId)
+        assertEquals(scenes, items.getValue(b).categoryId)
+        // FTS follows: the new name is found, the old one is not.
+        assertEquals(listOf(c), rows(query = "Fire Show").map { it.id })
+        assertEquals(emptyList<Long>(), rows(query = "Luau").map { it.id })
+        assertEquals(listOf(a, b), rows(query = "Beach Scenes").map { it.id }.sorted())
+    }
+
+    @Test fun applyCategoryEdits_swapsTwoNames() = runTest {
+        val x = category("Reef")
+        val y = category("Lagoon")
+
+        assertEquals(EditResult.Ok, repo.applyCategoryEdits(renames = mapOf(x to "Lagoon", y to "Reef"), merges = emptyList()))
+
+        val cats = db.media().categories().associate { it.id to it.name }
+        assertEquals("Lagoon", cats.getValue(x))
+        assertEquals("Reef", cats.getValue(y))
+    }
+
+    @Test fun applyCategoryEdits_clashWithAnUnchangedName_changesNothing() = runTest {
+        val a = photo("c4")
+        val x = category("Reef", a)
+        val y = category("Lagoon")
+        val z = category("Shore")
+
+        val result = repo.applyCategoryEdits(renames = mapOf(x to "lagoons"), merges = listOf(y to z))
+
+        assertEquals(EditResult.Clash("Lagoon"), result)
+        val cats = db.media().categories().associate { it.id to it.name }
+        // The merge staged with it did not happen either.
+        assertEquals(mapOf(x to "Reef", y to "Lagoon", z to "Shore"), cats)
+        assertEquals(x, db.items().observeAll().first().single().categoryId)
+    }
 }

@@ -212,6 +212,45 @@ class ProjectMediaRepository(
         return EditResult.Ok
     }
 
+    /**
+     * The Category Edit sheet's Save (Task 14): every merge ([merges] as keep to drop, in order) and
+     * rename ([renames], for categories that survive) in one transaction. The names after Save are
+     * checked first, so swapping two names works and a clash changes nothing. Every category touched
+     * becomes the user's, and the FTS rows of their items are rebuilt.
+     */
+    suspend fun applyCategoryEdits(renames: Map<Long, String>, merges: List<Pair<Long, Long>>): EditResult =
+        db.useWriterConnection { connection ->
+            connection.immediateTransaction { applyCategoryEditsLocked(renames, merges) }
+        }
+
+    private suspend fun applyCategoryEditsLocked(renames: Map<Long, String>, merges: List<Pair<Long, Long>>): EditResult {
+        val cats = db.media().categories().associateBy { it.id }
+        if (merges.any { (keep, drop) -> keep == drop || keep !in cats || drop !in cats }) return EditResult.NotFound
+        val dropped = merges.mapTo(HashSet()) { it.second }
+        val cleaned = renames.filterKeys { it !in dropped }.mapValues { CategoryNames.clean(it.value) }
+        if (cleaned.keys.any { it !in cats }) return EditResult.NotFound
+        if (cleaned.values.any { it.isEmpty() }) return EditResult.InvalidName
+        val finalNames = cats.values.filter { it.id !in dropped }.map { cleaned[it.id] ?: it.name }
+        finalNames.groupBy(CategoryNames::key).values.firstOrNull { it.size > 1 }?.let { same ->
+            // Name the one that was already there, as a single rename's clash does.
+            return EditResult.Clash(same.firstOrNull { it !in cleaned.values } ?: same.first())
+        }
+        val touched = LinkedHashSet<Long>()
+        for ((keep, drop) in merges) {
+            db.media().reassignCategory(drop = drop, keep = keep)
+            db.media().markCategoryUser(keep)
+            db.media().deleteCategory(drop)
+            touched -= drop
+            touched += keep
+        }
+        for ((id, name) in cleaned) {
+            db.media().renameCategory(id, name)
+            touched += id
+        }
+        touched.flatMap { db.media().itemIdsInCategory(it) }.distinct().forEach { db.media().refreshFts(it) }
+        return EditResult.Ok
+    }
+
     suspend fun retryFailed(id: Long): EditResult {
         val item = db.media().item(id) ?: return EditResult.NotFound
         if (item.status != ItemStatus.Failed) return EditResult.NotFound

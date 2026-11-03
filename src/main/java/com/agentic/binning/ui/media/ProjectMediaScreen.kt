@@ -155,6 +155,7 @@ fun ProjectMediaScreen(
             state.filtersSheet?.let { FiltersSheetView(it, vm) }
             state.sheet?.let { DetailSheetHost(it, vm) }
             state.move?.let { PickerSheet(it, vm.movePicker) }
+            state.categoryEdit?.let { CategoryEditSheet(it, vm.categoryEdit) }
             state.removeSelected?.let { RemoveDialog(it, onCancel = vm::onCancelBulkRemove, onRemove = vm::onConfirmBulkRemove) }
         }
     }
@@ -284,8 +285,8 @@ private fun CategoriesHead(state: MediaUiState, vm: ProjectMediaViewModel) {
         )
         // Re-sort is off, with the reason, while a run is in progress (Q12); its sheet is Task 15.
         MiniButton(MediaIcons.Shuffle, "Re-sort", dimmed = state.busyReason != null, onClick = vm::onResort)
-        // The Category Edit sheet is Task 14.
-        MiniButton(MediaIcons.Pencil, "Edit", onClick = {})
+        // Off, with the reason, while a run is in progress: the sorter matches categories by name.
+        MiniButton(MediaIcons.Pencil, "Edit", dimmed = state.busyReason != null, onClick = vm::onOpenCategoryEdit)
     }
 }
 

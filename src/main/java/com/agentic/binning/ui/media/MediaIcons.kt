@@ -65,6 +65,8 @@ internal object MediaIcons {
 
     val ChevronRight: ImageVector = ProjectIcons.ChevronRight
 
+    val Merge: ImageVector = AnalyzeIcons.icon("merge", 2f, "M6 4l6 7 6-7", "M12 11v9")
+
     val FolderMove: ImageVector = AnalyzeIcons.icon("folder-move", 2f, FOLDER, "M9 13h6M13 11l2 2-2 2")
 
     val Remove: ImageVector = AnalyzeIcons.icon("remove", 2f, "M4 12a8 8 0 1 0 16 0a8 8 0 1 0-16 0", "M8 12h8")
