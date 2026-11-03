@@ -47,6 +47,10 @@ data class ItemTagName(val itemId: Long, val name: String)
  * name and category, and a sort keeps the description and tags. Room doesn't know `item_fts`, hence
  * SkipQueryVerification on every query that touches it.
  */
+/** A Sorted item a Re-sort may unassign: its category isn't the user's, and it has an analysis to sort from. */
+private const val RESORTABLE =
+    "status = 'Sorted' AND categorySetByUser = 0 AND EXISTS (SELECT 1 FROM analysis WHERE analysis.itemId = item.id)"
+
 internal const val FTS_REBUILD_ROW =
     "INSERT INTO item_fts(rowid, description, actions, tags, friendly_name, category) " +
         "SELECT item.id, analysis.description, analysis.actionsJson, " +
@@ -202,7 +206,9 @@ abstract class SortDao {
 
     /**
      * Makes unlocked Sorted items waiting again for a Re-sort. Returns how many it unassigned.
-     * Failed, Missing and Binned items are left alone. Empty model-created categories are deleted.
+     * Failed, Missing and Binned items are left alone, and so is an item with no analysis (a failed
+     * item set by hand): no sorter can read it, so unassigned it would wait forever. Empty
+     * model-created categories are deleted.
      */
     @Transaction
     open suspend fun prepareResort(keepEdits: Boolean): Int {
@@ -226,10 +232,10 @@ abstract class SortDao {
     @Query("UPDATE category SET createdBy = 'model'")
     protected abstract suspend fun markAllCategoriesModel()
 
-    @Query("SELECT id FROM item WHERE status = 'Sorted' AND categorySetByUser = 0")
+    @Query("SELECT id FROM item WHERE $RESORTABLE")
     protected abstract suspend fun unlockedSortedIds(): List<Long>
 
-    @Query("UPDATE item SET categoryId = NULL, status = 'Analyzed' WHERE status = 'Sorted' AND categorySetByUser = 0")
+    @Query("UPDATE item SET categoryId = NULL, status = 'Analyzed' WHERE $RESORTABLE")
     protected abstract suspend fun unassignUnlockedSorted(): Int
 
     @Query(

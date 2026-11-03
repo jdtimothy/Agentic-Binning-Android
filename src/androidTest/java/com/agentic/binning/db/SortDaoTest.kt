@@ -432,4 +432,44 @@ class SortDaoTest {
         assertNull(item(locked).categoryId)
         assertEquals(emptyList<CategoryInfo>(), db.sort().categories())
     }
+
+    /** A failed item set by hand (Q19): Sorted with both locks, but no analysis for a sorter to read. */
+    private suspend fun setByHand(name: String): Long {
+        val id = addItem("hand-$name", status = ItemStatus.Failed)
+        val cat = db.media().insertCategory(CategoryEntity(name = "Mine", description = "", createdBy = "user", folderName = null))
+        db.media().updateItemEdit(id, name, nameSetByUser = true, categoryId = cat, categorySetByUser = true, status = ItemStatus.Sorted)
+        db.media().refreshFts(id)
+        return id
+    }
+
+    /**
+     * Review finding: Re-sort without Keep my edits made a set-by-hand item Analyzed with no category,
+     * which no sorter can pick up (no analysis), and dropped its search row. It is left as it is.
+     */
+    @Test fun prepareResort_withoutKeepEdits_leavesAnItemWithoutAnalysisSorted() = runTest {
+        val hand = setByHand("Broken Card")
+        val cat = item(hand).categoryId
+
+        val waiting = db.sort().prepareResort(keepEdits = false)
+
+        assertEquals(0, waiting)
+        assertEquals(ItemStatus.Sorted, item(hand).status)
+        assertEquals(cat, item(hand).categoryId)
+        assertEquals(0, db.sort().observeUncategorizedCount().first())
+        assertEquals(listOf(hand), db.analyses().search("friendly_name:broken"))
+    }
+
+    @Test fun prepareResort_keepEdits_leavesAnUnlockedItemWithoutAnalysisSorted() = runTest {
+        val hand = setByHand("Broken Card")
+        val cat = item(hand).categoryId!!
+        // The user unlocked its category in the detail sheet (P2): the category stays, the lock goes.
+        db.media().updateItemEdit(hand, "Broken Card", nameSetByUser = true, categoryId = cat, categorySetByUser = false, status = ItemStatus.Sorted)
+
+        val waiting = db.sort().prepareResort(keepEdits = true)
+
+        assertEquals(0, waiting)
+        assertEquals(ItemStatus.Sorted, item(hand).status)
+        assertEquals(cat, item(hand).categoryId)
+        assertEquals(listOf(hand), db.analyses().search("friendly_name:broken"))
+    }
 }
