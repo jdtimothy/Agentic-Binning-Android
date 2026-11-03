@@ -72,12 +72,19 @@ import com.agentic.binning.project.ProjectRef
 import com.agentic.binning.project.ProjectRegistry
 import com.agentic.binning.project.RemovedProject
 import com.agentic.binning.project.requireProjectFolder
+import com.agentic.binning.projectmedia.RESORT_BUSY
+import com.agentic.binning.projectmedia.RESORT_NOT_OPEN
+import com.agentic.binning.projectmedia.RESORT_NOT_STARTED
+import com.agentic.binning.projectmedia.ResortRequest
+import com.agentic.binning.projectmedia.ResortStart
 import com.agentic.binning.settings.AndroidKeyCipher
 import com.agentic.binning.settings.ApiKeyStore
 import com.agentic.binning.settings.ApiKeys
 import com.agentic.binning.settings.SettingsStore
 import com.agentic.binning.settings.SortingModelChoice
 import com.agentic.binning.sorting.SortBudgets
+import com.agentic.binning.ui.settings.NEED_KEY_TEXT
+import com.agentic.binning.ui.settings.specOf
 import java.io.File
 import java.nio.file.Files
 import kotlinx.coroutines.CancellationException
@@ -226,6 +233,14 @@ class AppGraph(val context: Context) {
 
         override suspend fun closeOpenRuns(finishedAt: Long, message: String): Int =
             pipelineProject().db.sort().closeOpenRuns(finishedAt, message)
+
+        override suspend fun prepareResort(keepEdits: Boolean): Int = pipelineProject().db.sort().prepareResort(keepEdits)
+    }
+
+    /** Null if [choice] can sort now; otherwise the line Settings shows for it (P1). */
+    private suspend fun sortingUnavailable(choice: SortingModelChoice): String? = when (val spec = specOf(choice)) {
+        null -> if (apiKeys.info.first() == null) NEED_KEY_TEXT else null
+        else -> if (withContext(Dispatchers.IO) { modelDownloader.isReady(spec) }) null else "Download ${spec.displayName} in Settings first"
     }
 
     /** One model job at a time: analysis, sorting and (later) Re-sort and Bin Files all go through it. */
@@ -261,6 +276,8 @@ class AppGraph(val context: Context) {
             log = pipelineLog,
             isCurrent = { it == pipelineTarget },
             maxFramesPerClip = { settings.settings.first().maxFramesPerClip },
+            prepareResort = sortStore::prepareResort,
+            sortingAvailable = ::sortingUnavailable,
         )
     }
 
@@ -296,6 +313,28 @@ class AppGraph(val context: Context) {
         Log.w(TAG, "Analysis start refused", e)
         deferredStart = DeferredStart(ref, kind)
         false
+    }
+
+    /**
+     * Re-sorts the open project [ref] with [request] (plan 2b Task 9) in [AnalysisService]. Refused,
+     * clearing nothing, while a run is in progress, for a project that is not open, when the chosen
+     * model can't run, or when the system won't start the service; never queued or deferred. Settings
+     * are not changed. The controller checks the run and the model again when the service starts it.
+     */
+    suspend fun resort(ref: ProjectRef, request: ResortRequest): ResortStart {
+        if (pipelineTarget != ref) return ResortStart.Refused(RESORT_NOT_OPEN)
+        if (pipeline.state.value.phase.isRunning) return ResortStart.Refused(RESORT_BUSY)
+        sortingUnavailable(request.model)?.let { return ResortStart.Refused(it) }
+        return try {
+            AnalysisService.start(context, ref, RunKind.Resort, request)
+            ResortStart.Started
+        } catch (e: IllegalStateException) { // ForegroundServiceStartNotAllowedException
+            Log.w(TAG, "Re-sort start refused", e)
+            ResortStart.Refused(RESORT_NOT_STARTED)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Re-sort start refused", e)
+            ResortStart.Refused(RESORT_NOT_STARTED)
+        }
     }
 
     private val launcher by lazy { AnalysisLauncher({ pipeline.state.value }, ::startAnalysis, pipeline::stop) }

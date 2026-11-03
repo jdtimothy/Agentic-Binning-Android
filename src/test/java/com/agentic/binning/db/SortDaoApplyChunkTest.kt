@@ -48,6 +48,11 @@ class SortDaoApplyChunkTest {
         }
         override suspend fun deleteFtsRow(itemId: Long) = Unit
         override suspend fun rebuildFtsRow(itemId: Long) = Unit
+        override suspend fun clearLocks() = error("unused")
+        override suspend fun markAllCategoriesModel() = error("unused")
+        override suspend fun unlockedSortedIds(): List<Long> = error("unused")
+        override suspend fun unassignUnlockedSorted(): Int = error("unused")
+        override suspend fun deleteEmptyModelCategories(): Int = error("unused")
     }
 
     private fun newCategory(name: String) = CategoryEntity(name = name, description = "$name things", createdBy = "model", folderName = null)
