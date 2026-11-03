@@ -2,7 +2,6 @@ package com.agentic.binning.ui.media
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -53,7 +55,8 @@ private fun ColumnScope.ResortContent(sheet: ResortSheetState, vm: ProjectMediaV
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(ui.intro, color = tokens.text, fontSize = 14.sp, lineHeight = 20.sp)
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // A radio group: TalkBack says which model is picked.
+        Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Label("Sorting model for this run")
             ui.rows.forEach { row -> ModelCard(row) { vm.onResortModel(row.choice) } }
         }
@@ -96,7 +99,7 @@ private fun ModelCard(row: ResortModelRow, onClick: () -> Unit) {
             .clip(CardShape)
             .background(tokens.field)
             .border(1.dp, if (row.selected) tokens.accent else tokens.line, CardShape)
-            .clickable(role = Role.RadioButton, onClick = onClick)
+            .selectable(selected = row.selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -127,7 +130,7 @@ private fun ModelCard(row: ResortModelRow, onClick: () -> Unit) {
 private fun KeepEditsRow(checked: Boolean, text: String, onToggle: () -> Unit) {
     val tokens = LocalGlassTokens.current
     Row(
-        Modifier.fillMaxWidth().clip(CardShape).clickable(role = Role.Checkbox, onClick = onToggle).padding(vertical = 6.dp),
+        Modifier.fillMaxWidth().clip(CardShape).toggleable(value = checked, role = Role.Checkbox, onValueChange = { onToggle() }).padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
