@@ -120,7 +120,7 @@ internal fun GlassSheet(onDismiss: () -> Unit, tall: Boolean, content: @Composab
 }
 
 @Composable
-private fun SheetHead(title: String, onClose: () -> Unit) {
+internal fun SheetHead(title: String, onClose: () -> Unit) {
     val tokens = LocalGlassTokens.current
     Row(
         Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 6.dp, bottom = 10.dp),
@@ -308,12 +308,12 @@ private fun MarkerPill(marker: LockMarker) {
 }
 
 @Composable
-private fun FieldBox(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+internal fun FieldBox(modifier: Modifier = Modifier, height: Int = 48, content: @Composable BoxScope.() -> Unit) {
     val tokens = LocalGlassTokens.current
     Box(
         modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(height.dp)
             .clip(FieldShape)
             .background(tokens.field)
             .border(1.dp, tokens.line, FieldShape)

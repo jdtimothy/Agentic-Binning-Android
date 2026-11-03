@@ -122,6 +122,13 @@ class ProjectMediaViewModelTest {
             return saveResult
         }
 
+        val categoryEdits = mutableListOf<CategoryEdits>()
+
+        override suspend fun applyCategoryEdits(edits: CategoryEdits): EditResult {
+            categoryEdits += edits
+            return saveResult
+        }
+
         override suspend fun remove(ids: List<Long>) {
             removed += ids
             this@ProjectMediaViewModelTest.rows.value = this@ProjectMediaViewModelTest.rows.value.filter { it.id !in ids }
@@ -730,5 +737,81 @@ class ProjectMediaViewModelTest {
 
         assertEquals("Remove “Item 3” from Hawaii Photos?", vm.state.value.removeSelected!!.title)
         assertEquals("Remove", vm.state.value.removeSelected!!.removeLabel)
+    }
+
+    @Test
+    fun categoryEdit_stagesRenameAndMerge_thenSavesThemTogether() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+
+        vm.onOpenCategoryEdit()
+        advanceUntilIdle()
+        val open = vm.state.value.categoryEdit!!
+        assertEquals(listOf("Beach", "Mine", "Empty"), open.ui.rows.map { it.name })
+        assertEquals(listOf(2, 1, 0), open.ui.rows.map { it.count })
+
+        vm.categoryEdit.onRenameStart(3)
+        vm.categoryEdit.onRenameText("Spare")
+        vm.categoryEdit.onRenameDone()
+        vm.categoryEdit.onTick(1)
+        vm.categoryEdit.onTick(2)
+        vm.categoryEdit.onKeep(2)
+        vm.categoryEdit.onMerge()
+        advanceUntilIdle()
+        val staged = vm.state.value.categoryEdit!!.ui
+        assertEquals(listOf("Mine", "Spare"), staged.rows.map { it.name })
+        assertEquals("Save 2 changes", staged.saveLabel)
+        // Nothing is written before Save.
+        assertTrue(source.categoryEdits.isEmpty())
+
+        vm.categoryEdit.onSave()
+        advanceUntilIdle()
+        assertEquals(listOf(CategoryEdits(renames = mapOf(3L to "Spare"), merges = listOf(2L to 1L))), source.categoryEdits)
+        assertNull(vm.state.value.categoryEdit)
+    }
+
+    @Test
+    fun categoryEdit_isOffWhileARunIsInProgress() = runTest {
+        val messages = mutableListOf<String>()
+        phase.value = PipelinePhase.Describing
+        val vm = vm()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.messages.toList(messages) }
+        advanceUntilIdle()
+
+        vm.onOpenCategoryEdit()
+        advanceUntilIdle()
+        assertNull(vm.state.value.categoryEdit)
+        assertEquals(EDIT_BUSY, messages.last())
+    }
+
+    @Test
+    fun categoryEdit_saveClash_keepsTheSheetOpenWithTheError() = runTest {
+        source.saveResult = EditResult.Clash("Mine")
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onOpenCategoryEdit()
+        vm.categoryEdit.onRenameStart(3)
+        vm.categoryEdit.onRenameText("Spare")
+        vm.categoryEdit.onRenameDone()
+        vm.categoryEdit.onSave()
+        advanceUntilIdle()
+
+        assertEquals("A category named “Mine” already exists.", vm.state.value.categoryEdit!!.error)
+    }
+
+    @Test
+    fun categoryEdit_closeDropsTheStagedChanges() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onOpenCategoryEdit()
+        vm.categoryEdit.onRenameStart(1)
+        vm.categoryEdit.onRenameText("Shore")
+        vm.categoryEdit.onRenameDone()
+        vm.categoryEdit.onClose()
+        vm.onOpenCategoryEdit()
+        advanceUntilIdle()
+
+        assertEquals("Beach", vm.state.value.categoryEdit!!.ui.rows.first().name)
+        assertTrue(source.categoryEdits.isEmpty())
     }
 }

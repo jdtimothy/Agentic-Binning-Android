@@ -77,6 +77,9 @@ interface MediaSource {
     /** Bulk Move to category: analyzed items get [category], locked as the user's. */
     suspend fun move(ids: List<Long>, category: CategoryChoice): EditResult
 
+    /** The Category Edit sheet's Save: every rename and merge in one transaction. */
+    suspend fun applyCategoryEdits(edits: CategoryEdits): EditResult
+
     /** Remove from project: the rows go, the files stay (Q1). */
     suspend fun remove(ids: List<Long>)
 }
@@ -156,6 +159,8 @@ data class MediaUiState(
     val move: PickerUi?,
     /** Select mode's Remove from project confirmation (Task 13). */
     val removeSelected: RemoveDialogUi?,
+    /** The Category Edit sheet (Task 14). */
+    val categoryEdit: CategoryEditState?,
 ) {
     companion object {
         val None = MediaUiState(
@@ -163,6 +168,7 @@ data class MediaUiState(
             kind = null, setFilters = emptyList(), resultText = "", tiles = emptyList(), noMatchText = null,
             status = mediaStatus(MediaCounts(total = 0), null), binReason = null, busyReason = null, selection = null,
             allVisibleSelected = false, empty = false, filtersSheet = null, sheet = null, move = null, removeSelected = null,
+            categoryEdit = null,
         )
     }
 }
@@ -220,6 +226,26 @@ data class DetailSheetState(
     val saving: Boolean,
 )
 
+/** The Category Edit sheet with its staged changes. */
+data class CategoryEditState(val ui: CategoryEditUi, val error: String?, val saving: Boolean)
+
+/** What the Category Edit sheet's controls do. */
+interface CategoryEditActions {
+    fun onClose()
+    fun onRenameStart(id: Long)
+    fun onRenameText(text: String)
+    fun onRenameDone()
+    fun onRenameCancel()
+    fun onTick(id: Long)
+    fun onKeep(id: Long)
+    fun onMerge()
+    fun onUntick()
+    fun onSave()
+}
+
+/** Why Edit is off: the sorter matches categories by name while a run is in progress. */
+const val EDIT_BUSY = "Edit is available when analysis is stopped or done"
+
 /** A tap on an item that is still waiting to be analyzed. */
 const val DETAIL_AFTER_ANALYSIS = "Details open once this item is analyzed"
 
@@ -264,6 +290,12 @@ private data class DetailSession(
 
 private data class PickerSession(val newOpen: Boolean = false, val newName: String = "")
 
+private data class CategoryEditSession(
+    val draft: CategoryEditDraft = CategoryEditDraft(),
+    val error: String? = null,
+    val saving: Boolean = false,
+)
+
 /** The rows of one source with what is needed to show them. */
 private data class Loaded(
     val source: MediaSource?,
@@ -294,6 +326,11 @@ class ProjectMediaViewModel(
     private val scope = scope ?: viewModelScope
     private val picks = MutableStateFlow(Picks())
     private val session = MutableStateFlow<DetailSession?>(null)
+    private val categorySession = MutableStateFlow<CategoryEditSession?>(null)
+
+    /** The shown project's categories, for staging category edits between frames. */
+    @Volatile
+    private var latestCategories: List<CategoryEntity> = emptyList()
 
     /** The project shown now, for loads and edits. */
     @Volatile
@@ -312,6 +349,7 @@ class ProjectMediaViewModel(
             if (shownOne) {
                 picks.value = Picks()
                 session.value = null
+                categorySession.value = null
             }
             shownOne = true
             current = it
@@ -331,11 +369,12 @@ class ProjectMediaViewModel(
             val found = fts.flatMapLatest { q -> if (q == null) all.map { it to false } else src.rows(q).map { it to true } }
             combine(all, found, src.categories()) { a, (f, searched), c ->
                 Loaded(src, a, f, searched, c, f.associate { it.id to src.image(it) })
-            }.flowOn(io)
+            }.flowOn(io).onEach { latestCategories = it.categories }
         }
     }
 
-    val state: StateFlow<MediaUiState> = combine(loaded, picks, phase.distinctUntilChanged(), session) { l, p, ph, d -> build(l, p, ph, d) }
+    val state: StateFlow<MediaUiState> =
+        combine(loaded, picks, phase.distinctUntilChanged(), session, categorySession) { l, p, ph, d, c -> build(l, p, ph, d, c) }
         .stateIn(this.scope, SharingStarted.Eagerly, MediaUiState.None)
 
     fun onQuery(text: String) = picks.update { it.copy(query = text) }
@@ -582,6 +621,56 @@ class ProjectMediaViewModel(
         if (busy != null) _messages.tryEmit(busy) else onCategorizeNow.invoke()
     }
 
+    /** Edit on the categories row: the Category Edit sheet, off while a run is in progress. */
+    fun onOpenCategoryEdit() {
+        if (state.value.busyReason != null) {
+            _messages.tryEmit(EDIT_BUSY)
+            return
+        }
+        categorySession.value = CategoryEditSession()
+    }
+
+    private fun updateCategoryDraft(block: (CategoryEditDraft) -> CategoryEditDraft) =
+        categorySession.update { s -> s?.copy(draft = block(s.draft), error = null) }
+
+    val categoryEdit: CategoryEditActions = object : CategoryEditActions {
+        override fun onClose() {
+            categorySession.value = null
+        }
+
+        override fun onRenameStart(id: Long) = updateCategoryDraft { it.startRename(id, latestCategories) }
+        override fun onRenameText(text: String) = updateCategoryDraft { it.editTo(text) }
+        override fun onRenameDone() = updateCategoryDraft { it.finishRename(latestCategories) }
+        override fun onRenameCancel() = updateCategoryDraft { it.cancelRename() }
+        override fun onTick(id: Long) = updateCategoryDraft { it.tick(id) }
+        override fun onKeep(id: Long) = updateCategoryDraft { it.keep(id) }
+        override fun onMerge() = updateCategoryDraft { it.merge() }
+        override fun onUntick() = updateCategoryDraft { it.untick() }
+        override fun onSave() = saveCategoryEdits()
+    }
+
+    private fun saveCategoryEdits() {
+        val s = categorySession.value ?: return
+        val src = current ?: return
+        val edits = categoryEditsOf(latestCategories, s.draft)
+        if (s.saving || edits.count == 0) return
+        if (state.value.busyReason != null) {
+            _messages.tryEmit(EDIT_BUSY)
+            return
+        }
+        categorySession.value = s.copy(saving = true, error = null)
+        scope.launch {
+            val result = withContext(io) { src.applyCategoryEdits(edits) }
+            if (current !== src) return@launch
+            when (result) {
+                EditResult.Ok, is EditResult.Created -> categorySession.value = null
+                is EditResult.Clash -> categorySession.update { it?.copy(saving = false, error = "A category named “${result.existing}” already exists.") }
+                EditResult.InvalidName -> categorySession.update { it?.copy(saving = false, error = "A category name can't be empty.") }
+                EditResult.NotFound -> categorySession.update { it?.copy(saving = false, error = "A category changed meanwhile. Close and try again.") }
+            }
+        }
+    }
+
     /** Disabled with the reason while a run is in progress; the sheet comes with Task 15. */
     fun onResort() {
         state.value.busyReason?.let { _messages.tryEmit(it) }
@@ -594,7 +683,7 @@ class ProjectMediaViewModel(
 
     private fun Set<Long>.toggle(id: Long) = if (id in this) this - id else this + id
 
-    private fun build(l: Loaded, p: Picks, phase: PipelinePhase?, d: DetailSession?): MediaUiState {
+    private fun build(l: Loaded, p: Picks, phase: PipelinePhase?, d: DetailSession?, c: CategoryEditSession?): MediaUiState {
         val src = l.source ?: return MediaUiState.None
         val job = activeJobOf(phase)
         val counts = mediaCountsOf(l.all, { it.status }) { isWaiting(it.status, it.categoryId, it.categorySetByUser) }
@@ -722,6 +811,10 @@ class ProjectMediaViewModel(
                 )
             },
             removeSelected = if (p.confirmBulkRemove && !selection.isNullOrEmpty()) bulkRemoveDialog(selection, l, src.projectName) else null,
+            categoryEdit = c?.let {
+                val counts = l.all.mapNotNull { row -> row.categoryId }.groupingBy { id -> id }.eachCount()
+                CategoryEditState(categoryEditUi(l.categories, counts, it.draft), it.error, it.saving)
+            },
         )
     }
 

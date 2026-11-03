@@ -44,5 +44,8 @@ class RepositoryMediaSource(private val project: OpenProject) : MediaSource {
 
     override suspend fun move(ids: List<Long>, category: CategoryChoice): EditResult = repository.moveItems(ids, category)
 
+    override suspend fun applyCategoryEdits(edits: CategoryEdits): EditResult =
+        repository.applyCategoryEdits(edits.renames, edits.merges)
+
     override suspend fun remove(ids: List<Long>) = repository.removeItems(ids)
 }
