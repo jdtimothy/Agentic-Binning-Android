@@ -29,12 +29,15 @@ class ProjectMediaRepository(
         mediaCountsOf(grid, { it.status }, ::waiting)
     }
 
+    /** Every category in id order, for the chips row (its lock marks the user's). */
+    fun observeCategories(): Flow<List<CategoryEntity>> = db.sort().observeCategories()
+
     fun observeChips(filter: MediaFilter): Flow<List<ChipCount>> = flow {
         db.media().observeGrid().collect { grid ->
-            val base = applyFilter(grid, filter.copy(chip = MediaChip.All))
+            val base = grid.map { it.toRow() }.filter(filter.copy(chip = MediaChip.All)::matches)
             val chips = mutableListOf<ChipCount>()
             chips += ChipCount(MediaChip.All, "All", base.size)
-            val waitingN = base.count { waiting(it) }
+            val waitingN = base.count { isWaiting(it.status, it.categoryId, it.categorySetByUser) }
             if (waitingN > 0) chips += ChipCount(MediaChip.Waiting, "Waiting", waitingN)
             val failedN = base.count { it.status == ItemStatus.Failed }
             if (failedN > 0) chips += ChipCount(MediaChip.Failed, "Failed", failedN)
@@ -187,30 +190,16 @@ class ProjectMediaRepository(
     }
 
     private suspend fun rowsFrom(grid: List<MediaGridRow>, filter: MediaFilter, ftsQuery: String?): List<MediaRow> {
-        val narrowed = applyFilter(grid, filter)
-        if (ftsQuery == null) return narrowed.map { it.toRow() }
+        val narrowed = grid.map { it.toRow() }.filter(filter::matches)
+        if (ftsQuery == null) return narrowed
         if (narrowed.isEmpty()) return emptyList()
         val hits = db.analyses().search(ftsQuery).toSet()
         val shown = narrowed.filter { it.id in hits }
         val matched = matchedIn(shown.map { it.id }, ftsQuery)
-        return shown.map { it.toRow(matched[it.id]) }
+        return shown.map { it.copy(matchedIn = matched[it.id]) }
     }
 
     private fun waiting(row: MediaGridRow): Boolean = isWaiting(row.status, row.categoryId, row.categorySetByUser)
-
-    private fun applyFilter(grid: List<MediaGridRow>, filter: MediaFilter): List<MediaGridRow> =
-        grid.filter { row ->
-            when (filter.chip) {
-                MediaChip.All -> true
-                MediaChip.Waiting -> waiting(row)
-                MediaChip.Failed -> row.status == ItemStatus.Failed
-                is MediaChip.Category -> row.categoryId == filter.chip.id
-            } &&
-                (filter.kind == null || row.kind == filter.kind) &&
-                (filter.shotType == null || row.shotType == filter.shotType) &&
-                (filter.takenFrom == null || (row.takenAt != null && row.takenAt >= filter.takenFrom)) &&
-                (filter.takenTo == null || (row.takenAt != null && row.takenAt <= filter.takenTo))
-        }
 
     private suspend fun matchedIn(ids: List<Long>, ftsQuery: String): Map<Long, MatchedIn> {
         if (ids.isEmpty()) return emptyMap()
@@ -233,7 +222,7 @@ class ProjectMediaRepository(
         return found
     }
 
-    private fun MediaGridRow.toRow(matchedIn: MatchedIn? = null) = MediaRow(
+    private fun MediaGridRow.toRow() = MediaRow(
         id = id,
         kind = kind,
         durationMs = durationMs,
@@ -246,6 +235,5 @@ class ProjectMediaRepository(
         nameSetByUser = nameSetByUser,
         categorySetByUser = categorySetByUser,
         currentPath = currentPath,
-        matchedIn = matchedIn,
     )
 }

@@ -73,4 +73,16 @@ class MediaStatusTest {
     @Test fun singular() {
         assertEquals("1 file ready to bin", mediaStatus(MediaCounts(total = 1, readyToBin = 1), null).text)
     }
+
+    @Test fun binFilesReason_namesWhatBlocksIt() {
+        assertEquals("Bin Files is available when analysis is stopped or done", binFilesBlockedReason(MediaCounts(total = 4, readyToBin = 4), ActiveJob.Sorting))
+        assertEquals("Bin Files waits for analysis to finish", binFilesBlockedReason(MediaCounts(total = 4, pending = 1, readyToBin = 3), null))
+        assertEquals("Bin Files waits for 3 items to be categorized", binFilesBlockedReason(MediaCounts(total = 4, waiting = 3, readyToBin = 1), null))
+        assertEquals("Nothing to bin yet", binFilesBlockedReason(MediaCounts(total = 1, failed = 1), null))
+        assertEquals("All files are binned", binFilesBlockedReason(MediaCounts(total = 2, binned = 2), null))
+        // On exactly when mediaStatus turns Bin Files on.
+        val ready = MediaCounts(total = 5, failed = 1, readyToBin = 4)
+        assertNull(binFilesBlockedReason(ready, null))
+        assertTrue(mediaStatus(ready, null).binFilesEnabled)
+    }
 }

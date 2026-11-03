@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -34,12 +33,14 @@ import com.agentic.binning.ui.theme.LocalGlassTokens
 
 private const val DISABLED_ALPHA = 0.45f
 
-/** Stop, Pause/Resume and the Project Media button (disabled until Plan 2). */
+/** Stop, Pause/Resume and the Project Media button (on while a project is open). */
 @Composable
 fun BottomBar(
     controls: ControlsState,
     onStop: () -> Unit,
     onTogglePause: () -> Unit,
+    canOpenMedia: Boolean,
+    onOpenMedia: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     GlassSurface(modifier.fillMaxWidth().height(60.dp), shape = RoundedCornerShape(30.dp)) {
@@ -55,7 +56,7 @@ fun BottomBar(
                 controls.canToggle,
                 onTogglePause,
             )
-            ProjectMediaButton(controls.mediaCount, Modifier.weight(1f))
+            ProjectMediaButton(controls.mediaCount, canOpenMedia, onOpenMedia, Modifier.weight(1f))
         }
     }
 }
@@ -77,22 +78,20 @@ private fun RoundButton(icon: ImageVector, label: String, enabled: Boolean, onCl
     }
 }
 
-/** Opens the Project Media screen in Plan 2; until then it only shows the item count. */
+/** Opens the Project Media screen, with the project's item count. */
 @Composable
-private fun ProjectMediaButton(count: Int, modifier: Modifier) {
+private fun ProjectMediaButton(count: Int, enabled: Boolean, onClick: () -> Unit, modifier: Modifier) {
     val tokens = LocalGlassTokens.current
     // The mockup's badge: the on-accent colour, faint (dark text on light accent, or white on dark).
     val badge = tokens.onAccent.copy(alpha = if (tokens.onAccent.luminance() > 0.5f) 0.22f else 0.16f)
     Row(
         modifier
             .height(46.dp)
-            .alpha(DISABLED_ALPHA)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .clip(RoundedCornerShape(23.dp))
             .background(tokens.accent)
-            .semantics {
-                contentDescription = "Project Media, $count items. Available in a later version"
-                disabled()
-            },
+            .semantics { contentDescription = "Project Media, $count items" }
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
