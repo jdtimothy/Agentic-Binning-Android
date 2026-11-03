@@ -256,4 +256,23 @@ class ProjectMediaRepositoryTest {
         assertEquals(emptyList<Any>(), d.actions)
         assertEquals(null, repo.detail(id + 99))
     }
+
+    @Test fun moveItems_skipsItemsNotAnalyzedYet() = runTest {
+        val analyzed = photo("m1")
+        val pending = photo("m2", status = ItemStatus.Pending)
+        val failed = photo("m3", status = ItemStatus.Failed, failureReason = "decode")
+        val cat = (repo.ensureCategory("Wildlife") as EditResult.Created).id
+
+        assertEquals(EditResult.Ok, repo.moveItems(listOf(analyzed, pending, failed), CategoryChoice.Existing(cat)))
+
+        val items = db.items().observeAll().first().associateBy { it.id }
+        assertEquals(cat, items.getValue(analyzed).categoryId)
+        assertEquals(ItemStatus.Sorted, items.getValue(analyzed).status)
+        // A category on an item with no analysis would leave it neither waiting nor ready to bin.
+        assertEquals(null, items.getValue(pending).categoryId)
+        assertFalse(items.getValue(pending).categorySetByUser)
+        assertEquals(ItemStatus.Pending, items.getValue(pending).status)
+        assertEquals(null, items.getValue(failed).categoryId)
+        assertEquals(ItemStatus.Failed, items.getValue(failed).status)
+    }
 }
