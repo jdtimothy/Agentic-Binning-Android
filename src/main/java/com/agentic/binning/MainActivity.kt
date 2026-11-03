@@ -128,7 +128,9 @@ class MainActivity : ComponentActivity() {
 
                     val mediaViewModel = viewModel {
                         ProjectMediaViewModel(
-                            source = graph.currentProject.map { open -> open?.let(::RepositoryMediaSource) },
+                            source = graph.currentProject.map { open ->
+                                open?.let { RepositoryMediaSource(it) { graph.startAnalysisAfterRetry(it) } }
+                            },
                             phase = graph.pipeline.state.map { it.phase },
                             onCategorizeNow = {
                                 graph.currentProject.value?.let { graph.startAnalysis(it.ref, RunKind.CategorizeOnly) }

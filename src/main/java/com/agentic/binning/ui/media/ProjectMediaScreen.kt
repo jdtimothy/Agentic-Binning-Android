@@ -154,6 +154,7 @@ fun ProjectMediaScreen(
             }
             state.filtersSheet?.let { FiltersSheetView(it, vm) }
             state.sheet?.let { DetailSheetHost(it, vm) }
+            state.failed?.let { FailedSheetHost(it, vm) }
             state.move?.let { PickerSheet(it, vm.movePicker) }
             state.categoryEdit?.let { CategoryEditSheet(it, vm.categoryEdit) }
             state.removeSelected?.let { RemoveDialog(it, onCancel = vm::onCancelBulkRemove, onRemove = vm::onConfirmBulkRemove) }

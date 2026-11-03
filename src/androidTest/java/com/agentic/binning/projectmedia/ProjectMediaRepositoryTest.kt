@@ -3,6 +3,7 @@ package com.agentic.binning.projectmedia
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.agentic.binning.db.AnalysisEntity
+import com.agentic.binning.db.CategoryEntity
 import com.agentic.binning.db.ItemEntity
 import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
@@ -304,6 +305,34 @@ class ProjectMediaRepositoryTest {
         assertEquals(listOf(c), rows(query = "Fire Show").map { it.id })
         assertEquals(emptyList<Long>(), rows(query = "Luau").map { it.id })
         assertEquals(listOf(a, b), rows(query = "Beach Scenes").map { it.id }.sorted())
+    }
+
+    /** A model category as sorting writes it: with the model's description of the old name. */
+    private suspend fun modelCategory(name: String, description: String): Long =
+        db.media().insertCategory(CategoryEntity(name = name, description = description, createdBy = "model", folderName = null))
+
+    /**
+     * A renamed category drops the model's description: it describes the old name (Transport renamed
+     * Vehicles kept "Transport", and a Re-sort made a new Transport from it).
+     */
+    @Test fun renameCategory_clearsTheModelsDescription() = runTest {
+        val cat = modelCategory("Transport", "Transport")
+        assertEquals(EditResult.Ok, repo.renameCategory(cat, "Vehicles"))
+        val renamed = db.media().category(cat)!!
+        assertEquals("Vehicles", renamed.name)
+        assertEquals("", renamed.description)
+    }
+
+    @Test fun applyCategoryEdits_renameClearsTheDescription_mergeKeepsTheKeptOnes() = runTest {
+        val transport = modelCategory("Transport", "Transport")
+        val nature = modelCategory("Nature", "Outdoor scenes")
+        val sports = modelCategory("Sports", "Ball games")
+        assertEquals(
+            EditResult.Ok,
+            repo.applyCategoryEdits(renames = mapOf(transport to "Vehicles"), merges = listOf(nature to sports)),
+        )
+        assertEquals("", db.media().category(transport)!!.description)
+        assertEquals("Outdoor scenes", db.media().category(nature)!!.description)
     }
 
     @Test fun applyCategoryEdits_swapsTwoNames() = runTest {

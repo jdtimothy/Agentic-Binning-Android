@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: Tasks 1–6 done Nov 1, 2026; Task 6A code done Nov 2 (device tests and phone check pending, see Task 6A).** Drafted Oct 31 before Plan 2a reached GitHub. 2a merged into `main` as `24aa3bd` (PR #4) and was merged into `plan-2b-draft` on Nov 1. Task 6 checked every 2a dependency against the merged code; its findings (section "Task 6" below) replace the old **CONFIRM against 2a** markers, and Tasks 7–17 were updated to match. On Nov 1 the owner approved P1–P6 (P5 with its own wording) and Q1, Q4, Q6, Q10, Q12 and Q19's retry rule, and asked for **Task 6A** (open an existing project, remove a project from the app), planned below. Later on Nov 1 the owner settled every remaining question but Q3, including no Re-sort cost note (Task 4 dropped); on Nov 2 Q3 was settled too (option C, with a "Filters" button). PRs #5 and #6 are merged; Task 6A is on `plan-2b-task-6a`. Tasks 7–10 done Nov 2–3 (Task 9 is PR #12, Task 10 PR #13 on top of it). Tasks 11 and 12 merged (PRs #14, #15); Task 13 is PR #16; Task 14 done Nov 3 on `feat/plan-2b-task-14` (on top of it). **Next: Task 15.** Task 6A's phone-check leftovers are listed under Task 6A. Before building a task, check "Product decisions" for answers it depends on.
+**Status: Tasks 1–6 done Nov 1, 2026; Task 6A code done Nov 2 (device tests and phone check pending, see Task 6A).** Drafted Oct 31 before Plan 2a reached GitHub. 2a merged into `main` as `24aa3bd` (PR #4) and was merged into `plan-2b-draft` on Nov 1. Task 6 checked every 2a dependency against the merged code; its findings (section "Task 6" below) replace the old **CONFIRM against 2a** markers, and Tasks 7–17 were updated to match. On Nov 1 the owner approved P1–P6 (P5 with its own wording) and Q1, Q4, Q6, Q10, Q12 and Q19's retry rule, and asked for **Task 6A** (open an existing project, remove a project from the app), planned below. Later on Nov 1 the owner settled every remaining question but Q3, including no Re-sort cost note (Task 4 dropped); on Nov 2 Q3 was settled too (option C, with a "Filters" button). PRs #5 and #6 are merged; Task 6A is on `plan-2b-task-6a`. Tasks 7–10 done Nov 2–3 (Task 9 is PR #12, Task 10 PR #13 on top of it). Tasks 11 and 12 merged (PRs #14, #15); Tasks 13 and 14 merged (PRs #16, #17), and the one-word category rule (PR #18). Tasks 16 and 17 done Nov 3 on `feat/plan-2b-task-16`. **Next: Task 15** (the owner set it aside on Nov 3; Task 17 started its Re-sort through the service instead). Task 6A's phone-check leftovers are listed under Task 6A. Before building a task, check "Product decisions" for answers it depends on.
 
 **Goal:** The Project Media screen from the approved mockups: browse, search and filter a project's items; edit names and categories for one item or many; rename and merge categories; remove items; handle failed items; and re-sort the whole project with a chosen model. All edits change the database only, because nothing is binned until Plan 3.
 
@@ -581,26 +581,41 @@ Match mockup state 7.
 
 Match mockup state 8: the reason, attempts, Retry analysis, Set name and category by hand, and Remove from project (Q19, approved). A failed item set by hand gets both locks and is sorted like any other.
 
-- [ ] **Step 1:** Compose; wire to `retryFailed`, `setByHand` and `removeItems`.
-- [ ] **Step 2: Commit.**
+- [x] **Step 1:** Compose; wire to `retryFailed`, `setByHand` and `removeItems`.
+  - `FailedSheetModel.kt` (pure: reason in words, attempts, by-hand form, `SetByHandRequest`), `FailedSheet.kt`; the view model reuses the detail session (`manual` for the form) and its picker and remove dialog. JVM: `FailedSheetModelTest` (7), `ProjectMediaViewModelTest` +6 (failed and missing tiles open it, Retry, by hand with an existing and a new category, Back drops the form, clash keeps it, Remove).
+  - Retry wires `ProjectMediaRepository`'s `onRetryFailed` hook, which Task 7 left unwired, to `AppGraph.startAnalysisAfterRetry` (the add path: lifts a Stop, analyzes what is waiting; P6).
+  - Deviations (ledgered): a Missing item opens the same sheet, titled "File missing", with Remove only; the Bin Files row says "Not blocked. This item stays where it is." without the mockup's "listed in the report" (Plan 3).
+  - `testDebugUnitTest` 563 tests, 0 failures; `ProjectMediaRepositoryTest` **OK (17)** on S26. Phone check in Task 17; it found the file name shown uppercased (a `Section` heading), fixed.
+- [x] **Step 2: Commit.**
 
 ### Task 17: End-to-end check on the phone
 
-- [ ] **Step 1:** Use fresh media (the Plan 1 set belongs to "Plan1 E2E"). Create a project, add a folder, and let analysis and sorting finish. Don't use Hawaii Photos or Maui as a reset fixture; if the owner asks to reset one, back it up first and keep user-set values ("Handoff notes").
-- [ ] **Step 2:** Edit in order:
+- [x] **Step 1:** Use fresh media (the Plan 1 set belongs to "Plan1 E2E"). Create a project, add a folder, and let analysis and sorting finish. Don't use Hawaii Photos or Maui as a reset fixture; if the owner asks to reset one, back it up first and keep user-set values ("Handoff notes").
+- [x] **Step 2:** Edit in order:
   1. Rename one item.
   2. Bulk-move three items to a new category.
   3. Rename one category, then merge two.
   4. Remove one item.
   5. Search for the renamed item's new name and for an old name.
   6. Run Re-sort with Keep my edits ticked: with LFM3-1.7B, and with Claude only once the owner provides a billed Anthropic key (the authenticated Claude test is deferred; never ask for a key or make a paid call without that).
-- [ ] **Step 3: Expect:**
+- [x] **Step 3: Expect:**
   - Every locked value is unchanged after the Re-sort.
   - Search finds new names, not old ones.
   - The removed item's file is still on disk.
   - No file moved: `adb shell ls -lR` of the media folder matches before and after.
   - The locks are in the database: pull it with `MSYS_NO_PATHCONV=1 adb pull "/storage/emulated/0/Agentic Binning/<name>/.binning/project.db" build/project.db` (journal mode TRUNCATE, so a pull between writes is complete), then `sqlite3 build/project.db "select friendlyName,categoryId,nameSetByUser,categorySetByUser from item; select id,name,createdBy from category;"`.
-- [ ] **Step 4: Commit** the notes into `CLAUDE.md`.
+- [x] **Step 4: Commit** the notes into `CLAUDE.md`.
+
+**Result, Nov 3** (build: Task 16 with the one-word category fix, PR #18, merged on a scratch branch; LFM3-1.7B; S26). Evidence in `build/e2e/task17/` (local).
+- Media: 14 Plan 2a picture cards re-encoded with ffmpeg (new hashes), one clip and a 3 KB truncated JPEG, in `Movies/avb-2b-task17`. "Task17 E2E" made with New project and "A folder".
+- First run: 15 Sorted, `t17_broken.jpg` Failed `decode`; `sort_run` 1 `done`, `sort-v4`, 6 one-word categories (Nature, Food, People, Video, Transport, Sports).
+- Failed sheet: reason, "Tried once.", three actions. Retry: the item went Pending with attempts 0, the service started, it failed `decode` again. Set by hand "Broken Card" in Food: Sorted, both locks, found by FTS.
+- Edits: "Cat Text" renamed "Tabby Cat"; Tabby Cat, Dog Portrait and Puppy Portrait moved to a new "Animals" (user's); Transport renamed "Vehicles"; Sports merged into Nature (Nature kept, now the user's); Pizza Label removed (row, FTS and tag rows gone; file stays).
+- Search: "tabby" finds the item; the FTS name column no longer holds "cat text" (the UI search "cat text" still finds it through "Cat" in the new name and "text" in its description); "transport" finds nothing; "vehicles" finds the taxi, "Matched in category".
+- Re-sort (LFM3-1.7B, Keep my edits, started with the service intent because Task 15's sheet is not built): `sort_run` 2 `done`, 11 re-sorted, the 4 category-locked items kept. **Every locked name and category unchanged**; the user's categories Nature, Vehicles and Animals kept; every FTS row matches its item's name and category; `integrity_check` ok; the media folder's `ls -lR` identical before and after; logcat shows LFM3-1.7B released; no `sk-ant`.
+- Finding: renaming a category kept the model's old description, so Vehicles kept the description "Transport". The Re-sort then made a new model category "Transport" beside the user's "Vehicles" and moved the unlocked taxi into it. **Fixed Nov 3:** a rename clears the description (`ProjectMediaDao.renameCategory`; device tests `renameCategory_clearsTheModelsDescription`, `applyCategoryEdits_renameClearsTheDescription_mergeKeepsTheKeptOnes`; `ProjectMediaRepositoryTest` OK (19)). Phone recheck: Vehicles renamed "Rides" stored `description = ''` and the Re-sort prompt listed `Rides 0 locked` with none. LFM3-1.7B still filed the taxi under a new "Transport" (Rides was empty, and Food's self-talk description says "taxi sign is transport"): model quality, not the stale description. That run was `partial` (10 of 11; one item left out by the validator, retried on the next run).
+- LFM quality (no change made): the Re-sort renamed Burger Label to "Beach Label" in Nature, put the clip in Vehicles and the soccer card in Food; Food's description holds model self-talk.
+- Phone left on Hawaii Photos, LFM3-1.7B selected, Do Not Disturb off. "Task17 E2E" and `Movies/avb-2b-task17` remain; Sort Test's database is byte-identical.
 
 ---
 

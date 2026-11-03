@@ -16,9 +16,15 @@ import kotlinx.coroutines.flow.catch
 
 private const val TAG = "ProjectMedia"
 
-/** [project]'s media through its [ProjectMediaRepository], for [ProjectMediaViewModel]. */
-class RepositoryMediaSource(private val project: OpenProject) : MediaSource {
-    private val repository = ProjectMediaRepository(project.db)
+/**
+ * [project]'s media through its [ProjectMediaRepository], for [ProjectMediaViewModel]. [onRetry] starts
+ * analysis after a failed item's Retry (P6); AppGraph wires it.
+ */
+class RepositoryMediaSource(
+    private val project: OpenProject,
+    onRetry: suspend () -> Unit = {},
+) : MediaSource {
+    private val repository = ProjectMediaRepository(project.db, onRetry)
     private val thumbs = ProjectFolders.thumbsDir(File(project.ref.path))
 
     override val projectName: String get() = project.ref.name
@@ -48,4 +54,9 @@ class RepositoryMediaSource(private val project: OpenProject) : MediaSource {
         repository.applyCategoryEdits(edits.renames, edits.merges)
 
     override suspend fun remove(ids: List<Long>) = repository.removeItems(ids)
+
+    override suspend fun retry(id: Long): EditResult = repository.retryFailed(id)
+
+    override suspend fun setByHand(request: SetByHandRequest): EditResult =
+        repository.setByHand(request.id, request.name, request.category)
 }

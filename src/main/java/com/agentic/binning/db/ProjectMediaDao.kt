@@ -60,7 +60,11 @@ abstract class ProjectMediaDao {
     @Insert
     abstract suspend fun insertCategory(category: CategoryEntity): Long
 
-    @Query("UPDATE category SET name = :name, createdBy = 'user' WHERE id = :id")
+    /**
+     * The user's rename: the category becomes theirs and loses its description, which the model
+     * wrote for the old name (sorting reads it, and would make the old name again from it).
+     */
+    @Query("UPDATE category SET name = :name, description = '', createdBy = 'user' WHERE id = :id")
     abstract suspend fun renameCategory(id: Long, name: String)
 
     @Query("UPDATE category SET createdBy = 'user' WHERE id = :id")
