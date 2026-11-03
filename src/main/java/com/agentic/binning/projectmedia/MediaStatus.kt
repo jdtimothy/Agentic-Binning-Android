@@ -1,5 +1,8 @@
 package com.agentic.binning.projectmedia
 
+import com.agentic.binning.db.ItemStatus
+import com.agentic.binning.pipeline.PipelinePhase
+
 /**
  * Item counts for one project, as the Project Media status line needs them. Every item is in
  * exactly one bucket, so the buckets add up to [total].
@@ -18,12 +21,50 @@ data class MediaCounts(
     val binned: Int = 0,
 )
 
+/**
+ * Waiting to be categorized (Task 6.4): analyzed, with no category, and not one the user placed.
+ * Exactly what the sorter picks up, so Categorize now has something to do whenever this is true.
+ */
+fun isWaiting(status: ItemStatus, categoryId: Long?, categorySetByUser: Boolean): Boolean =
+    status == ItemStatus.Analyzed && categoryId == null && !categorySetByUser
+
+/**
+ * Counts [items] into [MediaCounts]' buckets (Task 10). Project Media and the Analyze screen's
+ * Project Media button both count through here. 2a's `ItemCounts` lumps statuses differently
+ * (its failed includes Missing), so it is not reused.
+ */
+fun <T> mediaCountsOf(items: List<T>, status: (T) -> ItemStatus, waiting: (T) -> Boolean): MediaCounts {
+    val by = items.groupingBy(status).eachCount()
+    fun n(s: ItemStatus) = by[s] ?: 0
+    return MediaCounts(
+        total = items.size,
+        pending = n(ItemStatus.Pending),
+        analyzing = n(ItemStatus.Analyzing),
+        waiting = items.count(waiting),
+        failed = n(ItemStatus.Failed),
+        missing = n(ItemStatus.Missing),
+        readyToBin = n(ItemStatus.Sorted),
+        binned = n(ItemStatus.Binned),
+    )
+}
+
 /** The one job allowed to run on the project (the spec's "one model loaded" and Save/Bin rules). */
 sealed interface ActiveJob {
     data object Analysis : ActiveJob
     data object Sorting : ActiveJob
     data class Saving(val filesDone: Int, val filesTotal: Int) : ActiveJob
     data class Binning(val filesDone: Int, val filesTotal: Int) : ActiveJob
+}
+
+/**
+ * The job running now, from the pipeline's phase (Task 10): categorizing is Sorting, any other
+ * running phase (including Paused, which holds the vision model) is Analysis; Idle, Stopped or no
+ * run is none. Saving and Binning come with Plan 3. Not from `ModelArbiter.active` (Task 6.3).
+ */
+fun activeJobOf(phase: PipelinePhase?): ActiveJob? = when {
+    phase == null || !phase.isRunning -> null
+    phase == PipelinePhase.Categorizing -> ActiveJob.Sorting
+    else -> ActiveJob.Analysis
 }
 
 enum class MediaTone { Running, Attention, Ready, Quiet }
