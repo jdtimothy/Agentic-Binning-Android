@@ -1,5 +1,8 @@
 package com.agentic.binning.projectmedia
 
+import androidx.room.immediateTransaction
+import androidx.room.useWriterConnection
+import com.agentic.binning.analysis.ActionEntry
 import com.agentic.binning.db.CategoryEntity
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.db.MediaGridRow
@@ -7,6 +10,8 @@ import com.agentic.binning.db.ProjectDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 
 /**
  * Project Media grid, chips, and edits. Every edit is one transaction that refreshes the FTS row of
@@ -59,7 +64,44 @@ class ProjectMediaRepository(
         return EditResult.Created(id)
     }
 
+    /** The detail sheet's item, analysis, tags and category; null once the item is gone. */
+    suspend fun detail(id: Long): ItemDetail? {
+        val item = db.media().item(id) ?: return null
+        val analysis = db.analyses().get(id)
+        val category = item.categoryId?.let { db.media().category(it) }
+        val actions = analysis?.actionsJson?.let { json ->
+            // A malformed list (an old or hand-made row) shows no actions rather than failing the sheet.
+            runCatching { DetailJson.decodeFromString(ListSerializer(ActionEntry.serializer()), json) }.getOrDefault(emptyList())
+        }.orEmpty()
+        return ItemDetail(
+            item = item,
+            description = analysis?.description,
+            actions = actions,
+            tags = if (analysis != null) db.analyses().tagsFor(id) else emptyList(),
+            suggestedName = analysis?.suggestedName,
+            shotType = analysis?.shotType,
+            categoryName = category?.name,
+            categoryDescription = category?.description,
+            categoryCreatedBy = category?.createdBy,
+        )
+    }
+
+    /**
+     * Saves the detail sheet in one transaction. The name is locked only when it changed (Q5), unless
+     * [unlockName]; a chosen category is locked unless [unlockCategory], which keeps the category (P2).
+     */
     suspend fun saveItem(
+        id: Long,
+        name: String,
+        category: CategoryChoice?,
+        unlockName: Boolean,
+        unlockCategory: Boolean,
+    ): EditResult = db.useWriterConnection { connection ->
+        // The bundled-driver way to a transaction; DAO calls inside it use this connection.
+        connection.immediateTransaction { saveItemLocked(id, name, category, unlockName, unlockCategory) }
+    }
+
+    private suspend fun saveItemLocked(
         id: Long,
         name: String,
         category: CategoryChoice?,
@@ -84,7 +126,11 @@ class ProjectMediaRepository(
             categorySet = false
             // keep categoryId (P2 / Task 6.4)
         }
-        val nameSet = if (unlockName) false else true
+        val nameSet = when {
+            unlockName -> false
+            name != item.friendlyName -> true
+            else -> item.nameSetByUser
+        }
         val status = when {
             categoryId != null && item.status == ItemStatus.Analyzed -> ItemStatus.Sorted
             categoryId != null && item.status == ItemStatus.Sorted -> ItemStatus.Sorted
@@ -237,3 +283,6 @@ class ProjectMediaRepository(
         currentPath = currentPath,
     )
 }
+
+private val DetailJson = Json { ignoreUnknownKeys = true }
+

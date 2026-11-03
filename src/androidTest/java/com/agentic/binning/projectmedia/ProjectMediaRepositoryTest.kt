@@ -223,4 +223,37 @@ class ProjectMediaRepositoryTest {
         assertEquals(null, item.failureReason)
         assertEquals(false, db.meta().isStoppedByUser())
     }
+
+    @Test fun saveItem_categoryOnly_leavesTheNameUnlocked() = runTest {
+        val id = photo("n1", friendlyName = "Sea Lion")
+        val cat = (repo.ensureCategory("Wildlife") as EditResult.Created).id
+
+        assertEquals(EditResult.Ok, repo.saveItem(id, name = "Sea Lion", category = CategoryChoice.Existing(cat), unlockName = false, unlockCategory = false))
+
+        val item = db.items().observeAll().first().single()
+        // Q5: only what the user set is locked; the untouched name stays the model's.
+        assertFalse(item.nameSetByUser)
+        assertTrue(item.categorySetByUser)
+        assertEquals(cat, item.categoryId)
+        assertEquals(ItemStatus.Sorted, item.status)
+    }
+
+    @Test fun detail_readsAnalysisTagsAndCategory() = runTest {
+        val id = photo("d1", tags = listOf("rocks", "sea lion"), friendlyName = "Sea Lion")
+        val cat = (repo.ensureCategory("Wildlife") as EditResult.Created).id
+        repo.moveItems(listOf(id), CategoryChoice.Existing(cat))
+
+        val d = repo.detail(id)!!
+
+        assertEquals("A sea lion on rocks", d.description)
+        assertEquals(listOf("rocks", "sea lion"), d.tags.sorted())
+        assertEquals("Sea Lion", d.suggestedName)
+        assertEquals("wide", d.shotType)
+        assertEquals("Wildlife", d.categoryName)
+        assertEquals("user", d.categoryCreatedBy)
+        assertEquals("d1.jpg", d.item.originalName)
+        // The fixture's actions are not ActionEntry JSON: read as none, not a crash.
+        assertEquals(emptyList<Any>(), d.actions)
+        assertEquals(null, repo.detail(id + 99))
+    }
 }

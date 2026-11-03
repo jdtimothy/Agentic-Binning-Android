@@ -1,9 +1,13 @@
 package com.agentic.binning.ui.media
 
 import com.agentic.binning.db.CategoryEntity
+import com.agentic.binning.db.ItemEntity
 import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.pipeline.PipelinePhase
+import com.agentic.binning.projectmedia.CategoryChoice
+import com.agentic.binning.projectmedia.EditResult
+import com.agentic.binning.projectmedia.ItemDetail
 import com.agentic.binning.projectmedia.MediaChip
 import com.agentic.binning.projectmedia.MediaRow
 import com.agentic.binning.projectmedia.MatchedIn
@@ -88,6 +92,33 @@ class ProjectMediaViewModelTest {
         override fun categories(): Flow<List<CategoryEntity>> = this@ProjectMediaViewModelTest.categories
 
         override fun image(row: MediaRow): File = File(row.currentPath)
+
+        val saved = mutableListOf<SaveRequest>()
+        val removed = mutableListOf<List<Long>>()
+        var saveResult: EditResult = EditResult.Ok
+
+        override suspend fun detail(id: Long): ItemDetail? = this@ProjectMediaViewModelTest.rows.value.firstOrNull { it.id == id }?.let { r ->
+            ItemDetail(
+                item = ItemEntity(
+                    id = r.id, contentHash = "h${r.id}", originalPath = r.currentPath, originalName = "${r.id}.jpg", currentPath = r.currentPath,
+                    kind = r.kind, takenAt = r.takenAt, durationMs = r.durationMs, width = null, height = null, status = r.status,
+                    categoryId = r.categoryId, friendlyName = r.friendlyName, nameSetByUser = r.nameSetByUser,
+                    categorySetByUser = r.categorySetByUser, addedAt = 0,
+                ),
+                description = "About ${r.id}", actions = emptyList(), tags = emptyList(), suggestedName = null, shotType = r.shotType,
+                categoryName = categories.value.firstOrNull { it.id == r.categoryId }?.name, categoryDescription = null, categoryCreatedBy = null,
+            )
+        }
+
+        override suspend fun save(request: SaveRequest): EditResult {
+            saved += request
+            return saveResult
+        }
+
+        override suspend fun remove(ids: List<Long>) {
+            removed += ids
+            this@ProjectMediaViewModelTest.rows.value = this@ProjectMediaViewModelTest.rows.value.filter { it.id !in ids }
+        }
     }
 
     private val source = FakeSource()
@@ -402,5 +433,164 @@ class ProjectMediaViewModelTest {
         assertNull(s.kind)
         assertNull(s.selection)
         assertEquals(5, s.tiles.size)
+    }
+
+    @Test
+    fun tileTap_opensTheDetail_andSaveSendsTheDraft() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+
+        vm.onTileClick(1)
+        advanceUntilIdle()
+        val sheet = vm.state.value.sheet!!
+        assertEquals(1L, sheet.ui.id)
+        assertEquals("Item 1", sheet.ui.name)
+        assertFalse(sheet.ui.saveEnabled)
+
+        vm.onDetailName("Harbor Seal")
+        advanceUntilIdle()
+        assertTrue(vm.state.value.sheet!!.ui.saveEnabled)
+
+        vm.onSaveDetail()
+        advanceUntilIdle()
+        assertEquals(listOf(SaveRequest(1, "Harbor Seal", null, unlockName = false, unlockCategory = false)), source.saved)
+        assertNull(vm.state.value.sheet)
+    }
+
+    @Test
+    fun closingTheDetail_dropsItsEdits() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+        vm.onDetailName("Changed")
+        vm.onCloseDetail()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+
+        assertEquals("Item 1", vm.state.value.sheet!!.ui.name)
+        assertTrue(source.saved.isEmpty())
+    }
+
+    @Test
+    fun pendingAndFailedTiles_doNotOpenTheDetail() = runTest {
+        val messages = mutableListOf<String>()
+        rows.value = rows.value + row(6, status = ItemStatus.Pending, categoryId = null)
+        val vm = vm()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.messages.toList(messages) }
+        advanceUntilIdle()
+
+        vm.onTileClick(6)
+        advanceUntilIdle()
+        assertNull(vm.state.value.sheet)
+        assertEquals(DETAIL_AFTER_ANALYSIS, messages.last())
+
+        vm.onTileClick(4)
+        advanceUntilIdle()
+        assertNull(vm.state.value.sheet)
+    }
+
+    @Test
+    fun picker_listsCategories_andPickingOneSetsTheDraft() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+
+        vm.onOpenPicker()
+        advanceUntilIdle()
+        val picker = vm.state.value.sheet!!.picker!!
+        assertEquals(listOf("Beach", "Mine", "Empty"), picker.options.map { it.name })
+        assertEquals(listOf(2, 1, 0), picker.options.map { it.count })
+        assertEquals(listOf(true, false, false), picker.options.map { it.selected })
+        assertEquals(listOf(false, true, false), picker.options.map { it.locked })
+
+        vm.onPickCategory(2)
+        advanceUntilIdle()
+        assertNull(vm.state.value.sheet!!.picker)
+        assertEquals("Mine", vm.state.value.sheet!!.ui.categoryLabel)
+        vm.onSaveDetail()
+        advanceUntilIdle()
+        assertEquals(CategoryChoice.Existing(2), source.saved.single().category)
+    }
+
+    @Test
+    fun picker_newCategory_checksClashesInline() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(3)
+        advanceUntilIdle()
+        vm.onOpenPicker()
+        vm.onPickerNewOpen()
+        vm.onPickerNewName("beaches")
+        advanceUntilIdle()
+        // 2a's normalizer: a plural of an existing name is the same name.
+        val p = vm.state.value.sheet!!.picker!!
+        assertEquals("That is the same as “Beach”. Pick it from the list instead.", p.newError)
+        assertFalse(p.canAdd)
+
+        vm.onPickerNewName("Snorkeling")
+        advanceUntilIdle()
+        assertNull(vm.state.value.sheet!!.picker!!.newError)
+        vm.onPickerAddNew()
+        advanceUntilIdle()
+        assertNull(vm.state.value.sheet!!.picker)
+        assertEquals("Snorkeling", vm.state.value.sheet!!.ui.categoryLabel)
+        assertTrue(vm.state.value.sheet!!.ui.categoryIsNew)
+        vm.onSaveDetail()
+        advanceUntilIdle()
+        assertEquals(CategoryChoice.New("Snorkeling"), source.saved.single().category)
+    }
+
+    @Test
+    fun saveClash_keepsTheSheetOpenWithTheError() = runTest {
+        source.saveResult = EditResult.Clash("Beach")
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(3)
+        advanceUntilIdle()
+        vm.onDetailName("Rename")
+        vm.onSaveDetail()
+        advanceUntilIdle()
+
+        assertEquals("A category named “Beach” already exists.", vm.state.value.sheet!!.error)
+    }
+
+    @Test
+    fun remove_asksFirst_thenRemovesAndCloses() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(5)
+        advanceUntilIdle()
+
+        vm.onRemoveDetail()
+        advanceUntilIdle()
+        val dialog = vm.state.value.sheet!!.remove!!
+        assertEquals("Remove “Item 5” from Hawaii Photos?", dialog.title)
+        assertTrue(dialog.body.startsWith("The file stays on your phone where it is now."))
+
+        vm.onCancelRemove()
+        advanceUntilIdle()
+        assertNull(vm.state.value.sheet!!.remove)
+        assertTrue(source.removed.isEmpty())
+
+        vm.onRemoveDetail()
+        vm.onConfirmRemove()
+        advanceUntilIdle()
+        assertEquals(listOf(listOf(5L)), source.removed)
+        assertNull(vm.state.value.sheet)
+        assertFalse(vm.state.value.tiles.any { it.id == 5L })
+    }
+
+    @Test
+    fun projectSwitch_closesTheDetail() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+        sources.value = FakeSource()
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.sheet)
     }
 }

@@ -6,6 +6,9 @@ import com.agentic.binning.db.CategoryEntity
 import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.pipeline.PipelinePhase
+import com.agentic.binning.projectmedia.CategoryNames
+import com.agentic.binning.projectmedia.EditResult
+import com.agentic.binning.projectmedia.ItemDetail
 import com.agentic.binning.projectmedia.MatchedIn
 import com.agentic.binning.projectmedia.MediaChip
 import com.agentic.binning.projectmedia.MediaCounts
@@ -48,6 +51,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** One open project's media, as Project Media reads it. */
 interface MediaSource {
@@ -60,12 +65,22 @@ interface MediaSource {
 
     /** The tile's picture: the thumbnail once it is written, else the file. Called off the main thread. */
     fun image(row: MediaRow): File
+
+    /** The detail sheet's item; null once it is gone. */
+    suspend fun detail(id: Long): ItemDetail?
+
+    /** The detail sheet's Save, in one transaction. */
+    suspend fun save(request: SaveRequest): EditResult
+
+    /** Remove from project: the rows go, the files stay (Q1). */
+    suspend fun remove(ids: List<Long>)
 }
 
 enum class TileBadge { Waiting, Failed, Analyzing }
 
 data class TileUi(
     val id: Long,
+    val status: ItemStatus,
     val name: String,
     val image: File,
     /** [image] is the video itself (no thumbnail yet): Coil decodes a frame. */
@@ -130,16 +145,58 @@ data class MediaUiState(
     /** The project has no items: the add-media card replaces the grid. */
     val empty: Boolean,
     val filtersSheet: FiltersSheet?,
+    /** The open item's detail sheet (Task 12). */
+    val sheet: DetailSheetState?,
 ) {
     companion object {
         val None = MediaUiState(
             hasProject = false, projectName = "", itemCount = 0, query = "", categoryCount = 0, chips = emptyList(),
             kind = null, setFilters = emptyList(), resultText = "", tiles = emptyList(), noMatchText = null,
             status = mediaStatus(MediaCounts(total = 0), null), binReason = null, busyReason = null, selection = null,
-            allVisibleSelected = false, empty = false, filtersSheet = null,
+            allVisibleSelected = false, empty = false, filtersSheet = null, sheet = null,
         )
     }
 }
+
+/** One row of the category picker (mockup state 3b). */
+data class PickerOption(
+    val id: Long,
+    val name: String,
+    val description: String,
+    val count: Int,
+    /** The user's category: sorting never renames or merges it. */
+    val locked: Boolean,
+    val selected: Boolean,
+)
+
+data class PickerUi(
+    val options: List<PickerOption>,
+    /** A new category chosen in this draft, listed (selected) above the others. */
+    val pendingNew: String?,
+    /** The New category… field is open. */
+    val newOpen: Boolean,
+    val newName: String,
+    /** The clash with an existing name (2a's normalizer), shown under the field. */
+    val newError: String?,
+    val canAdd: Boolean,
+)
+
+data class RemoveDialogUi(val title: String, val body: String)
+
+/** The detail sheet with the picker and the remove dialog stacked over it. */
+data class DetailSheetState(
+    val ui: DetailUi,
+    /** The tile's picture, and whether it is the video itself. */
+    val image: File,
+    val imageIsVideo: Boolean,
+    val picker: PickerUi?,
+    val remove: RemoveDialogUi?,
+    val error: String?,
+    val saving: Boolean,
+)
+
+/** A tap on an item that is still waiting to be analyzed. */
+const val DETAIL_AFTER_ANALYSIS = "Details open once this item is analyzed"
 
 /** Shown when Bin Files is on: binning arrives with Plan 3. */
 const val BIN_FILES_LATER = "Bin Files comes in a later version"
@@ -157,6 +214,20 @@ private data class Picks(
 )
 
 private data class Draft(val shot: String?, val day: LocalDate?)
+
+/** An open detail sheet: the item as loaded, the draft, and what is stacked over it. */
+private data class DetailSession(
+    val detail: ItemDetail,
+    val image: File,
+    val imageIsVideo: Boolean,
+    val draft: DetailDraft,
+    val picker: PickerSession? = null,
+    val confirmRemove: Boolean = false,
+    val error: String? = null,
+    val saving: Boolean = false,
+)
+
+private data class PickerSession(val newOpen: Boolean = false, val newName: String = "")
 
 /** The rows of one source with what is needed to show them. */
 private data class Loaded(
@@ -181,12 +252,17 @@ class ProjectMediaViewModel(
     phase: Flow<PipelinePhase?>,
     private val onCategorizeNow: () -> Unit,
     private val zone: ZoneId = ZoneId.systemDefault(),
-    io: CoroutineDispatcher = Dispatchers.IO,
+    private val io: CoroutineDispatcher = Dispatchers.IO,
     private val searchDebounceMs: Long = 150,
     scope: CoroutineScope? = null,
 ) : ViewModel() {
     private val scope = scope ?: viewModelScope
     private val picks = MutableStateFlow(Picks())
+    private val session = MutableStateFlow<DetailSession?>(null)
+
+    /** The project shown now, for loads and edits. */
+    @Volatile
+    private var current: MediaSource? = null
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
 
     /** Toast lines: why a disabled action is off, or what comes later. */
@@ -198,8 +274,12 @@ class ProjectMediaViewModel(
     private val sources = source.distinctUntilChanged()
         // Another project starts from a clean screen; the first keeps what was picked before it loaded.
         .onEach {
-            if (shownOne) picks.value = Picks()
+            if (shownOne) {
+                picks.value = Picks()
+                session.value = null
+            }
             shownOne = true
+            current = it
         }
 
     /** The search actually sent: debounced while typing, at once when cleared. */
@@ -220,7 +300,7 @@ class ProjectMediaViewModel(
         }
     }
 
-    val state: StateFlow<MediaUiState> = combine(loaded, picks, phase.distinctUntilChanged()) { l, p, ph -> build(l, p, ph) }
+    val state: StateFlow<MediaUiState> = combine(loaded, picks, phase.distinctUntilChanged(), session) { l, p, ph, d -> build(l, p, ph, d) }
         .stateIn(this.scope, SharingStarted.Eagerly, MediaUiState.None)
 
     fun onQuery(text: String) = picks.update { it.copy(query = text) }
@@ -251,8 +331,104 @@ class ProjectMediaViewModel(
     /** Closing the sheet any other way drops its draft. */
     fun closeFilters() = picks.update { it.copy(draft = null) }
 
-    /** In select mode a tap ticks or unticks; otherwise it opens the item (Task 12). */
-    fun onTileClick(id: Long) = picks.update { p -> p.selection?.let { p.copy(selection = it.toggle(id)) } ?: p }
+    /**
+     * In select mode a tap ticks or unticks. Otherwise it opens the item's detail sheet; an item not
+     * analyzed yet says so, and failed or missing items get their own sheet in Task 16.
+     */
+    fun onTileClick(id: Long) {
+        val p = picks.value
+        if (p.selection != null) {
+            picks.update { it.copy(selection = it.selection?.toggle(id)) }
+            return
+        }
+        val tile = state.value.tiles.firstOrNull { it.id == id } ?: return
+        when {
+            tile.badge == TileBadge.Failed -> Unit
+            !opensDetail(tile.status) -> if (tile.status == ItemStatus.Pending || tile.status == ItemStatus.Analyzing) {
+                _messages.tryEmit(DETAIL_AFTER_ANALYSIS)
+            }
+            else -> openDetail(tile)
+        }
+    }
+
+    private fun openDetail(tile: TileUi) {
+        val src = current ?: return
+        scope.launch {
+            val d = withContext(io) { src.detail(tile.id) } ?: return@launch
+            if (current === src) session.value = DetailSession(d, tile.image, tile.imageIsVideo, DetailDraft.of(d))
+        }
+    }
+
+    private fun updateSession(block: (DetailSession) -> DetailSession) = session.update { it?.let(block) }
+
+    private fun updateDraft(block: (DetailDraft) -> DetailDraft) = updateSession { it.copy(draft = block(it.draft), error = null) }
+
+    fun onDetailName(text: String) = updateDraft { it.copy(name = text) }
+
+    /** Unlock, or Undo an unlock (Q5, P2). */
+    fun onToggleUnlockName() = updateDraft { it.copy(unlockName = !it.unlockName) }
+
+    fun onToggleUnlockCategory() = updateDraft { it.copy(unlockCategory = !it.unlockCategory) }
+
+    /** Cancel or closing drops the sheet's edits (Q6). */
+    fun onCloseDetail() {
+        session.value = null
+    }
+
+    fun onOpenPicker() = updateSession { it.copy(picker = PickerSession()) }
+
+    fun onClosePicker() = updateSession { it.copy(picker = null) }
+
+    fun onPickCategory(id: Long) {
+        val name = state.value.sheet?.picker?.options?.firstOrNull { it.id == id }?.name ?: return
+        updateSession { it.copy(draft = it.draft.copy(pick = CategoryPick.Existing(id, name)), picker = null, error = null) }
+    }
+
+    /** Keeps the new category already chosen in this draft. */
+    fun onPickPendingNew() = onClosePicker()
+
+    fun onPickerNewOpen() = updateSession { s -> s.copy(picker = (s.picker ?: PickerSession()).copy(newOpen = true)) }
+
+    fun onPickerNewName(text: String) = updateSession { s -> s.copy(picker = s.picker?.copy(newName = text)) }
+
+    fun onPickerAddNew() {
+        val picker = state.value.sheet?.picker ?: return
+        if (!picker.canAdd) return
+        val name = CategoryNames.clean(picker.newName)
+        updateSession { it.copy(draft = it.draft.copy(pick = CategoryPick.New(name)), picker = null, error = null) }
+    }
+
+    fun onSaveDetail() {
+        val s = session.value ?: return
+        val src = current ?: return
+        if (s.saving || !detailUi(s.detail, s.draft, zone).saveEnabled) return
+        val request = saveRequest(s.detail, s.draft)
+        session.value = s.copy(saving = true, error = null)
+        scope.launch {
+            val result = withContext(io) { src.save(request) }
+            if (current !== src) return@launch
+            when (result) {
+                EditResult.Ok, is EditResult.Created -> session.value = null
+                is EditResult.Clash -> updateSession { it.copy(saving = false, error = "A category named “${result.existing}” already exists.") }
+                EditResult.InvalidName -> updateSession { it.copy(saving = false, error = "That category name can't be used.") }
+                EditResult.NotFound -> {
+                    session.value = null
+                    _messages.tryEmit("This item is no longer in the project")
+                }
+            }
+        }
+    }
+
+    fun onRemoveDetail() = updateSession { it.copy(confirmRemove = true) }
+
+    fun onCancelRemove() = updateSession { it.copy(confirmRemove = false) }
+
+    fun onConfirmRemove() {
+        val s = session.value ?: return
+        val src = current ?: return
+        session.value = null
+        scope.launch { withContext(io) { src.remove(listOf(s.detail.item.id)) } }
+    }
 
     fun onTileLongPress(id: Long) = picks.update { p -> p.copy(selection = (p.selection ?: emptySet()).let { if (id in it) it else it + id }) }
 
@@ -286,7 +462,7 @@ class ProjectMediaViewModel(
 
     private fun Set<Long>.toggle(id: Long) = if (id in this) this - id else this + id
 
-    private fun build(l: Loaded, p: Picks, phase: PipelinePhase?): MediaUiState {
+    private fun build(l: Loaded, p: Picks, phase: PipelinePhase?, d: DetailSession?): MediaUiState {
         val src = l.source ?: return MediaUiState.None
         val job = activeJobOf(phase)
         val counts = mediaCountsOf(l.all, { it.status }) { isWaiting(it.status, it.categoryId, it.categorySetByUser) }
@@ -336,6 +512,7 @@ class ProjectMediaViewModel(
             val image = l.images[row.id] ?: File(row.currentPath)
             TileUi(
                 id = row.id,
+                status = row.status,
                 name = tileName(row),
                 image = image,
                 imageIsVideo = row.kind == ItemKind.Video && image.path == File(row.currentPath).path,
@@ -399,6 +576,49 @@ class ProjectMediaViewModel(
             allVisibleSelected = selection != null && tiles.isNotEmpty() && tiles.all { it.id in selection },
             empty = empty,
             filtersSheet = sheet,
+            sheet = d?.let { detailSheet(it, l, src.projectName) },
+        )
+    }
+
+    private fun detailSheet(d: DetailSession, l: Loaded, projectName: String): DetailSheetState {
+        val item = d.detail.item
+        val picker = d.picker?.let { ps ->
+            val chosen = when (val pick = d.draft.pick) {
+                is CategoryPick.Existing -> pick.id
+                is CategoryPick.New -> null
+                null -> item.categoryId
+            }
+            val byCategory = l.all.groupingBy { it.categoryId }.eachCount()
+            val clean = CategoryNames.clean(ps.newName)
+            val clash = if (clean.isEmpty()) null else CategoryNames.clash(clean, l.categories.map { it.name })
+            PickerUi(
+                options = l.categories.map { c ->
+                    PickerOption(c.id, c.name, c.description, byCategory[c.id] ?: 0, locked = c.createdBy == "user", selected = c.id == chosen)
+                },
+                pendingNew = (d.draft.pick as? CategoryPick.New)?.name,
+                newOpen = ps.newOpen,
+                newName = ps.newName,
+                newError = clash?.let { "That is the same as “$it”. Pick it from the list instead." },
+                canAdd = clean.isNotEmpty() && clash == null,
+            )
+        }
+        val name = item.friendlyName?.takeIf { it.isNotBlank() } ?: item.originalName
+        return DetailSheetState(
+            ui = detailUi(d.detail, d.draft, zone),
+            image = d.image,
+            imageIsVideo = d.imageIsVideo,
+            picker = picker,
+            remove = if (d.confirmRemove) {
+                RemoveDialogUi(
+                    title = "Remove “$name” from $projectName?",
+                    body = "The file stays on your phone where it is now. The project forgets its analysis, name and category. " +
+                        "You can add it again later.",
+                )
+            } else {
+                null
+            },
+            error = d.error,
+            saving = d.saving,
         )
     }
 

@@ -4,6 +4,8 @@ import android.util.Log
 import com.agentic.binning.db.CategoryEntity
 import com.agentic.binning.project.OpenProject
 import com.agentic.binning.project.ProjectFolders
+import com.agentic.binning.projectmedia.EditResult
+import com.agentic.binning.projectmedia.ItemDetail
 import com.agentic.binning.projectmedia.MediaFilter
 import com.agentic.binning.projectmedia.MediaRow
 import com.agentic.binning.projectmedia.ProjectMediaRepository
@@ -28,4 +30,16 @@ class RepositoryMediaSource(private val project: OpenProject) : MediaSource {
         repository.observeCategories().catch { e -> Log.w(TAG, "Categories of ${project.ref.name} stopped", e) }
 
     override fun image(row: MediaRow): File = File(thumbs, "${row.id}.jpg").takeIf(File::isFile) ?: File(row.currentPath)
+
+    override suspend fun detail(id: Long): ItemDetail? = repository.detail(id)
+
+    override suspend fun save(request: SaveRequest): EditResult = repository.saveItem(
+        request.id,
+        request.name,
+        request.category,
+        request.unlockName,
+        request.unlockCategory,
+    )
+
+    override suspend fun remove(ids: List<Long>) = repository.removeItems(ids)
 }

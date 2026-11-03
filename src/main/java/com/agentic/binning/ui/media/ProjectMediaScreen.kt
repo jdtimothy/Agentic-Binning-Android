@@ -91,11 +91,15 @@ private val BlobColors = listOf(Color(0xFF2F6E8F), Color(0xFFF2A65A), Color(0xFF
 /** Room under the grid for the dock, so the last row can scroll clear of it. */
 private val GridBottomInset = 150.dp
 
-private val GlassTokens.isDark: Boolean get() = bg.luminance() < 0.5f
-private val GlassTokens.ok: Color get() = if (isDark) Color(0xFF4CD787) else Color(0xFF1E8E4E)
-private val GlassTokens.accentSoft: Color get() = accent.copy(alpha = if (isDark) 0.18f else 0.12f)
-private val GlassTokens.line: Color get() = if (isDark) Color(0x1FFFFFFF) else Color(0x1F141C2D)
-private val GlassTokens.chipStrong: Color get() = if (isDark) Color(0x1FFFFFFF) else Color(0xC7FFFFFF)
+// Mockup colours the shared GlassTokens don't carry.
+internal val GlassTokens.isDark: Boolean get() = bg.luminance() < 0.5f
+internal val GlassTokens.ok: Color get() = if (isDark) Color(0xFF4CD787) else Color(0xFF1E8E4E)
+internal val GlassTokens.accentSoft: Color get() = accent.copy(alpha = if (isDark) 0.18f else 0.12f)
+internal val GlassTokens.line: Color get() = if (isDark) Color(0x1FFFFFFF) else Color(0x1F141C2D)
+internal val GlassTokens.chipStrong: Color get() = if (isDark) Color(0x1FFFFFFF) else Color(0xC7FFFFFF)
+internal val GlassTokens.danger: Color get() = if (isDark) Color(0xFFFFB4A8) else Color(0xFFB3261E)
+internal val GlassTokens.field: Color get() = if (isDark) Color(0x0FFFFFFF) else Color(0xB8FFFFFF)
+internal val GlassTokens.warnSoft: Color get() = if (isDark) Color(0x29FFB547) else Color(0x1FA35F00)
 
 /**
  * Project Media (plan 2b Task 11; mockup states 1, 2, 9 and 10 and the status line): header,
@@ -148,6 +152,7 @@ fun ProjectMediaScreen(
                 }
             }
             state.filtersSheet?.let { FiltersSheetView(it, vm) }
+            state.sheet?.let { DetailSheetHost(it, vm) }
         }
     }
 }
@@ -201,7 +206,7 @@ private fun HeaderBar(content: @Composable RowScope.() -> Unit) {
 }
 
 @Composable
-private fun RoundIcon(icon: ImageVector, label: String, onClick: () -> Unit, size: Int = 44, iconSize: Int = 20) {
+internal fun RoundIcon(icon: ImageVector, label: String, onClick: () -> Unit, size: Int = 44, iconSize: Int = 20) {
     val tokens = LocalGlassTokens.current
     Box(
         Modifier
