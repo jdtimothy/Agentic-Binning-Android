@@ -61,7 +61,12 @@ fun GlassSurface(
             .clip(shape)
             .then(
                 if (haze != null) {
-                    Modifier.hazeEffect(state = haze) { blurRadius = GlassBlurRadius }
+                    Modifier.hazeEffect(state = haze) {
+                        blurRadius = GlassBlurRadius
+                        // The sources are translucent (the backdrop's blobs, the gaps in a tile grid):
+                        // on the theme base the blurred picture is opaque, so nothing sharp shows through.
+                        backgroundColor = tokens.bg
+                    }
                 } else {
                     Modifier
                 },

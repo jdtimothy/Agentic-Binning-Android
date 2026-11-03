@@ -1,6 +1,7 @@
 package com.agentic.binning.projectmedia
 
 import com.agentic.binning.db.ItemKind
+import com.agentic.binning.db.ItemStatus
 
 /** Which chip is selected on Project Media (All, Waiting, Failed, or one category). */
 sealed interface MediaChip {
@@ -21,5 +22,18 @@ data class MediaFilter(
     val takenFrom: Long? = null,
     val takenTo: Long? = null,
 )
+
+/** Whether [row] passes every part of this filter; Project Media's grid, chips and Filters sheet all use it. */
+fun MediaFilter.matches(row: MediaRow): Boolean =
+    when (chip) {
+        MediaChip.All -> true
+        MediaChip.Waiting -> isWaiting(row.status, row.categoryId, row.categorySetByUser)
+        MediaChip.Failed -> row.status == ItemStatus.Failed
+        is MediaChip.Category -> row.categoryId == chip.id
+    } &&
+        (kind == null || row.kind == kind) &&
+        (shotType == null || row.shotType == shotType) &&
+        (takenFrom == null || (row.takenAt != null && row.takenAt >= takenFrom)) &&
+        (takenTo == null || (row.takenAt != null && row.takenAt <= takenTo))
 
 data class ChipCount(val chip: MediaChip, val label: String, val count: Int)

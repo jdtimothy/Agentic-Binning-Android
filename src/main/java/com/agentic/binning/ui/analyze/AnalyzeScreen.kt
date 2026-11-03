@@ -2,7 +2,6 @@ package com.agentic.binning.ui.analyze
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,25 +23,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agentic.binning.ui.glass.LocalHazeState
+import com.agentic.binning.ui.glass.MockupScale
 import com.agentic.binning.ui.theme.LocalGlassTokens
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.flow.StateFlow
 
-/** Width of the mockup frame; the layout's dp values scale with the window width relative to it. */
-private const val MOCKUP_WIDTH_DP = 390f
-
 /** The main screen: carousel of the project's items, streamed analysis output and run controls. */
 @Composable
-fun AnalyzeScreen(vm: AnalyzeViewModel, onOpenSettings: () -> Unit, onOpenProjectSheet: () -> Unit) {
+fun AnalyzeScreen(vm: AnalyzeViewModel, onOpenSettings: () -> Unit, onOpenProjectSheet: () -> Unit, onOpenMedia: () -> Unit) {
     val header by vm.header.collectAsState()
     val carousel by vm.carousel.collectAsState()
     // Read only where needed, so a streamed token recomposes the output card and the live card alone.
@@ -78,7 +73,14 @@ fun AnalyzeScreen(vm: AnalyzeViewModel, onOpenSettings: () -> Unit, onOpenProjec
                     Spacer(Modifier.height(12.dp))
                     LiveOutputCard(vm.output, Modifier.padding(horizontal = 16.dp).fillMaxWidth().weight(1f))
                     Spacer(Modifier.height(14.dp))
-                    BottomBar(controls, vm::stop, vm::togglePause, Modifier.padding(horizontal = 16.dp))
+                    BottomBar(
+                        controls,
+                        vm::stop,
+                        vm::togglePause,
+                        canOpenMedia = header.projectName != null,
+                        onOpenMedia = onOpenMedia,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
                 }
             }
         }
@@ -90,18 +92,6 @@ fun AnalyzeScreen(vm: AnalyzeViewModel, onOpenSettings: () -> Unit, onOpenProjec
 private fun LiveOutputCard(output: StateFlow<OutputState>, modifier: Modifier) {
     val state by output.collectAsState()
     OutputCard(state, modifier)
-}
-
-/** Scales dp and sp so the 390 dp mockup frame fills the window's width. */
-@Composable
-private fun MockupScale(content: @Composable () -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val base = LocalDensity.current
-        val scale = (maxWidth.value / MOCKUP_WIDTH_DP).coerceIn(0.8f, 1.25f)
-        CompositionLocalProvider(LocalDensity provides Density(base.density * scale, base.fontScale)) {
-            content()
-        }
-    }
 }
 
 @Composable

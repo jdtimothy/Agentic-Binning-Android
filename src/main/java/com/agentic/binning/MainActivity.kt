@@ -13,12 +13,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.agentic.binning.model.ModelCatalog
+import com.agentic.binning.pipeline.RunKind
 import com.agentic.binning.settings.AppSettings
 import com.agentic.binning.settings.SortingModelChoice
 import com.agentic.binning.ui.analyze.AnalyzeScreen
 import com.agentic.binning.ui.analyze.AnalyzeViewModel
+import com.agentic.binning.ui.media.ProjectMediaScreen
+import com.agentic.binning.ui.media.ProjectMediaViewModel
+import com.agentic.binning.ui.media.RepositoryMediaSource
 import com.agentic.binning.ui.permission.StorageAccessGate
 import com.agentic.binning.ui.project.ProjectSheetHost
 import com.agentic.binning.ui.project.rememberProjectSheetController
@@ -36,7 +41,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-private enum class Screen { Analyze, Settings }
+private enum class Screen { Analyze, Media, Settings }
 
 /** Runs a settings write, logging instead of crashing if the store cannot be written. */
 private suspend fun safeWrite(block: suspend () -> Unit) {
@@ -74,7 +79,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by graph.settings.settings.collectAsState(initial = AppSettings())
             val scope = rememberCoroutineScope()
-            var screen by remember { mutableStateOf(Screen.Analyze) }
+            // Saved, so a configuration change (rotation, a theme switch) keeps the screen.
+            var screen by rememberSaveable { mutableStateOf(Screen.Analyze) }
+            // Settings goes back to whichever screen opened it.
+            var beforeSettings by rememberSaveable { mutableStateOf(Screen.Analyze) }
+            val openSettings = { from: Screen ->
+                beforeSettings = from
+                screen = Screen.Settings
+            }
 
             // Only the running flag: the full state changes on every streamed token.
             val pipelineRunning by remember {
@@ -114,17 +126,39 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    val mediaViewModel = viewModel {
+                        ProjectMediaViewModel(
+                            source = graph.currentProject.map { open -> open?.let(::RepositoryMediaSource) },
+                            phase = graph.pipeline.state.map { it.phase },
+                            onCategorizeNow = {
+                                graph.currentProject.value?.let { graph.startAnalysis(it.ref, RunKind.CategorizeOnly) }
+                            },
+                        )
+                    }
+
                     when (screen) {
                         Screen.Analyze -> {
                             AnalyzeScreen(
                                 vm = analyzeViewModel,
-                                onOpenSettings = { screen = Screen.Settings },
+                                onOpenSettings = { openSettings(Screen.Analyze) },
                                 onOpenProjectSheet = projectSheet::open,
+                                onOpenMedia = { screen = Screen.Media },
+                            )
+                            ProjectSheetHost(projectSheet)
+                        }
+                        Screen.Media -> {
+                            ProjectMediaScreen(
+                                vm = mediaViewModel,
+                                onBack = { screen = Screen.Analyze },
+                                onOpenSettings = { openSettings(Screen.Media) },
+                                // The empty project's buttons are the project sheet's own pickers.
+                                onAddFolder = projectSheet::onPickFolder,
+                                onPickFiles = projectSheet::onPickFiles,
                             )
                             ProjectSheetHost(projectSheet)
                         }
                         Screen.Settings -> {
-                            BackHandler { screen = Screen.Analyze }
+                            BackHandler { screen = beforeSettings }
                             // Decrypting the key to show its last 4 is Keystore work: off the main thread.
                             val keyRow by remember {
                                 graph.apiKeys.info.map { KeyRow(it) }.flowOn(Dispatchers.IO)
@@ -163,7 +197,7 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     override fun onBack() {
-                                        screen = Screen.Analyze
+                                        screen = beforeSettings
                                     }
                                 }
                             }

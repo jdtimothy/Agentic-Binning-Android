@@ -127,4 +127,21 @@ fun mediaStatus(counts: MediaCounts, job: ActiveJob?): MediaStatus {
     return MediaStatus(text, tone, action, enabled, c.readyToBin)
 }
 
+/**
+ * Why Bin Files is off, for the toast a tap on it shows; null when it is on (Q12). The same order
+ * as [mediaStatus]: a running job first, then what blocks it, then nothing to move.
+ */
+fun binFilesBlockedReason(counts: MediaCounts, job: ActiveJob?): String? {
+    val c = counts
+    return when {
+        job != null -> "Bin Files is available when analysis is stopped or done"
+        c.pending > 0 || c.analyzing > 0 -> "Bin Files waits for analysis to finish"
+        c.waiting > 0 -> "Bin Files waits for ${items(c.waiting)} to be categorized"
+        c.readyToBin == 0 -> if (c.binned > 0) "All files are binned" else "Nothing to bin yet"
+        else -> null
+    }
+}
+
+private fun items(n: Int) = if (n == 1) "1 item" else "$n items"
+
 private fun files(n: Int) = if (n == 1) "1 file" else "$n files"
