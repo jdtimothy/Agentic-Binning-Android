@@ -7,7 +7,12 @@ import com.agentic.binning.model.describe
 import com.agentic.binning.model.VisionModelException
 import com.agentic.binning.model.VisionProfile
 import com.agentic.binning.project.ProjectRef
+import com.agentic.binning.projectmedia.RESORT_BUSY
+import com.agentic.binning.projectmedia.RESORT_NOT_OPEN
+import com.agentic.binning.projectmedia.ResortRequest
+import com.agentic.binning.projectmedia.ResortStart
 import com.agentic.binning.settings.FRAME_CAP_OPTIONS
+import com.agentic.binning.settings.SortingModelChoice
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -109,6 +114,10 @@ class PipelineController(
     private val isCurrent: (ProjectRef) -> Boolean = { true },
     /** The user's max frames per clip; read once at the start of each batch, so a change applies to the next one. */
     private val maxFramesPerClip: suspend () -> Int = { FRAME_CAP_OPTIONS.first() },
+    /** Makes the unlocked Sorted items waiting again before a Re-sort sorts them; returns how many. */
+    private val prepareResort: suspend (keepEdits: Boolean) -> Int = { 0 },
+    /** Null if [SortingModelChoice] can run now (a key is saved, the model is downloaded); otherwise why not. */
+    private val sortingAvailable: suspend (SortingModelChoice) -> String? = { null },
 ) {
     private enum class Control { Run, Pause, Stop }
 
@@ -151,7 +160,24 @@ class PipelineController(
      */
     fun categorizeNow(project: ProjectRef) = launchRun(project, analyze = false)
 
-    private fun launchRun(project: ProjectRef, analyze: Boolean) {
+    /**
+     * Re-sorts [project] with [request]'s model: refused while a run is in progress (analyzing, paused
+     * or categorizing; never queued) and for a project that is not the open one. Otherwise it starts a
+     * categorize-only run which, holding the [ModelArbiter]'s Sorting job, first checks that the model
+     * can run ([sortingAvailable]; if not, nothing is cleared and the reason becomes the sort notice),
+     * then clears the unlocked assignments ([prepareResort]) and sorts with that model, never
+     * Settings'. Stop and a project switch end it as any run; cleared items then stay waiting.
+     */
+    fun resort(project: ProjectRef, request: ResortRequest): ResortStart {
+        synchronized(lock) {
+            if (closed || !isCurrent(project)) return ResortStart.Refused(RESORT_NOT_OPEN)
+            if (_state.value.phase.isRunning) return ResortStart.Refused(RESORT_BUSY)
+            launchRun(project, analyze = false, resort = request)
+        }
+        return ResortStart.Started
+    }
+
+    private fun launchRun(project: ProjectRef, analyze: Boolean, resort: ResortRequest? = null) {
         synchronized(lock) {
             if (closed || !isCurrent(project)) {
                 log.warn("${if (analyze) "Analysis" else "Categorizing"} start for ${project.name} refused: it is not the open project", null)
@@ -160,7 +186,9 @@ class PipelineController(
             val previous = job
             // Every run for this project categorizes (or is categorizing): a second categorize-only start
             // (a Resume double-tap) would only send the items it left out to the model a second time.
-            if (!analyze && previous?.isActive == true && project == lastProject) return
+            // A Re-sort is never absorbed: [resort] refused it if a run was in progress, so [previous]
+            // is a stopped run still cleaning up, waited for below.
+            if (!analyze && resort == null && previous?.isActive == true && project == lastProject) return
             if (previous?.isActive == true && acceptingReruns) {
                 // A rerun only matters for analysis: the run categorizes at its end either way.
                 if (project == lastProject && analyze) rerunRequested = true
@@ -191,7 +219,7 @@ class PipelineController(
             val launched = scope.launch {
                 // A stopped run may still be cleaning up (releasing a model); never overlap it.
                 withContext(NonCancellable) { previous?.join() }
-                run(project, gen, analyze)
+                run(project, gen, analyze, resort)
             }
             jobs += launched
             job = launched
@@ -267,7 +295,7 @@ class PipelineController(
         }
     }
 
-    private suspend fun run(project: ProjectRef, gen: Int, analyze: Boolean) {
+    private suspend fun run(project: ProjectRef, gen: Int, analyze: Boolean, resort: ResortRequest? = null) {
         var current: ItemEntity? = null
         try {
             currentCoroutineContext().ensureActive()
@@ -303,7 +331,7 @@ class PipelineController(
             } else {
                 refreshCounts(gen)
             }
-            val notice = categorize(project, gen)
+            val notice = categorize(project, gen, resort)
             refreshCounts(gen)
             update(gen) { it.copy(phase = PipelinePhase.Idle, currentItemId = null, sortNotice = notice, sortDone = 0, sortTotal = 0) }
         } catch (e: CancellationException) {
@@ -382,10 +410,16 @@ class PipelineController(
      * (Stop, a project switch) propagates and ends the run Stopped with the notice unchanged; any
      * other failure only leaves a notice.
      */
-    private suspend fun categorize(project: ProjectRef, gen: Int): String? {
+    private suspend fun categorize(project: ProjectRef, gen: Int, resort: ResortRequest?): String? {
         val outcome = try {
             arbiter.withJob(JobKind.Sorting) {
-                categorizer.categorize(project) { done, total ->
+                // A Re-sort clears assignments only once its model is known to run (P1), and only while it
+                // owns the arbiter, so nothing else sorts between the clearing and its own sorting.
+                if (resort != null) {
+                    sortingAvailable(resort.model)?.let { reason -> return@withJob CategorizeOutcome.Partial(0, 0, reason) }
+                    prepareResort(resort.keepEdits)
+                }
+                categorizer.categorize(project, resort?.model) { done, total ->
                     update(gen) { it.copy(phase = PipelinePhase.Categorizing, currentItemId = null, sortDone = done, sortTotal = total) }
                 }
             }

@@ -199,4 +199,42 @@ abstract class SortDao {
     @SkipQueryVerification
     @Query(FTS_REBUILD_ROW)
     protected abstract suspend fun rebuildFtsRow(itemId: Long)
+
+    /**
+     * Makes unlocked Sorted items waiting again for a Re-sort. Returns how many it unassigned.
+     * Failed, Missing and Binned items are left alone. Empty model-created categories are deleted.
+     */
+    @Transaction
+    open suspend fun prepareResort(keepEdits: Boolean): Int {
+        if (!keepEdits) {
+            clearLocks()
+            markAllCategoriesModel()
+        }
+        val ids = unlockedSortedIds()
+        if (ids.isNotEmpty()) unassignUnlockedSorted()
+        deleteEmptyModelCategories()
+        for (id in ids) {
+            deleteFtsRow(id)
+            rebuildFtsRow(id)
+        }
+        return ids.size
+    }
+
+    @Query("UPDATE item SET nameSetByUser = 0, categorySetByUser = 0")
+    protected abstract suspend fun clearLocks()
+
+    @Query("UPDATE category SET createdBy = 'model'")
+    protected abstract suspend fun markAllCategoriesModel()
+
+    @Query("SELECT id FROM item WHERE status = 'Sorted' AND categorySetByUser = 0")
+    protected abstract suspend fun unlockedSortedIds(): List<Long>
+
+    @Query("UPDATE item SET categoryId = NULL, status = 'Analyzed' WHERE status = 'Sorted' AND categorySetByUser = 0")
+    protected abstract suspend fun unassignUnlockedSorted(): Int
+
+    @Query(
+        "DELETE FROM category WHERE createdBy = 'model' AND " +
+            "NOT EXISTS (SELECT 1 FROM item WHERE item.categoryId = category.id)",
+    )
+    protected abstract suspend fun deleteEmptyModelCategories(): Int
 }

@@ -18,6 +18,7 @@ import com.agentic.binning.model.VisionModel
 import com.agentic.binning.model.VisionProfile
 import com.agentic.binning.model.VisionReply
 import com.agentic.binning.project.ProjectRef
+import com.agentic.binning.settings.SortingModelChoice
 import java.io.FileNotFoundException
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
@@ -219,13 +220,19 @@ class FakeCategorizer(private val events: Events = Events()) : Categorizer {
     var outcome: CategorizeOutcome = CategorizeOutcome.NothingToDo
     var failure: Throwable? = null
     val projects = mutableListOf<ProjectRef>()
+    val choices = mutableListOf<SortingModelChoice?>()
 
     /** Runs at the start of [categorize], e.g. to register media meanwhile. */
     var onCategorize: () -> Unit = {}
 
-    override suspend fun categorize(project: ProjectRef, onProgress: (done: Int, total: Int) -> Unit): CategorizeOutcome {
+    override suspend fun categorize(
+        project: ProjectRef,
+        choice: SortingModelChoice?,
+        onProgress: (done: Int, total: Int) -> Unit,
+    ): CategorizeOutcome {
         events += "categorize"
         projects += project
+        choices += choice
         onCategorize()
         failure?.let { throw it }
         return outcome
@@ -246,12 +253,15 @@ class FakeSortStore(private val store: FakeStore, private val events: Events = E
 
     fun categoryNames(): List<String> = categoryRows.map { it.name }
 
+    /** One past the highest id, so a category deleted by a Re-sort never leaves two rows sharing an id. */
+    private fun nextCategoryId(): Long = (categoryRows.maxOfOrNull { it.id } ?: 0L) + 1L
+
     fun categoryOf(itemId: Long): String? =
         store.items.getValue(itemId).categoryId?.let { id -> categoryRows.single { it.id == id }.name }
 
     /** A category that already exists, as if from an earlier run. */
     fun seedCategory(name: String, description: String = "$name things", createdBy: String = "model"): Long {
-        val id = categoryRows.size + 1L
+        val id = nextCategoryId()
         categoryRows += CategoryEntity(id, name, description, createdBy, null)
         return id
     }
@@ -284,8 +294,10 @@ class FakeSortStore(private val store: FakeStore, private val events: Events = E
             val item = store.items[a.itemId] ?: continue
             if (item.categorySetByUser || item.categoryId != null) continue
             val category = categoryRows.firstOrNull { it.name == a.categoryName }
-                ?: offered.getValue(a.categoryName).copy(id = categoryRows.size + 1L, createdBy = "model").also { categoryRows += it }
-            store.items[a.itemId] = item.copy(categoryId = category.id, status = ItemStatus.Sorted, friendlyName = a.friendlyName)
+                ?: offered.getValue(a.categoryName).copy(id = nextCategoryId(), createdBy = "model").also { categoryRows += it }
+            // Like SortDao.applyChunk, a name the user set is kept.
+            val name = if (item.nameSetByUser) item.friendlyName else a.friendlyName
+            store.items[a.itemId] = item.copy(categoryId = category.id, status = ItemStatus.Sorted, friendlyName = name)
             applied++
         }
         return applied
@@ -308,6 +320,20 @@ class FakeSortStore(private val store: FakeStore, private val events: Events = E
             if (run.finishedAt != null) run else run.copy(finishedAt = finishedAt, outcome = "partial", message = message).also { closed++ }
         }
         return closed
+    }
+
+    override suspend fun prepareResort(keepEdits: Boolean): Int {
+        events += "prepareResort:$keepEdits"
+        if (!keepEdits) {
+            store.items.replaceAll { _, item -> item.copy(nameSetByUser = false, categorySetByUser = false) }
+            categoryRows.replaceAll { it.copy(createdBy = "model") }
+        }
+        val unlocked = store.items.values.filter { it.status == ItemStatus.Sorted && !it.categorySetByUser }
+        for (item in unlocked) {
+            store.items[item.id] = item.copy(categoryId = null, status = ItemStatus.Analyzed)
+        }
+        categoryRows.removeAll { c -> c.createdBy == "model" && store.items.values.none { it.categoryId == c.id } }
+        return unlocked.size
     }
 }
 

@@ -4,8 +4,11 @@ import com.agentic.binning.project.ProjectRef
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** What a started run does: analyze waiting items (and categorize at the end), or only categorize. */
-enum class RunKind { Analyze, CategorizeOnly }
+/**
+ * What a started run does: analyze waiting items (and categorize at the end), only categorize, or
+ * re-sort ([AppGraph.resort]: clear the unlocked assignments, then categorize with a chosen model).
+ */
+enum class RunKind { Analyze, CategorizeOnly, Resort }
 
 /** What [AnalysisLauncher] reads and writes in one project's database. */
 interface ProjectRunFlags {

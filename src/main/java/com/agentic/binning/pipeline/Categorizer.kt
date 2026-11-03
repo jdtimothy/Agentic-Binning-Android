@@ -30,8 +30,15 @@ import kotlinx.coroutines.withContext
 
 /** Sorts the open project's analyzed, uncategorized items into categories. */
 interface Categorizer {
-    /** [onProgress] gets items handled so far of the items to sort, starting with 0 before the model loads. */
-    suspend fun categorize(project: ProjectRef, onProgress: (done: Int, total: Int) -> Unit): CategorizeOutcome
+    /**
+     * Sorts with [choice], or with the Settings choice when null (Re-sort passes its own).
+     * [onProgress] gets items handled so far of the items to sort, starting with 0 before the model loads.
+     */
+    suspend fun categorize(
+        project: ProjectRef,
+        choice: SortingModelChoice? = null,
+        onProgress: (done: Int, total: Int) -> Unit,
+    ): CategorizeOutcome
 }
 
 sealed interface CategorizeOutcome {
@@ -74,6 +81,9 @@ interface SortStore {
 
     /** Closes run rows left open by a process death as `partial` with [message]; returns how many. */
     suspend fun closeOpenRuns(finishedAt: Long, message: String): Int
+
+    /** Makes unlocked Sorted items waiting again for a Re-sort; see [com.agentic.binning.db.SortDao.prepareResort]. */
+    suspend fun prepareResort(keepEdits: Boolean): Int
 }
 
 /**
@@ -132,13 +142,17 @@ class SortingCategorizer(
         val left: Int get() = items - sorted - alreadyCategorized
     }
 
-    override suspend fun categorize(project: ProjectRef, onProgress: (done: Int, total: Int) -> Unit): CategorizeOutcome {
+    override suspend fun categorize(
+        project: ProjectRef,
+        choice: SortingModelChoice?,
+        onProgress: (done: Int, total: Int) -> Unit,
+    ): CategorizeOutcome {
         val items = store.uncategorized()
         if (items.isEmpty()) return CategorizeOutcome.NothingToDo
         val total = items.size
         onProgress(0, total)
 
-        val chosen = choice()
+        val chosen = choice ?: this.choice()
         val model = modelFor(chosen)
         val before = store.categories()
         closeOpenRuns()

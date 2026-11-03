@@ -16,6 +16,9 @@ import com.agentic.binning.BinningApp
 import com.agentic.binning.MainActivity
 import com.agentic.binning.R
 import com.agentic.binning.project.ProjectRef
+import com.agentic.binning.projectmedia.ResortRequest
+import com.agentic.binning.projectmedia.ResortStart
+import com.agentic.binning.settings.SortingModelChoice
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -43,7 +46,11 @@ class AnalysisService : LifecycleService() {
                 val path = intent.getStringExtra(EXTRA_PATH)
                 if (name != null && path != null) {
                     val ref = ProjectRef(name, path)
-                    if (intent.getBooleanExtra(EXTRA_CATEGORIZE_ONLY, false)) controller.categorizeNow(ref) else controller.start(ref)
+                    when (RunKind.entries.firstOrNull { it.name == intent.getStringExtra(EXTRA_KIND) } ?: RunKind.Analyze) {
+                        RunKind.Analyze -> controller.start(ref)
+                        RunKind.CategorizeOnly -> controller.categorizeNow(ref)
+                        RunKind.Resort -> resort(ref, intent)
+                    }
                 }
                 stopIfNotRunning(startId)
             }
@@ -57,6 +64,17 @@ class AnalysisService : LifecycleService() {
         }
         observe()
         return START_NOT_STICKY
+    }
+
+    /** Starts the Re-sort the intent describes; a refusal (a run began meanwhile) is only logged. */
+    private fun resort(ref: ProjectRef, intent: Intent) {
+        val model = SortingModelChoice.entries.firstOrNull { it.name == intent.getStringExtra(EXTRA_RESORT_MODEL) }
+        if (model == null) {
+            Log.w(TAG, "Re-sort start without a model; ignored")
+            return
+        }
+        val start = controller.resort(ref, ResortRequest(model, intent.getBooleanExtra(EXTRA_KEEP_EDITS, true)))
+        if (start is ResortStart.Refused) Log.w(TAG, "Re-sort refused: ${start.reason}")
     }
 
     /**
@@ -224,21 +242,25 @@ class AnalysisService : LifecycleService() {
         private const val ACTION_STOP = "com.agentic.binning.action.STOP_ANALYSIS"
         private const val EXTRA_NAME = "project_name"
         private const val EXTRA_PATH = "project_path"
-        private const val EXTRA_CATEGORIZE_ONLY = "categorize_only"
+        private const val EXTRA_KIND = "run_kind"
+        private const val EXTRA_RESORT_MODEL = "resort_model"
+        private const val EXTRA_KEEP_EDITS = "resort_keep_edits"
 
         private fun action(context: Context, action: String) = Intent(context, AnalysisService::class.java).setAction(action)
 
         /**
          * Analyzes [project]'s Pending items in the foreground service, or with [kind] CategorizeOnly
-         * only categorizes its analyzed items. Call while the app is in the foreground.
+         * only categorizes its analyzed items, or with [kind] Resort re-sorts it as [resort] says (required
+         * then). Call while the app is in the foreground.
          */
-        fun start(context: Context, project: ProjectRef, kind: RunKind = RunKind.Analyze) {
-            context.startForegroundService(
-                action(context, ACTION_START)
-                    .putExtra(EXTRA_NAME, project.name)
-                    .putExtra(EXTRA_PATH, project.path)
-                    .putExtra(EXTRA_CATEGORIZE_ONLY, kind == RunKind.CategorizeOnly),
-            )
+        fun start(context: Context, project: ProjectRef, kind: RunKind = RunKind.Analyze, resort: ResortRequest? = null) {
+            require((kind == RunKind.Resort) == (resort != null)) { "A Re-sort start needs its request, and only it" }
+            val intent = action(context, ACTION_START)
+                .putExtra(EXTRA_NAME, project.name)
+                .putExtra(EXTRA_PATH, project.path)
+                .putExtra(EXTRA_KIND, kind.name)
+            resort?.let { intent.putExtra(EXTRA_RESORT_MODEL, it.model.name).putExtra(EXTRA_KEEP_EDITS, it.keepEdits) }
+            context.startForegroundService(intent)
         }
     }
 }

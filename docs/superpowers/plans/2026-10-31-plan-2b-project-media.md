@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: Tasks 1–6 done Nov 1, 2026; Task 6A code done Nov 2 (device tests and phone check pending, see Task 6A).** Drafted Oct 31 before Plan 2a reached GitHub. 2a merged into `main` as `24aa3bd` (PR #4) and was merged into `plan-2b-draft` on Nov 1. Task 6 checked every 2a dependency against the merged code; its findings (section "Task 6" below) replace the old **CONFIRM against 2a** markers, and Tasks 7–17 were updated to match. On Nov 1 the owner approved P1–P6 (P5 with its own wording) and Q1, Q4, Q6, Q10, Q12 and Q19's retry rule, and asked for **Task 6A** (open an existing project, remove a project from the app), planned below. Later on Nov 1 the owner settled every remaining question but Q3, including no Re-sort cost note (Task 4 dropped); on Nov 2 Q3 was settled too (option C, with a "Filters" button). PRs #5 and #6 are merged; Task 6A is on `plan-2b-task-6a`. **Next: Task 6A's device tests and phone check, then Task 7.** Before building a task, check "Product decisions" for answers it depends on.
+**Status: Tasks 1–6 done Nov 1, 2026; Task 6A code done Nov 2 (device tests and phone check pending, see Task 6A).** Drafted Oct 31 before Plan 2a reached GitHub. 2a merged into `main` as `24aa3bd` (PR #4) and was merged into `plan-2b-draft` on Nov 1. Task 6 checked every 2a dependency against the merged code; its findings (section "Task 6" below) replace the old **CONFIRM against 2a** markers, and Tasks 7–17 were updated to match. On Nov 1 the owner approved P1–P6 (P5 with its own wording) and Q1, Q4, Q6, Q10, Q12 and Q19's retry rule, and asked for **Task 6A** (open an existing project, remove a project from the app), planned below. Later on Nov 1 the owner settled every remaining question but Q3, including no Re-sort cost note (Task 4 dropped); on Nov 2 Q3 was settled too (option C, with a "Filters" button). PRs #5 and #6 are merged; Task 6A is on `plan-2b-task-6a`. Tasks 7–9 done Nov 2–3 (Task 9 on `feat/plan-2b-task-9`). **Next: Task 10.** Task 6A's phone-check leftovers are listed under Task 6A. Before building a task, check "Product decisions" for answers it depends on.
 
 **Goal:** The Project Media screen from the approved mockups: browse, search and filter a project's items; edit names and categories for one item or many; rename and merge categories; remove items; handle failed items; and re-sort the whole project with a chosen model. All edits change the database only, because nothing is binned until Plan 3.
 
@@ -472,18 +472,15 @@ Phone check (Task 17's media, never Hawaii Photos or Maui):
   - `resort` first checks that `request.model` can run (Claude: `ApiKeys.info` non-null; LFM3-1.7B: `ModelDownloader.isReady`) and returns `Refused(reason)` without clearing anything if not; only then does it run `prepareResort` (P1, approved). Test `resort_unavailableBackend_clearsNothing`.
 - Failed, Missing and (in Plan 3) Binned items are left out.
 
-- [ ] **Step 1: Write the failing tests:**
-  - `resort_keepsLockedNamesAndCategories`;
-  - `resort_withoutKeepEdits_clearsLocks`;
-  - `resort_usesTheChosenModel_notSettings`;
-  - `resort_isRefusedWhileARunIsInProgress` (analysing, paused and categorizing);
-  - `categorizeNow_sortsOnlyWaitingItems`;
-  - `resort_releasesItsModelOnCancel`;
-  - `resort_unavailableBackend_clearsNothing`;
-  - `prepareResort_deletesEmptyModelCategoriesAndRefreshesFts` (device).
-- [ ] **Step 2: Implement** as above.
-- [ ] **Step 3: Run them and check that they pass**, with the full JVM suite (`PipelineControllerTest`, `CategorizerTest` and `ModelArbiterTest` must stay green).
-- [ ] **Step 4: Commit.**
+- [x] **Step 1: Tests.** JVM `ResortJobTest` (8): `resort_keepsLockedNamesAndCategories`, `resort_withoutKeepEdits_clearsLocks`, `resort_usesTheChosenModel_notSettings`, `resort_isRefusedWhileARunIsInProgress` (analysing, paused and categorizing), `resort_isRefusedForAProjectThatIsNotOpen`, `categorizeNow_sortsOnlyWaitingItems`, `resort_releasesItsModelOnCancel`, `resort_unavailableBackend_clearsNothing`. Device `SortDaoTest`: `prepareResort_deletesEmptyModelCategoriesAndRefreshesFts`, `prepareResort_keepEdits_leavesLockedItems`, `prepareResort_withoutKeepEdits_clearsLocks`.
+- [x] **Step 2: Implemented** (Nov 3):
+  - `Categorizer.categorize(project, choice = null, onProgress)` is one method; null reads Settings, and `SortingCategorizer` never writes Settings.
+  - `PipelineController.resort(project, request)` returns `Refused(RESORT_BUSY)` while `phase.isRunning` and `Refused(RESORT_NOT_OPEN)` for a project that is not current; otherwise it launches a categorize-only run that is never absorbed into a stopped run still cleaning up (it waits for it, like any run).
+  - **Where the P1 check runs:** inside that run, holding the arbiter's Sorting job: `sortingAvailable(model)` first (if it returns a reason, nothing is cleared, the categorizer isn't called and the reason becomes the sort notice), then `prepareResort(keepEdits)`, then `categorize(choice = model)`. Clearing under the arbiter means nothing else sorts between the clearing and the Re-sort's own sorting. The check is `suspend` (DataStore, model files), so the controller can't return `Refused` for it synchronously; **`AppGraph.resort(ref, request)` (suspend) is the UI's entry and returns `Refused(reason)` for it before starting anything** (busy, not open, `sortingUnavailable`: Settings' "Add your API key to use Claude" or "Download LFM3-1.7B in Settings first", or the service refused to start). It is never queued or deferred.
+  - `RunKind.Resort` carries the model and Keep my edits through `AnalysisService` (intent extras `run_kind`, `resort_model`, `resort_keep_edits`); the service calls `controller.resort` and logs a refusal.
+  - Refusal lines are in `projectmedia/ResortRequest.kt` (`RESORT_BUSY`, `RESORT_NOT_OPEN`, `RESORT_NOT_STARTED`) for Task 15 to reuse.
+- [x] **Step 3:** `./gradlew testDebugUnitTest` 496 tests, 0 failures (`PipelineControllerTest`, `CategorizerTest`, `ModelArbiterTest` green). On S26 by direct instrumentation: `SortDaoTest` **OK (21)**, `ProjectDatabaseTest` **OK (7)**, `ProjectMediaRepositoryTest` **OK (11)**; the app launches with no crash. **Not run:** a real Re-sort on the phone; nothing calls `AppGraph.resort` until Task 15's sheet (checked in Task 17, LFM3-1.7B only).
+- [x] **Step 4: Commit.**
 
 ### Task 10: Status and counts wiring
 
