@@ -238,7 +238,7 @@ class AppGraph(val context: Context) {
     }
 
     /** Null if [choice] can sort now; otherwise the line Settings shows for it (P1). */
-    private suspend fun sortingUnavailable(choice: SortingModelChoice): String? = when (val spec = specOf(choice)) {
+    suspend fun sortingUnavailable(choice: SortingModelChoice): String? = when (val spec = specOf(choice)) {
         null -> if (apiKeys.info.first() == null) NEED_KEY_TEXT else null
         else -> if (withContext(Dispatchers.IO) { modelDownloader.isReady(spec) }) null else "Download ${spec.displayName} in Settings first"
     }

@@ -12,6 +12,9 @@ import com.agentic.binning.projectmedia.MediaChip
 import com.agentic.binning.projectmedia.MediaRow
 import com.agentic.binning.projectmedia.MatchedIn
 import com.agentic.binning.projectmedia.RESORT_BUSY
+import com.agentic.binning.projectmedia.ResortRequest
+import com.agentic.binning.projectmedia.ResortStart
+import com.agentic.binning.settings.SortingModelChoice
 import java.io.File
 import java.time.LocalDate
 import java.time.ZoneId
@@ -153,11 +156,23 @@ class ProjectMediaViewModelTest {
     private val sources = MutableStateFlow<MediaSource?>(source)
     private val phase = MutableStateFlow<PipelinePhase?>(PipelinePhase.Idle)
     private var categorizeCalls = 0
+    private var settingsChoice = SortingModelChoice.Lfm3_1_7B
+    private val unavailable = mutableMapOf<SortingModelChoice, String>()
+    private val resortRequests = mutableListOf<ResortRequest>()
+    private var resortResult: ResortStart = ResortStart.Started
 
     private fun TestScope.vm() = ProjectMediaViewModel(
         source = sources,
         phase = phase,
         onCategorizeNow = { categorizeCalls++ },
+        resort = object : ResortActions {
+            override suspend fun settingsChoice() = this@ProjectMediaViewModelTest.settingsChoice
+            override suspend fun unavailable(choice: SortingModelChoice) = this@ProjectMediaViewModelTest.unavailable[choice]
+            override suspend fun start(request: ResortRequest): ResortStart {
+                resortRequests += request
+                return resortResult
+            }
+        },
         zone = zone,
         io = StandardTestDispatcher(testScheduler),
         // Not backgroundScope: advanceUntilIdle() does not wait for background work.
@@ -956,5 +971,92 @@ class ProjectMediaViewModelTest {
 
         assertEquals("Beach", vm.state.value.categoryEdit!!.ui.rows.first().name)
         assertTrue(source.categoryEdits.isEmpty())
+    }
+
+    /** Task 15: Re-sort opens its sheet on the Settings choice with Keep my edits ticked (Q4, Q14). */
+    @Test
+    fun resort_opensOnTheSettingsChoice_andStartsWithTheSheetsPicks() = runTest {
+        settingsChoice = SortingModelChoice.Claude
+        val messages = mutableListOf<String>()
+        val vm = vm()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.messages.toList(messages) }
+        advanceUntilIdle()
+
+        vm.onResort()
+        advanceUntilIdle()
+        val ui = vm.state.value.resort!!.ui
+        assertEquals(listOf(true, false), ui.rows.map { it.selected })
+        assertTrue(ui.keepEdits)
+        // Four analyzed items (the failed one is left out); Mine is the user's category.
+        assertEquals("Re-sort 4 items", ui.buttonLabel)
+        assertEquals("Keeps the 1 category you set. New items can still join your categories.", ui.keepText)
+
+        vm.onResortModel(SortingModelChoice.Lfm3_1_7B)
+        vm.onResortKeepEdits()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.resort!!.ui.keepEdits)
+
+        vm.onRunResort()
+        advanceUntilIdle()
+        assertEquals(listOf(ResortRequest(SortingModelChoice.Lfm3_1_7B, keepEdits = false)), resortRequests)
+        assertNull(vm.state.value.resort)
+        assertEquals("Re-sorting 4 items with LFM3-1.7B", messages.last())
+    }
+
+    @Test
+    fun resort_aModelThatCantRun_turnsTheButtonOff() = runTest {
+        settingsChoice = SortingModelChoice.Claude
+        unavailable[SortingModelChoice.Claude] = "Add your API key to use Claude"
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onResort()
+        advanceUntilIdle()
+
+        val ui = vm.state.value.resort!!.ui
+        assertFalse(ui.enabled)
+        assertEquals("Add your API key to use Claude", ui.reason)
+        vm.onRunResort()
+        advanceUntilIdle()
+        assertTrue(resortRequests.isEmpty())
+
+        vm.onResortModel(SortingModelChoice.Lfm3_1_7B)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.resort!!.ui.enabled)
+    }
+
+    @Test
+    fun resort_refused_keepsTheSheetWithTheReason() = runTest {
+        resortResult = ResortStart.Refused("Re-sort could not start; try again")
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onResort()
+        advanceUntilIdle()
+        vm.onRunResort()
+        advanceUntilIdle()
+
+        val sheet = vm.state.value.resort!!
+        assertEquals("Re-sort could not start; try again", sheet.error)
+        assertFalse(sheet.starting)
+    }
+
+    @Test
+    fun resort_aRunStartingWhileOpen_turnsTheButtonOff_andCloseDropsTheSheet() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onResort()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.resort!!.ui.enabled)
+
+        phase.value = PipelinePhase.Describing
+        advanceUntilIdle()
+        assertFalse(vm.state.value.resort!!.ui.enabled)
+        assertEquals(RESORT_BUSY, vm.state.value.resort!!.ui.reason)
+        vm.onRunResort()
+        advanceUntilIdle()
+        assertTrue(resortRequests.isEmpty())
+
+        vm.onCloseResort()
+        advanceUntilIdle()
+        assertNull(vm.state.value.resort)
     }
 }

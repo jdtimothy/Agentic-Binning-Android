@@ -17,9 +17,13 @@ import com.agentic.binning.projectmedia.MediaFilter
 import com.agentic.binning.projectmedia.MediaRow
 import com.agentic.binning.projectmedia.MediaStatus
 import com.agentic.binning.projectmedia.RESORT_BUSY
+import com.agentic.binning.projectmedia.ResortRequest
+import com.agentic.binning.projectmedia.ResortStart
 import com.agentic.binning.projectmedia.activeJobOf
 import com.agentic.binning.projectmedia.binFilesBlockedReason
 import com.agentic.binning.projectmedia.canTakeACategory
+import com.agentic.binning.settings.SortingModelChoice
+import com.agentic.binning.ui.settings.SortingOptions
 import com.agentic.binning.projectmedia.isWaiting
 import com.agentic.binning.projectmedia.matches
 import com.agentic.binning.projectmedia.mediaCountsOf
@@ -169,6 +173,8 @@ data class MediaUiState(
     val removeSelected: RemoveDialogUi?,
     /** The Category Edit sheet (Task 14). */
     val categoryEdit: CategoryEditState?,
+    /** The Re-sort sheet (Task 15). */
+    val resort: ResortSheetState?,
 ) {
     companion object {
         val None = MediaUiState(
@@ -176,7 +182,7 @@ data class MediaUiState(
             kind = null, setFilters = emptyList(), resultText = "", tiles = emptyList(), noMatchText = null,
             status = mediaStatus(MediaCounts(total = 0), null), binReason = null, busyReason = null, selection = null,
             allVisibleSelected = false, empty = false, filtersSheet = null, sheet = null, failed = null, move = null, removeSelected = null,
-            categoryEdit = null,
+            categoryEdit = null, resort = null,
         )
     }
 }
@@ -244,6 +250,19 @@ data class FailedSheetState(
     val error: String?,
     val saving: Boolean,
 )
+
+/** The Re-sort sheet (Task 15) while it is open; [starting] while the start is being asked for. */
+data class ResortSheetState(val ui: ResortUi, val starting: Boolean, val error: String?)
+
+/** What the Re-sort sheet needs from the app: the Settings choice, why a model can't run, and the start (Task 9). */
+interface ResortActions {
+    suspend fun settingsChoice(): SortingModelChoice
+
+    /** Why [choice] can't run now (no key, not downloaded), or null. */
+    suspend fun unavailable(choice: SortingModelChoice): String?
+
+    suspend fun start(request: ResortRequest): ResortStart
+}
 
 /** The Category Edit sheet with its staged changes. */
 data class CategoryEditState(val ui: CategoryEditUi, val error: String?, val saving: Boolean)
@@ -314,6 +333,18 @@ private data class DetailSession(
 
 private data class PickerSession(val newOpen: Boolean = false, val newName: String = "")
 
+private data class ResortSession(
+    val settingsChoice: SortingModelChoice,
+    val chosen: SortingModelChoice,
+    val unavailable: Map<SortingModelChoice, String>,
+    val keepEdits: Boolean = true,
+    val starting: Boolean = false,
+    val error: String? = null,
+)
+
+/** Every sheet session, combined so the state stays one `combine`. */
+private data class Sheets(val detail: DetailSession?, val categoryEdit: CategoryEditSession?, val resort: ResortSession?)
+
 private data class CategoryEditSession(
     val draft: CategoryEditDraft = CategoryEditDraft(),
     val error: String? = null,
@@ -342,6 +373,7 @@ class ProjectMediaViewModel(
     source: Flow<MediaSource?>,
     phase: Flow<PipelinePhase?>,
     private val onCategorizeNow: () -> Unit,
+    private val resort: ResortActions? = null,
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val searchDebounceMs: Long = 150,
@@ -351,6 +383,7 @@ class ProjectMediaViewModel(
     private val picks = MutableStateFlow(Picks())
     private val session = MutableStateFlow<DetailSession?>(null)
     private val categorySession = MutableStateFlow<CategoryEditSession?>(null)
+    private val resortSession = MutableStateFlow<ResortSession?>(null)
 
     /** The shown project's categories, for staging category edits between frames. */
     @Volatile
@@ -374,6 +407,7 @@ class ProjectMediaViewModel(
                 picks.value = Picks()
                 session.value = null
                 categorySession.value = null
+                resortSession.value = null
             }
             shownOne = true
             current = it
@@ -398,7 +432,9 @@ class ProjectMediaViewModel(
     }
 
     val state: StateFlow<MediaUiState> =
-        combine(loaded, picks, phase.distinctUntilChanged(), session, categorySession) { l, p, ph, d, c -> build(l, p, ph, d, c) }
+        combine(loaded, picks, phase.distinctUntilChanged(), combine(session, categorySession, resortSession, ::Sheets)) { l, p, ph, s ->
+            build(l, p, ph, s)
+        }
         .stateIn(this.scope, SharingStarted.Eagerly, MediaUiState.None)
 
     fun onQuery(text: String) = picks.update { it.copy(query = text) }
@@ -738,9 +774,51 @@ class ProjectMediaViewModel(
         }
     }
 
-    /** Disabled with the reason while a run is in progress; the sheet comes with Task 15. */
+    /**
+     * Re-sort on the categories row: off with the reason while a run is in progress (Q12), else the
+     * sheet on the Settings choice with Keep my edits ticked (Q4, Q14).
+     */
     fun onResort() {
-        state.value.busyReason?.let { _messages.tryEmit(it) }
+        state.value.busyReason?.let {
+            _messages.tryEmit(it)
+            return
+        }
+        val actions = resort ?: return
+        val src = current ?: return
+        scope.launch {
+            val choice = actions.settingsChoice()
+            val unavailable = SortingOptions.mapNotNull { o -> actions.unavailable(o.choice)?.let { o.choice to it } }.toMap()
+            if (current === src) resortSession.value = ResortSession(choice, choice, unavailable)
+        }
+    }
+
+    fun onResortModel(choice: SortingModelChoice) = resortSession.update { it?.copy(chosen = choice, error = null) }
+
+    fun onResortKeepEdits() = resortSession.update { it?.copy(keepEdits = !it.keepEdits, error = null) }
+
+    fun onCloseResort() {
+        resortSession.value = null
+    }
+
+    /** "Re-sort N items": asks Task 9's start; a refusal keeps the sheet with its reason. */
+    fun onRunResort() {
+        val s = resortSession.value ?: return
+        val ui = state.value.resort?.ui ?: return
+        val actions = resort ?: return
+        val src = current ?: return
+        if (s.starting || !ui.enabled) return
+        resortSession.value = s.copy(starting = true, error = null)
+        scope.launch {
+            val result = withContext(io) { actions.start(ResortRequest(s.chosen, s.keepEdits)) }
+            if (current !== src) return@launch
+            when (result) {
+                ResortStart.Started -> {
+                    resortSession.value = null
+                    _messages.tryEmit("${ui.buttonLabel.replace("Re-sort", "Re-sorting")} with ${modelName(s.chosen)}")
+                }
+                is ResortStart.Refused -> resortSession.update { it?.copy(starting = false, error = result.reason) }
+            }
+        }
     }
 
     fun onBinFiles() {
@@ -750,8 +828,10 @@ class ProjectMediaViewModel(
 
     private fun Set<Long>.toggle(id: Long) = if (id in this) this - id else this + id
 
-    private fun build(l: Loaded, p: Picks, phase: PipelinePhase?, d: DetailSession?, c: CategoryEditSession?): MediaUiState {
+    private fun build(l: Loaded, p: Picks, phase: PipelinePhase?, sheets: Sheets): MediaUiState {
         val src = l.source ?: return MediaUiState.None
+        val d = sheets.detail
+        val c = sheets.categoryEdit
         val job = activeJobOf(phase)
         val counts = mediaCountsOf(l.all, { it.status }) { isWaiting(it.status, it.categoryId, it.categorySetByUser) }
         val filter = filterOf(p.chip, p.kind, p.shot, p.day)
@@ -882,6 +962,19 @@ class ProjectMediaViewModel(
             categoryEdit = c?.let {
                 val counts = l.all.mapNotNull { row -> row.categoryId }.groupingBy { id -> id }.eachCount()
                 CategoryEditState(categoryEditUi(l.categories, counts, it.draft), it.error, it.saving)
+            },
+            resort = sheets.resort?.let { r ->
+                val resortCounts = ResortCounts(
+                    analyzed = l.all.count { canTakeACategory(it.status) },
+                    failed = l.all.count { it.status == ItemStatus.Failed },
+                    myCategories = l.categories.count { it.createdBy == "user" },
+                    myItems = l.all.count { it.nameSetByUser || it.categorySetByUser },
+                )
+                ResortSheetState(
+                    resortUi(resortCounts, r.settingsChoice, r.chosen, r.keepEdits, r.unavailable, busy = job != null),
+                    r.starting,
+                    r.error,
+                )
             },
         )
     }

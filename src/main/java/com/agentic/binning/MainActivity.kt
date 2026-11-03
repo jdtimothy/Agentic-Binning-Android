@@ -17,6 +17,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.agentic.binning.model.ModelCatalog
 import com.agentic.binning.pipeline.RunKind
+import com.agentic.binning.projectmedia.RESORT_NOT_OPEN
+import com.agentic.binning.projectmedia.ResortRequest
+import com.agentic.binning.projectmedia.ResortStart
 import com.agentic.binning.settings.AppSettings
 import com.agentic.binning.settings.SortingModelChoice
 import com.agentic.binning.ui.analyze.AnalyzeScreen
@@ -24,6 +27,7 @@ import com.agentic.binning.ui.analyze.AnalyzeViewModel
 import com.agentic.binning.ui.media.ProjectMediaScreen
 import com.agentic.binning.ui.media.ProjectMediaViewModel
 import com.agentic.binning.ui.media.RepositoryMediaSource
+import com.agentic.binning.ui.media.ResortActions
 import com.agentic.binning.ui.permission.StorageAccessGate
 import com.agentic.binning.ui.project.ProjectSheetHost
 import com.agentic.binning.ui.project.rememberProjectSheetController
@@ -37,6 +41,7 @@ import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -134,6 +139,14 @@ class MainActivity : ComponentActivity() {
                             phase = graph.pipeline.state.map { it.phase },
                             onCategorizeNow = {
                                 graph.currentProject.value?.let { graph.startAnalysis(it.ref, RunKind.CategorizeOnly) }
+                            },
+                            resort = object : ResortActions {
+                                override suspend fun settingsChoice() = graph.settings.settings.first().sortingModel
+                                override suspend fun unavailable(choice: SortingModelChoice) = graph.sortingUnavailable(choice)
+                                override suspend fun start(request: ResortRequest): ResortStart {
+                                    val open = graph.currentProject.value ?: return ResortStart.Refused(RESORT_NOT_OPEN)
+                                    return graph.resort(open.ref, request)
+                                }
                             },
                         )
                     }
