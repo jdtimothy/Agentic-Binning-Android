@@ -69,6 +69,7 @@ import coil3.video.VideoFrameDecoder
 import com.agentic.binning.ui.glass.GlassSurface
 import com.agentic.binning.ui.glass.LocalHazeState
 import com.agentic.binning.ui.theme.LocalGlassTokens
+import java.io.File
 
 private val SheetShape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
 private val FieldShape = RoundedCornerShape(14.dp)
@@ -218,25 +219,8 @@ private fun ColumnScope.DetailContent(sheet: DetailSheetState, vm: ProjectMediaV
 
 @Composable
 private fun Media(sheet: DetailSheetState) {
-    val tokens = LocalGlassTokens.current
-    val context = LocalContext.current
-    val request = remember(sheet.image, sheet.imageIsVideo) {
-        ImageRequest.Builder(context)
-            .data(sheet.image)
-            .apply { if (sheet.imageIsVideo) decoderFactory(VideoFrameDecoder.Factory()) }
-            .crossfade(true)
-            .build()
-    }
-    Box(Modifier.fillMaxWidth().height(214.dp).clip(RoundedCornerShape(20.dp)).background(tokens.chip)) {
-        AsyncImage(model = request, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        val ui = sheet.ui
-        if (ui.isVideo) {
-            Box(
-                Modifier.align(Alignment.Center).size(56.dp).background(Color(0x73000000), CircleShape).border(1.dp, Color(0x66FFFFFF), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) { Icon(MediaIcons.Play, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp)) }
-            ui.duration?.let { MediaBadge(MediaIcons.Play, it, Alignment.BottomEnd) }
-        }
+    val ui = sheet.ui
+    MediaBox(sheet.image, sheet.imageIsVideo, ui.isVideo, ui.duration) {
         when (ui.badge) {
             StatusBadge.Waiting -> MediaBadge(MediaIcons.Clock, "Waiting to be categorized", Alignment.TopStart)
             StatusBadge.Sorted -> MediaBadge(null, "Sorted", Alignment.TopStart)
@@ -244,20 +228,45 @@ private fun Media(sheet: DetailSheetState) {
     }
 }
 
+/** The sheet's picture: [image] (a video's frame when [imageIsVideo]), a play mark on videos, and [badges]. */
 @Composable
-private fun BoxScope.MediaBadge(icon: ImageVector?, text: String, align: Alignment) {
+internal fun MediaBox(image: File, imageIsVideo: Boolean, isVideo: Boolean, duration: String?, badges: @Composable BoxScope.() -> Unit) {
+    val tokens = LocalGlassTokens.current
+    val context = LocalContext.current
+    val request = remember(image, imageIsVideo) {
+        ImageRequest.Builder(context)
+            .data(image)
+            .apply { if (imageIsVideo) decoderFactory(VideoFrameDecoder.Factory()) }
+            .crossfade(true)
+            .build()
+    }
+    Box(Modifier.fillMaxWidth().height(214.dp).clip(RoundedCornerShape(20.dp)).background(tokens.chip)) {
+        AsyncImage(model = request, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        if (isVideo) {
+            Box(
+                Modifier.align(Alignment.Center).size(56.dp).background(Color(0x73000000), CircleShape).border(1.dp, Color(0x66FFFFFF), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Icon(MediaIcons.Play, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp)) }
+            duration?.let { MediaBadge(MediaIcons.Play, it, Alignment.BottomEnd) }
+        }
+        badges()
+    }
+}
+
+@Composable
+internal fun BoxScope.MediaBadge(icon: ImageVector?, text: String, align: Alignment, iconTint: Color = Color.White) {
     Row(
         Modifier.align(align).padding(10.dp).background(BadgeBg, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+        if (icon != null) Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(12.dp))
         Text(text, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @Composable
-private fun Field(label: String, marker: LockMarker, onLink: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+internal fun Field(label: String, marker: LockMarker, onLink: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val tokens = LocalGlassTokens.current
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -324,7 +333,7 @@ internal fun FieldBox(modifier: Modifier = Modifier, height: Int = 48, content: 
 }
 
 @Composable
-private fun CalloutBox(callout: Callout) {
+internal fun CalloutBox(callout: Callout) {
     val tokens = LocalGlassTokens.current
     Row(
         Modifier.fillMaxWidth().background(if (callout.warn) tokens.warnSoft else tokens.chip, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
@@ -341,7 +350,7 @@ private fun CalloutBox(callout: Callout) {
 }
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+internal fun Section(title: String, content: @Composable () -> Unit) {
     val tokens = LocalGlassTokens.current
     Column {
         Text(title.uppercase(), Modifier.padding(bottom = 6.dp).semantics { heading() }, color = tokens.sub, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)

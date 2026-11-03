@@ -133,6 +133,20 @@ class ProjectMediaViewModelTest {
             removed += ids
             this@ProjectMediaViewModelTest.rows.value = this@ProjectMediaViewModelTest.rows.value.filter { it.id !in ids }
         }
+
+        val retried = mutableListOf<Long>()
+
+        override suspend fun retry(id: Long): EditResult {
+            retried += id
+            return saveResult
+        }
+
+        val byHand = mutableListOf<SetByHandRequest>()
+
+        override suspend fun setByHand(request: SetByHandRequest): EditResult {
+            byHand += request
+            return saveResult
+        }
     }
 
     private val source = FakeSource()
@@ -487,7 +501,7 @@ class ProjectMediaViewModelTest {
     }
 
     @Test
-    fun pendingAndFailedTiles_doNotOpenTheDetail() = runTest {
+    fun pendingTiles_doNotOpenTheDetail() = runTest {
         val messages = mutableListOf<String>()
         rows.value = rows.value + row(6, status = ItemStatus.Pending, categoryId = null)
         val vm = vm()
@@ -497,11 +511,140 @@ class ProjectMediaViewModelTest {
         vm.onTileClick(6)
         advanceUntilIdle()
         assertNull(vm.state.value.sheet)
+        assertNull(vm.state.value.failed)
         assertEquals(DETAIL_AFTER_ANALYSIS, messages.last())
+    }
+
+    /** Task 16: a failed or missing tile opens its own sheet (mockup state 8), not the detail sheet. */
+    @Test
+    fun failedAndMissingTiles_openTheFailedSheet() = runTest {
+        rows.value = rows.value + row(6, status = ItemStatus.Missing, categoryId = null)
+        val vm = vm()
+        advanceUntilIdle()
 
         vm.onTileClick(4)
         advanceUntilIdle()
         assertNull(vm.state.value.sheet)
+        val failed = vm.state.value.failed!!
+        assertEquals("Couldn't analyze", failed.ui.title)
+        assertTrue(failed.ui.canRetry)
+
+        vm.onCloseDetail()
+        vm.onTileClick(6)
+        advanceUntilIdle()
+        assertEquals("File missing", vm.state.value.failed!!.ui.title)
+        assertFalse(vm.state.value.failed!!.ui.canRetry)
+    }
+
+    @Test
+    fun failedRetry_sendsItAndCloses() = runTest {
+        val messages = mutableListOf<String>()
+        val vm = vm()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.messages.toList(messages) }
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+
+        vm.onRetryFailed()
+        advanceUntilIdle()
+        assertEquals(listOf(4L), source.retried)
+        assertNull(vm.state.value.failed)
+        assertEquals("Analyzing 4.jpg again", messages.last())
+    }
+
+    @Test
+    fun failedByHand_needsNameAndCategory_thenSavesBothLocked() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+
+        vm.onSetByHand()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.failed!!.ui.manual)
+        assertFalse(vm.state.value.failed!!.ui.saveEnabled)
+
+        vm.onDetailName("Harbor Clip")
+        vm.onOpenPicker()
+        advanceUntilIdle()
+        val picker = vm.state.value.failed!!.picker!!
+        assertEquals(listOf(false, false, false), picker.options.map { it.selected })
+        vm.onPickCategory(1)
+        advanceUntilIdle()
+        assertNull(vm.state.value.failed!!.picker)
+        assertEquals("Beach", vm.state.value.failed!!.ui.categoryLabel)
+        assertTrue(vm.state.value.failed!!.ui.saveEnabled)
+
+        vm.onSaveByHand()
+        advanceUntilIdle()
+        assertEquals(listOf(SetByHandRequest(4, "Harbor Clip", CategoryChoice.Existing(1))), source.byHand)
+        assertNull(vm.state.value.failed)
+    }
+
+    @Test
+    fun failedByHand_newCategory_andBackDropsTheForm() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+        vm.onSetByHand()
+        vm.onDetailName("Harbor Clip")
+        vm.onOpenPicker()
+        vm.onPickerNewOpen()
+        vm.onPickerNewName("Harbors")
+        advanceUntilIdle()
+        vm.onPickerAddNew()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.failed!!.ui.categoryIsNew)
+
+        vm.onSetByHandBack()
+        advanceUntilIdle()
+        val back = vm.state.value.failed!!.ui
+        assertFalse(back.manual)
+        vm.onSetByHand()
+        advanceUntilIdle()
+        // Back reset the draft to the item as loaded.
+        assertEquals("Item 4", vm.state.value.failed!!.ui.name)
+        assertNull(vm.state.value.failed!!.ui.categoryLabel)
+        assertTrue(source.byHand.isEmpty())
+    }
+
+    @Test
+    fun failedByHand_clashKeepsTheFormWithTheError() = runTest {
+        source.saveResult = EditResult.Clash("Beach")
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+        vm.onSetByHand()
+        vm.onDetailName("Harbor Clip")
+        vm.onOpenPicker()
+        vm.onPickerNewOpen()
+        vm.onPickerNewName("Harbors")
+        advanceUntilIdle()
+        vm.onPickerAddNew()
+        vm.onSaveByHand()
+        advanceUntilIdle()
+
+        val failed = vm.state.value.failed!!
+        assertEquals("A category named “Beach” already exists.", failed.error)
+        assertTrue(failed.ui.manual)
+    }
+
+    @Test
+    fun failedRemove_asksFirst_thenRemoves() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+
+        vm.onRemoveDetail()
+        advanceUntilIdle()
+        assertEquals("Remove “Item 4” from Hawaii Photos?", vm.state.value.failed!!.remove!!.title)
+        vm.onConfirmRemove()
+        advanceUntilIdle()
+        assertEquals(listOf(listOf(4L)), source.removed)
+        assertNull(vm.state.value.failed)
     }
 
     @Test

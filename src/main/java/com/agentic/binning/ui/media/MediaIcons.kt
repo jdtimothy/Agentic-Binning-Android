@@ -40,6 +40,8 @@ internal object MediaIcons {
         "M18 5l2 2-2 2M18 15l2 2-2 2",
     )
 
+    val Retry: ImageVector = AnalyzeIcons.icon("retry", 2f, "M20 12a8 8 0 1 1-2.34-5.66", "M20 4v4h-4")
+
     val Pencil: ImageVector = AnalyzeIcons.icon("pencil", 2f, "M4 20h4L19 9l-4-4L4 16z", "M13 7l4 4")
 
     val Select: ImageVector = AnalyzeIcons.icon(

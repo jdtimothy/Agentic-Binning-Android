@@ -186,5 +186,5 @@ fun detailUi(d: ItemDetail, draft: DetailDraft, zone: ZoneId): DetailUi {
     )
 }
 
-/** Whether a tap on a tile with [status] opens the detail sheet (failed and missing items get theirs in Task 16). */
+/** Whether a tap on a tile with [status] opens the detail sheet; failed and missing items open [opensFailedSheet]'s. */
 fun opensDetail(status: ItemStatus): Boolean = canTakeACategory(status)

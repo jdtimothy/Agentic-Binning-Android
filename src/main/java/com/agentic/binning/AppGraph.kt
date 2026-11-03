@@ -367,6 +367,9 @@ class AppGraph(val context: Context) {
         launcher.userAdd(project.ref, runFlags(project))
     }
 
+    /** After a failed item's Retry (plan 2b P6): like an add, it lifts a Stop and analyzes what is waiting. */
+    suspend fun startAnalysisAfterRetry(project: OpenProject) = startAnalysisAfterAdd(project)
+
     /** The Stop button (screen or notification): stops the run and remembers it for the open project. */
     fun stopAnalysis() {
         val open = _currentProject.value

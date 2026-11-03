@@ -82,6 +82,12 @@ interface MediaSource {
 
     /** Remove from project: the rows go, the files stay (Q1). */
     suspend fun remove(ids: List<Long>)
+
+    /** Retry analysis of a failed item: back to Pending with its attempts reset, and analysis starts (Q19, P6). */
+    suspend fun retry(id: Long): EditResult
+
+    /** A failed item's name and category set by hand, both locked; it is then sorted like any other (Q19). */
+    suspend fun setByHand(request: SetByHandRequest): EditResult
 }
 
 enum class TileBadge { Waiting, Failed, Analyzing }
@@ -155,6 +161,8 @@ data class MediaUiState(
     val filtersSheet: FiltersSheet?,
     /** The open item's detail sheet (Task 12). */
     val sheet: DetailSheetState?,
+    /** The open failed or missing item's sheet (Task 16). */
+    val failed: FailedSheetState?,
     /** Select mode's Move to category picker (Task 13). */
     val move: PickerUi?,
     /** Select mode's Remove from project confirmation (Task 13). */
@@ -167,7 +175,7 @@ data class MediaUiState(
             hasProject = false, projectName = "", itemCount = 0, query = "", categoryCount = 0, chips = emptyList(),
             kind = null, setFilters = emptyList(), resultText = "", tiles = emptyList(), noMatchText = null,
             status = mediaStatus(MediaCounts(total = 0), null), binReason = null, busyReason = null, selection = null,
-            allVisibleSelected = false, empty = false, filtersSheet = null, sheet = null, move = null, removeSelected = null,
+            allVisibleSelected = false, empty = false, filtersSheet = null, sheet = null, failed = null, move = null, removeSelected = null,
             categoryEdit = null,
         )
     }
@@ -226,6 +234,17 @@ data class DetailSheetState(
     val saving: Boolean,
 )
 
+/** The failed item sheet (Task 16) with the picker and the remove dialog stacked over it. */
+data class FailedSheetState(
+    val ui: FailedUi,
+    val image: File,
+    val imageIsVideo: Boolean,
+    val picker: PickerUi?,
+    val remove: RemoveDialogUi?,
+    val error: String?,
+    val saving: Boolean,
+)
+
 /** The Category Edit sheet with its staged changes. */
 data class CategoryEditState(val ui: CategoryEditUi, val error: String?, val saving: Boolean)
 
@@ -276,12 +295,17 @@ private data class MoveSession(
 
 private data class Draft(val shot: String?, val day: LocalDate?)
 
-/** An open detail sheet: the item as loaded, the draft, and what is stacked over it. */
+/**
+ * An open detail sheet, or a failed item's sheet when the item is failed or missing: the item as
+ * loaded, the draft, and what is stacked over it.
+ */
 private data class DetailSession(
     val detail: ItemDetail,
     val image: File,
     val imageIsVideo: Boolean,
     val draft: DetailDraft,
+    /** The failed item sheet's Set name and category by hand form is open. */
+    val manual: Boolean = false,
     val picker: PickerSession? = null,
     val confirmRemove: Boolean = false,
     val error: String? = null,
@@ -406,8 +430,8 @@ class ProjectMediaViewModel(
     fun closeFilters() = picks.update { it.copy(draft = null) }
 
     /**
-     * In select mode a tap ticks or unticks. Otherwise it opens the item's detail sheet; an item not
-     * analyzed yet says so, and failed or missing items get their own sheet in Task 16.
+     * In select mode a tap ticks or unticks. Otherwise it opens the item's detail sheet, or for a
+     * failed or missing item the failed item sheet; an item not analyzed yet says so.
      */
     fun onTileClick(id: Long) {
         val p = picks.value
@@ -417,11 +441,8 @@ class ProjectMediaViewModel(
         }
         val tile = state.value.tiles.firstOrNull { it.id == id } ?: return
         when {
-            tile.badge == TileBadge.Failed -> Unit
-            !opensDetail(tile.status) -> if (tile.status == ItemStatus.Pending || tile.status == ItemStatus.Analyzing) {
-                _messages.tryEmit(DETAIL_AFTER_ANALYSIS)
-            }
-            else -> openDetail(tile)
+            opensDetail(tile.status) || opensFailedSheet(tile.status) -> openDetail(tile)
+            else -> _messages.tryEmit(DETAIL_AFTER_ANALYSIS)
         }
     }
 
@@ -453,8 +474,11 @@ class ProjectMediaViewModel(
 
     fun onClosePicker() = updateSession { it.copy(picker = null) }
 
+    /** The picker over whichever item sheet is open. */
+    private fun openPicker(): PickerUi? = state.value.let { it.sheet?.picker ?: it.failed?.picker }
+
     fun onPickCategory(id: Long) {
-        val name = state.value.sheet?.picker?.options?.firstOrNull { it.id == id }?.name ?: return
+        val name = openPicker()?.options?.firstOrNull { it.id == id }?.name ?: return
         updateSession { it.copy(draft = it.draft.copy(pick = CategoryPick.Existing(id, name)), picker = null, error = null) }
     }
 
@@ -466,7 +490,7 @@ class ProjectMediaViewModel(
     fun onPickerNewName(text: String) = updateSession { s -> s.copy(picker = s.picker?.copy(newName = text)) }
 
     fun onPickerAddNew() {
-        val picker = state.value.sheet?.picker ?: return
+        val picker = openPicker() ?: return
         if (!picker.canAdd) return
         val name = CategoryNames.clean(picker.newName)
         updateSession { it.copy(draft = it.draft.copy(pick = CategoryPick.New(name)), picker = null, error = null) }
@@ -502,6 +526,49 @@ class ProjectMediaViewModel(
         override fun onNewName(text: String) = onPickerNewName(text)
         override fun onAddNew() = onPickerAddNew()
         override fun onSave() = Unit
+    }
+
+    /** The failed item sheet's Retry analysis (Q19): the sheet closes and the tile shows the new run. */
+    fun onRetryFailed() {
+        val s = session.value ?: return
+        val src = current ?: return
+        if (s.saving) return
+        session.value = s.copy(saving = true, error = null)
+        scope.launch {
+            val result = withContext(io) { src.retry(s.detail.item.id) }
+            if (current !== src) return@launch
+            session.value = null
+            _messages.tryEmit(
+                if (result == EditResult.Ok) "Analyzing ${s.detail.item.originalName} again" else "This item is no longer in the project",
+            )
+        }
+    }
+
+    /** Opens the by-hand form, starting from the item as loaded. */
+    fun onSetByHand() = updateSession { it.copy(manual = true, draft = DetailDraft.of(it.detail), picker = null, error = null) }
+
+    /** Back from the by-hand form drops what was typed. */
+    fun onSetByHandBack() = updateSession { it.copy(manual = false, draft = DetailDraft.of(it.detail), picker = null, error = null) }
+
+    fun onSaveByHand() {
+        val s = session.value ?: return
+        val src = current ?: return
+        val request = setByHandRequest(s.detail, s.draft) ?: return
+        if (s.saving || !s.manual) return
+        session.value = s.copy(saving = true, error = null)
+        scope.launch {
+            val result = withContext(io) { src.setByHand(request) }
+            if (current !== src) return@launch
+            when (result) {
+                EditResult.Ok, is EditResult.Created -> session.value = null
+                is EditResult.Clash -> updateSession { it.copy(saving = false, error = "A category named “${result.existing}” already exists.") }
+                EditResult.InvalidName -> updateSession { it.copy(saving = false, error = "That category name can't be used.") }
+                EditResult.NotFound -> {
+                    session.value = null
+                    _messages.tryEmit("This item is no longer in the project")
+                }
+            }
+        }
     }
 
     fun onRemoveDetail() = updateSession { it.copy(confirmRemove = true) }
@@ -797,7 +864,8 @@ class ProjectMediaViewModel(
             allVisibleSelected = selection != null && tiles.isNotEmpty() && tiles.all { it.id in selection },
             empty = empty,
             filtersSheet = sheet,
-            sheet = d?.let { detailSheet(it, l, src.projectName) },
+            sheet = d?.takeUnless { opensFailedSheet(it.detail.item.status) }?.let { detailSheet(it, l, src.projectName) },
+            failed = d?.takeIf { opensFailedSheet(it.detail.item.status) }?.let { failedSheet(it, l, src.projectName) },
             move = p.move?.takeIf { selection != null }?.let { m ->
                 val n = selection.orEmpty().size
                 pickerUi(
@@ -863,35 +931,46 @@ class ProjectMediaViewModel(
         )
     }
 
-    private fun detailSheet(d: DetailSession, l: Loaded, projectName: String): DetailSheetState {
-        val item = d.detail.item
-        val picker = d.picker?.let { ps ->
-            val chosen = when (val pick = d.draft.pick) {
-                is CategoryPick.Existing -> pick.id
-                is CategoryPick.New -> null
-                null -> item.categoryId
-            }
-            pickerUi("Choose a category", chosen, (d.draft.pick as? CategoryPick.New)?.name, ps, l, saveLabel = null, canSave = false)
+    /** The item sheet's category picker: the draft's choice, else the item's category. */
+    private fun sessionPicker(d: DetailSession, l: Loaded): PickerUi? = d.picker?.let { ps ->
+        val chosen = when (val pick = d.draft.pick) {
+            is CategoryPick.Existing -> pick.id
+            is CategoryPick.New -> null
+            null -> d.detail.item.categoryId
         }
+        pickerUi("Choose a category", chosen, (d.draft.pick as? CategoryPick.New)?.name, ps, l, saveLabel = null, canSave = false)
+    }
+
+    private fun sessionRemove(d: DetailSession, projectName: String): RemoveDialogUi? {
+        if (!d.confirmRemove) return null
+        val item = d.detail.item
         val name = item.friendlyName?.takeIf { it.isNotBlank() } ?: item.originalName
-        return DetailSheetState(
-            ui = detailUi(d.detail, d.draft, zone),
-            image = d.image,
-            imageIsVideo = d.imageIsVideo,
-            picker = picker,
-            remove = if (d.confirmRemove) {
-                RemoveDialogUi(
-                    title = "Remove “$name” from $projectName?",
-                    body = "The file stays on your phone where it is now. The project forgets its analysis, name and category. " +
-                        "You can add it again later.",
-                )
-            } else {
-                null
-            },
-            error = d.error,
-            saving = d.saving,
+        return RemoveDialogUi(
+            title = "Remove “$name” from $projectName?",
+            body = "The file stays on your phone where it is now. The project forgets its analysis, name and category. " +
+                "You can add it again later.",
         )
     }
+
+    private fun detailSheet(d: DetailSession, l: Loaded, projectName: String) = DetailSheetState(
+        ui = detailUi(d.detail, d.draft, zone),
+        image = d.image,
+        imageIsVideo = d.imageIsVideo,
+        picker = sessionPicker(d, l),
+        remove = sessionRemove(d, projectName),
+        error = d.error,
+        saving = d.saving,
+    )
+
+    private fun failedSheet(d: DetailSession, l: Loaded, projectName: String) = FailedSheetState(
+        ui = failedUi(d.detail, d.draft, d.manual, zone),
+        image = d.image,
+        imageIsVideo = d.imageIsVideo,
+        picker = sessionPicker(d, l),
+        remove = sessionRemove(d, projectName),
+        error = d.error,
+        saving = d.saving,
+    )
 
     private fun filterOf(chip: MediaChip, kind: ItemKind?, shot: String?, day: LocalDate?): MediaFilter {
         val from = day?.atStartOfDay(zone)?.toInstant()?.toEpochMilli()
