@@ -580,6 +580,13 @@ Match mockup state 7.
   - Phone check on "Task17 E2E" (S26, built with `main` merged for `sort-v4`): the sheet matches state 7 with LFM3-1.7B marked "Settings choice" and picked, "Keeps the 3 categories and 4 items you set", "Re-sort 15 items". Picking Claude showed its note ("Sends the text of 15 items … Never photos.", no cost; not run); unticking showed "Your 3 categories and 4 items may be replaced. They stop being locked." Back on LFM3-1.7B with Keep my edits, "Re-sort 15 items" started the run ("Categorizing…"): `sort_run` 4, LFM3-1.7B, `sort-v4`, 10 of 11 (one item left out by the validator, retried next run); no locked value changed, the user's categories unchanged, the media folder's `ls -lR` identical. Screens `t15-*.png` in `build/e2e/task17/`.
 - [x] **Step 3: Commit.**
 
+**Final review (Nov 3, one fresh reviewer over `ab60e34..` covering Tasks 15–17 and their fixes): "with fixes".** Three Important findings fixed test-first:
+1. A failed item set by hand (no analysis) went Analyzed with no category on a Re-sort without Keep my edits, or after its category was unlocked: no sorter could pick it up, Bin Files waited on it and its search row was dropped. `prepareResort` now leaves items without analysis alone (`SortDaoTest` +2, OK (23)).
+2. "Re-sort N items" (and Claude's "Sends the text of N items") counted every analyzed item; the run leaves out category-locked items with Keep my edits ticked and never re-sorts items without analysis. The count now follows the box (`ResortSheetModelTest` +2, `ProjectMediaViewModelTest` +1; grid rows carry `hasAnalysis`). Phone: the sheet said "Re-sort 11 items" and `sort_run` 5 had 11 items (LFM3-1.7B, `sort-v4`; locks held, media unchanged).
+3. The model cards and Keep my edits gave screen readers no state: now `selectable` in a `selectableGroup` and `toggleable` (phone `uiautomator dump`: checkable, the picked model and the ticked box `checked=true`; before, all `checkable=false`).
+
+Deferred minors (not fixed): a stale Retry or Set-by-hand result can close another item's sheet opened meanwhile; Set by hand and Remove stay live during a Retry; Retry during a paused run says "Analyzing … again" though nothing runs until Resume; system Back in the by-hand form closes the whole sheet; `setByHand` and `retryFailed` are not one transaction; model availability is read once when the Re-sort sheet opens (the start checks again).
+
 ### Task 16: Failed item sheet
 
 Match mockup state 8: the reason, attempts, Retry analysis, Set name and category by hand, and Remove from project (Q19, approved). A failed item set by hand gets both locks and is sorted like any other.
