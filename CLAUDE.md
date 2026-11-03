@@ -22,10 +22,11 @@ Jetpack Compose app (package `com.agentic.binning`). Plans live under
   selected and never make a paid Claude call without the owner.
 - **Plan 2b** (Project Media, editing, Re-sort, and Task 6A: Open project and
   Edit/× on Current projects) is in progress:
-  `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Tasks 1–6 are
-  in `main`; Task 6A's code is on its own branch with its device tests and
-  phone check pending. Its "Product decisions" section holds every owner
-  decision (none open). Mockups are in `docs/superpowers/mockups/` (open the HTML
+  `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Tasks 1–12 and
+  6A are in `main`; Tasks 13 and 14 are open PRs, and 16–17 are on
+  `feat/plan-2b-task-16`, stacked on 14.
+  Task 15 (the Re-sort sheet) is left. Its "Product decisions" section holds
+  every owner decision (none open). Mockups are in `docs/superpowers/mockups/` (open the HTML
   files in a browser; GitHub doesn't render them).
 - **Plan 3** (binning: moving files) is not started.
 
@@ -117,3 +118,10 @@ Analyzed with `stopReason` `eos`.
   `adb shell date`, not the host clock.
 - On Git Bash, `adb logcat | grep -m1 ...` never returns (adb.exe gets no
   SIGPIPE). Capture logcat to a file in the background and poll the file.
+- Scripting Project Media: wait about a second after tapping a text field
+  before `input text`, or the first letters or the whole text are lost. Don't
+  send Back after a field's Done or Add: the keyboard is already down, so Back
+  closes the sheet and drops its edits. Match buttons exactly: "Save" also
+  matches the "Set by you when you save" pill.
+- A Re-sort can be started without its sheet:
+  `MSYS_NO_PATHCONV=1 adb shell "run-as com.agentic.binning am start-foreground-service --user 0 -n com.agentic.binning/.pipeline.AnalysisService -a com.agentic.binning.action.START_ANALYSIS --es project_name '<name>' --es project_path '/storage/emulated/0/Agentic Binning/<name>' --es run_kind Resort --es resort_model Lfm3_1_7B --ez resort_keep_edits true"`.
