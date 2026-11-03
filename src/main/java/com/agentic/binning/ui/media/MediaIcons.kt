@@ -62,4 +62,10 @@ internal object MediaIcons {
     val FolderCheck: ImageVector = AnalyzeIcons.icon("folder-check", 2f, FOLDER, "M9 13l2 2 4-4")
 
     val Plus: ImageVector = ProjectIcons.Plus
+
+    val ChevronRight: ImageVector = ProjectIcons.ChevronRight
+
+    val Remove: ImageVector = AnalyzeIcons.icon("remove", 2f, "M4 12a8 8 0 1 0 16 0a8 8 0 1 0-16 0", "M8 12h8")
+
+    val Info: ImageVector = AnalyzeIcons.icon("info", 2f, "M4 12a8 8 0 1 0 16 0a8 8 0 1 0-16 0", "M12 11v5M12 8v.01")
 }
