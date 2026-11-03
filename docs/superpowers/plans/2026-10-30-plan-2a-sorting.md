@@ -480,10 +480,11 @@ The attempts reset on save is done in Task 2. The other notes (breaker persisten
 - [ ] **Step 3: Lock check.** On a copy of the pulled DB, set one category's `createdBy = 'user'` and push it back with the app stopped. Rename it in the DB to something odd, for example "Zzz Test", add 3 items, and confirm the model never renames it. Then restore.
 - [ ] **Step 4: Stop during Categorizing.** Make sure there are ≥ 3 chunks: set the local budget's `maxChunk` to 5 through a debug build constant, then revert. Press Stop mid-way. Committed chunks remain, the rest stay Analyzed, and logcat shows the model released. Resume, and the leftovers get categorized.
 - [ ] **Step 5: Qwen3-4B,** if available: re-run Step 1's checks in a second project, or on the same project after clearing categories in a DB copy. Compare the category lists in the report.
-- [ ] **Step 6: Claude.**
+- [x] **Step 6: Claude.**
   1. The controller asks the user to enter their API key in Settings on the phone, and to approve the spend. About 50 items cost a few cents.
   2. Run with no network first (airplane mode): items stay uncategorized and the notice reads "No connection…".
   3. Reconnect, add one item: categorization runs and succeeds.
   4. Check as in Step 1, and that logcat contains no key material (`adb logcat -d | grep -c "sk-ant"` is 0).
+  - Done Nov 3 on Maui (35 items, the owner's key and approval). A network that blocked the API stood in for airplane mode: run 1 `unavailable`, "No connection; categorizing will try again after the next run", nothing assigned. With the owner's VPN on, run 2 (`claude-sonnet-5-5`, `sort-v3`) `done`, 35/35 Sorted, 7 new categories, all with a category and a friendly name; `sk-ant` count 0 in logcat. Details in `docs/superpowers/notes/2026-11-01-plan-2a-phone-recheck.md`.
 - [ ] **Step 7: Frame cap.** Set 32 and analyze a 60 s clip: 32 frames, `nCtx` 16384, `eos`.
 - [ ] **Step 8: Write it up.** Note leftovers on the phone; delete nothing without the user's approval. Commit any test-media script changes and the report notes in CLAUDE.md, for example the new device-driving notes: `git commit -m "test: end-to-end sorting on the phone"`.

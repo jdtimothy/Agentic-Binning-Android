@@ -17,9 +17,9 @@ Jetpack Compose app (package `com.agentic.binning`). Plans live under
 
 - **Plan 1** (foundation and analysis) and **Plan 2a** (sorting with LFM3-1.7B
   or Claude, `ModelArbiter`, schema v3) are merged into `main`. 2a's
-  authenticated Claude request is still unverified, deferred by the owner
-  (`docs/superpowers/notes/2026-11-01-plan-2a-phone-recheck.md`); keep LFM3-1.7B
-  selected and never make a paid Claude call without the owner.
+  authenticated Claude request passed on the phone on Nov 3 (Maui, 35 items;
+  `docs/superpowers/notes/2026-11-01-plan-2a-phone-recheck.md`). Keep LFM3-1.7B
+  selected and never make a paid Claude call without the owner. A network that blocks api.anthropic.com makes Claude report "No connection".
 - **Plan 2b** (Project Media, editing, Re-sort, and Task 6A: Open project and
   Edit/× on Current projects) is in progress:
   `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Tasks 1–14, 6A

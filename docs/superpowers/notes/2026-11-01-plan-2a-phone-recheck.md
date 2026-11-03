@@ -103,3 +103,31 @@ Dark theme, no Claude key saved, Do Not Disturb off (its initial state). Both
 Liquid model download directories remain present. Temporary UI dumps on
 `/sdcard/avb-final-ui.xml`, installed test APK, and local backups were retained;
 no media or model downloads were deleted.
+
+## Claude check — 2026-11-03
+
+Task 10 Step 6 passed. The owner entered their Anthropic key in Settings and
+approved sorting **Maui** (35 items, analyzed Oct 30, never sorted) with Claude.
+Build: Task 14 (`feat/plan-2b-task-14`), so the prompt was `sort-v3`.
+
+| Check | Result / evidence |
+| --- | --- |
+| No connection | The network in use reset HTTPS to api.anthropic.com while TCP connected. Run 1: `unavailable`, "No connection; categorizing will try again after the next run", zero assignments |
+| Authenticated request | On a network that reaches the API, run 2: `claude-sonnet-5-5`, `done`, 35/35 Sorted, 7 new categories, 11 s |
+| Names / category references | Zero Sorted items missing a category or nonblank friendly name |
+| Key material | `grep -c "sk-ant"` over the captured logcat: 0 |
+| Search | "culture" finds the Hawaiian Culture items on the phone |
+
+Categories: Sunsets 8, People at the Shore 6, Sea Turtles and Seals 6, Surfing
+and Sailing 5, Forest and Plants 4, Coastal Waves 3, Hawaiian Culture 3. Fewer
+and cleaner than LFM3-1.7B's 16 on Hawaii Photos, but names like "Sea Turtles
+and Seals" made a search for "turtle" also return the seals. That led to the
+one-word category rule (`sort-v4`, PR #18), which applies to both models.
+
+Not covered: a Claude run under `sort-v4`, and the add-one-item path of Step 6.3
+(run 2 was a rerun of the same items).
+
+The key stays saved. Claude was still the selected sorting model afterwards;
+switched back to LFM3-1.7B before the Plan 2b Task 17 check. Evidence is local in
+`build/e2e/claude-maui/` (`maui-before.db`, `maui-after.db`, `logcat.txt`,
+`media-after.png`, `search-culture.png`).
