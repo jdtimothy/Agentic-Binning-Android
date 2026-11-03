@@ -330,6 +330,7 @@ class ProjectMediaRepository(
         nameSetByUser = nameSetByUser,
         categorySetByUser = categorySetByUser,
         currentPath = currentPath,
+        hasAnalysis = hasAnalysis,
     )
 }
 

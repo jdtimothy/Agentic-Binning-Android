@@ -34,10 +34,17 @@ data class ResortUi(
     val reason: String?,
 )
 
-/** What the sheet counts: items it re-sorts, failed ones it leaves out, and what the user set. */
-data class ResortCounts(val analyzed: Int, val failed: Int, val myCategories: Int, val myItems: Int)
+/**
+ * What the sheet counts: the items a run re-sorts with Keep my edits ticked ([withEditsKept], which
+ * leaves out items whose category the user set) and unticked, failed ones it leaves out, and what
+ * the user set.
+ */
+data class ResortCounts(val withEditsKept: Int, val withoutEdits: Int, val failed: Int, val myCategories: Int, val myItems: Int)
 
 const val NOTHING_TO_RESORT = "Nothing is analyzed yet"
+
+/** Keep my edits leaves nothing to re-sort: every analyzed item is in a category the user set. */
+const val ALL_KEPT = "Every analyzed item is in a category you set"
 
 private const val ON_DEVICE_SUBTITLE = "Runs on this phone"
 
@@ -63,7 +70,7 @@ fun resortUi(
     unavailable: Map<SortingModelChoice, String>,
     busy: Boolean,
 ): ResortUi {
-    val n = counts.analyzed
+    val n = if (keepEdits) counts.withEditsKept else counts.withoutEdits
     val failed = when (counts.failed) {
         0 -> ""
         1 -> " 1 failed item is left out."
@@ -73,7 +80,7 @@ fun resortUi(
     val reason = when {
         busy -> RESORT_BUSY
         chosen in unavailable -> unavailable.getValue(chosen)
-        n == 0 -> NOTHING_TO_RESORT
+        n == 0 -> if (keepEdits && counts.withoutEdits > 0) ALL_KEPT else NOTHING_TO_RESORT
         else -> null
     }
     return ResortUi(

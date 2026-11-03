@@ -54,10 +54,12 @@ class ProjectMediaViewModelTest {
         name: String? = "Item $id",
         durationMs: Long? = null,
         matchedIn: MatchedIn? = null,
+        categorySet: Boolean = false,
+        hasAnalysis: Boolean = status != ItemStatus.Failed && status != ItemStatus.Pending,
     ) = MediaRow(
         id = id, kind = kind, durationMs = durationMs, takenAt = takenAt, status = status, categoryId = categoryId,
-        friendlyName = name, suggestedName = null, shotType = shot, nameSetByUser = false, categorySetByUser = false,
-        currentPath = "/sdcard/DCIM/$id.jpg", matchedIn = matchedIn,
+        friendlyName = name, suggestedName = null, shotType = shot, nameSetByUser = false, categorySetByUser = categorySet,
+        currentPath = "/sdcard/DCIM/$id.jpg", matchedIn = matchedIn, hasAnalysis = hasAnalysis,
     )
 
     /** Beach (1, model), Mine (2, user), Empty (3, no items). */
@@ -1058,5 +1060,23 @@ class ProjectMediaViewModelTest {
         vm.onCloseResort()
         advanceUntilIdle()
         assertNull(vm.state.value.resort)
+    }
+
+    /** Review finding: "Re-sort N items" counts what the run re-sorts, and follows Keep my edits. */
+    @Test
+    fun resort_countsWhatTheRunResorts() = runTest {
+        rows.value = rows.value +
+            row(6, categoryId = 2, categorySet = true) +
+            // A failed item set by hand: sorted and locked, but no analysis, so never re-sorted.
+            row(7, categoryId = 2, categorySet = true, hasAnalysis = false)
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onResort()
+        advanceUntilIdle()
+        assertEquals("Re-sort 4 items", vm.state.value.resort!!.ui.buttonLabel)
+
+        vm.onResortKeepEdits()
+        advanceUntilIdle()
+        assertEquals("Re-sort 5 items", vm.state.value.resort!!.ui.buttonLabel)
     }
 }

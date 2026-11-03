@@ -33,6 +33,7 @@ data class MediaGridRow(
     val nameSetByUser: Boolean,
     val categorySetByUser: Boolean,
     val currentPath: String,
+    val hasAnalysis: Boolean,
 )
 
 @Dao
@@ -42,7 +43,7 @@ abstract class ProjectMediaDao {
             "item.status AS status, item.categoryId AS categoryId, item.friendlyName AS friendlyName, " +
             "analysis.suggestedName AS suggestedName, analysis.shotType AS shotType, " +
             "item.nameSetByUser AS nameSetByUser, item.categorySetByUser AS categorySetByUser, " +
-            "item.currentPath AS currentPath " +
+            "item.currentPath AS currentPath, analysis.itemId IS NOT NULL AS hasAnalysis " +
             "FROM item LEFT JOIN analysis ON analysis.itemId = item.id " +
             "ORDER BY item.takenAt ASC, item.id ASC",
     )

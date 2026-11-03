@@ -21,6 +21,8 @@ data class MediaRow(
     val categorySetByUser: Boolean,
     val currentPath: String,
     val matchedIn: MatchedIn? = null,
+    /** It has an analysis, so sorting can place it (a failed item set by hand has none). */
+    val hasAnalysis: Boolean = true,
 )
 
 sealed interface CategoryChoice {

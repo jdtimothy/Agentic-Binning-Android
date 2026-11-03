@@ -11,7 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ResortSheetModelTest {
-    private val counts = ResortCounts(analyzed = 15, failed = 1, myCategories = 3, myItems = 5)
+    private val counts = ResortCounts(withEditsKept = 11, withoutEdits = 15, failed = 1, myCategories = 3, myItems = 5)
 
     private fun ui(
         counts: ResortCounts = this.counts,
@@ -37,11 +37,11 @@ class ResortSheetModelTest {
     fun readyToRun_namesTheCountAndLeavesFailedItemsOut() {
         val u = ui()
         assertEquals(
-            "Sorts 15 analyzed items again from scratch. The categories may change completely: new names, merges " +
+            "Sorts 11 analyzed items again from scratch. The categories may change completely: new names, merges " +
                 "and splits. 1 failed item is left out.",
             u.intro,
         )
-        assertEquals("Re-sort 15 items", u.buttonLabel)
+        assertEquals("Re-sort 11 items", u.buttonLabel)
         assertTrue(u.enabled)
         assertNull(u.reason)
         assertEquals("Runs on this phone's NPU. Analysis waits until it finishes.", u.modelNote)
@@ -56,7 +56,7 @@ class ResortSheetModelTest {
     fun claudeNote_saysWhatIsSent_withoutACost() {
         val note = ui(chosen = Claude).modelNote
         assertEquals(
-            "Sends the text of 15 items (descriptions, actions, tags, suggested names) and the category list to Claude. " +
+            "Sends the text of 11 items (descriptions, actions, tags, suggested names) and the category list to Claude. " +
                 "Never photos.",
             note,
         )
@@ -97,7 +97,7 @@ class ResortSheetModelTest {
 
     @Test
     fun nothingAnalyzed_hasNothingToResort() {
-        val u = ui(counts = ResortCounts(analyzed = 0, failed = 2, myCategories = 0, myItems = 0))
+        val u = ui(counts = ResortCounts(withEditsKept = 0, withoutEdits = 0, failed = 2, myCategories = 0, myItems = 0))
         assertFalse(u.enabled)
         assertEquals(NOTHING_TO_RESORT, u.reason)
         assertEquals("Re-sort 0 items", u.buttonLabel)
@@ -105,9 +105,29 @@ class ResortSheetModelTest {
 
     @Test
     fun oneItem_isSingular() {
-        val u = ui(counts = ResortCounts(analyzed = 1, failed = 0, myCategories = 0, myItems = 0))
+        val u = ui(counts = ResortCounts(withEditsKept = 1, withoutEdits = 1, failed = 0, myCategories = 0, myItems = 0))
         assertEquals("Re-sort 1 item", u.buttonLabel)
         assertTrue(u.intro.startsWith("Sorts 1 analyzed item again from scratch."))
         assertFalse(u.intro.contains("left out"))
+    }
+
+    /** Review finding: N is what the run re-sorts; Keep my edits leaves out items whose category the user set. */
+    @Test
+    fun theCount_followsKeepMyEdits() {
+        val kept = ui()
+        val all = ui(keepEdits = false)
+        assertEquals("Re-sort 11 items", kept.buttonLabel)
+        assertEquals("Re-sort 15 items", all.buttonLabel)
+        assertTrue(all.intro.startsWith("Sorts 15 analyzed items"))
+        assertTrue(ui(chosen = Claude, keepEdits = false).modelNote.startsWith("Sends the text of 15 items"))
+    }
+
+    @Test
+    fun everythingKept_saysSo_andUntickingTurnsItOn() {
+        val counts = ResortCounts(withEditsKept = 0, withoutEdits = 4, failed = 0, myCategories = 1, myItems = 4)
+        val kept = ui(counts = counts)
+        assertFalse(kept.enabled)
+        assertEquals(ALL_KEPT, kept.reason)
+        assertTrue(ui(counts = counts, keepEdits = false).enabled)
     }
 }
