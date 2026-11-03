@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.agentic.binning.model.ModelCatalog
 import com.agentic.binning.pipeline.RunKind
@@ -78,9 +79,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by graph.settings.settings.collectAsState(initial = AppSettings())
             val scope = rememberCoroutineScope()
-            var screen by remember { mutableStateOf(Screen.Analyze) }
+            // Saved, so a configuration change (rotation, a theme switch) keeps the screen.
+            var screen by rememberSaveable { mutableStateOf(Screen.Analyze) }
             // Settings goes back to whichever screen opened it.
-            var beforeSettings by remember { mutableStateOf(Screen.Analyze) }
+            var beforeSettings by rememberSaveable { mutableStateOf(Screen.Analyze) }
             val openSettings = { from: Screen ->
                 beforeSettings = from
                 screen = Screen.Settings

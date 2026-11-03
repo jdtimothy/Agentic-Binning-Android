@@ -83,13 +83,9 @@ import com.agentic.binning.ui.glass.MockupScale
 import com.agentic.binning.ui.theme.GlassTokens
 import com.agentic.binning.ui.theme.LocalGlassTokens
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
 
 /** The mockup's three backdrop blobs (teal, amber, green). */
 private val BlobColors = listOf(Color(0xFF2F6E8F), Color(0xFFF2A65A), Color(0xFF3E8F6E))
-
-/** Room under the grid for the dock, so the last row can scroll clear of it. */
-private val GridBottomInset = 150.dp
 
 private val GlassTokens.isDark: Boolean get() = bg.luminance() < 0.5f
 private val GlassTokens.ok: Color get() = if (isDark) Color(0xFF4CD787) else Color(0xFF1E8E4E)
@@ -131,6 +127,7 @@ fun ProjectMediaScreen(
                         if (state.empty) {
                             Spacer(Modifier.height(48.dp))
                             EmptyCard(onAddFolder, onPickFiles)
+                            Spacer(Modifier.weight(1f))
                         } else if (state.hasProject) {
                             Spacer(Modifier.height(10.dp))
                             CategoriesHead(state, vm)
@@ -141,10 +138,13 @@ fun ProjectMediaScreen(
                             Spacer(Modifier.height(4.dp))
                             ResultLine(state, vm)
                             Spacer(Modifier.height(8.dp))
-                            Grid(state, vm, hazeState, Modifier.weight(1f))
+                            // Ends above the dock: tiles under translucent glass would show through unblurred.
+                            Grid(state, vm, Modifier.weight(1f))
+                        } else {
+                            Spacer(Modifier.weight(1f))
                         }
+                        Dock(state, vm, onBack, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp))
                     }
-                    Dock(state, vm, onBack, Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
                 }
             }
             state.filtersSheet?.let { FiltersSheetView(it, vm) }
@@ -436,7 +436,7 @@ private fun ResultLine(state: MediaUiState, vm: ProjectMediaViewModel) {
 }
 
 @Composable
-private fun Grid(state: MediaUiState, vm: ProjectMediaViewModel, hazeState: HazeState, modifier: Modifier) {
+private fun Grid(state: MediaUiState, vm: ProjectMediaViewModel, modifier: Modifier) {
     val tokens = LocalGlassTokens.current
     val noMatch = state.noMatchText
     if (noMatch != null) {
@@ -452,9 +452,8 @@ private fun Grid(state: MediaUiState, vm: ProjectMediaViewModel, hazeState: Haze
     val selecting = state.selection != null
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
-        // A Haze source above the backdrop, so the dock blurs the tiles that scroll under it.
-        modifier = modifier.fillMaxWidth().hazeSource(hazeState, zIndex = 1f),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = GridBottomInset),
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
