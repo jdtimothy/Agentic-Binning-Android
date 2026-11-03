@@ -85,7 +85,11 @@ object SortValidator {
     /** Words a new category name never ends on: the model stopped mid-phrase. */
     private val danglingWords = setOf("but", "and", "or", "with", "of", "the", "is")
     private val reasoning = Regex("""\blet['’]s\b|\blets see\b""")
-    private const val MAX_CATEGORY_WORDS = 5
+    /** A new category is one general word (the specific subject stays in the tags and the item's name). */
+    private const val MAX_CATEGORY_WORDS = 1
+
+    /** What separates words in a category name: spaces, and joiners such as "&", "/", "-" or "+". */
+    private val wordBreak = Regex("""[^\p{L}\p{N}'’]+""")
 
     /** The sort prompt's own wording, which LFM sometimes hands back as a category name. */
     private val promptPhrases: Set<String> by lazy {
@@ -101,12 +105,12 @@ object SortValidator {
     fun categoryNameProblem(raw: String): String? {
         val text = raw.replace(Regex("""\s+"""), " ").trim()
         val lower = text.lowercase(Locale.ROOT)
-        val words = text.split(' ').filter { w -> w.any { it.isLetterOrDigit() } }
+        val words = text.split(wordBreak).filter { w -> w.any { it.isLetterOrDigit() } }
         val lastWord = words.lastOrNull()?.lowercase(Locale.ROOT)?.trim { !it.isLetterOrDigit() }
         return when {
             "..." in text || "…" in text -> "it has '...'"
             reasoning.containsMatchIn(lower) -> "it reads like reasoning, not a name"
-            words.size > MAX_CATEGORY_WORDS -> "it has ${words.size} words; use at most $MAX_CATEGORY_WORDS"
+            words.size > MAX_CATEGORY_WORDS -> "it has ${words.size} words; use one general word"
             text.trimEnd('.').endsWith(",") || lastWord in danglingWords -> "it stops mid-phrase"
             normalize(text) in promptPhrases -> "it repeats the prompt's wording"
             else -> null
@@ -213,7 +217,7 @@ object SortValidator {
         for (nc in reply.newCategories) {
             val name = cleanName(nc.name, MAX_CATEGORY_NAME)
             if (name.isEmpty()) {
-                soft += "A new category has an empty name (given '${nc.name.take(40)}'). Use a short noun."
+                soft += "A new category has an empty name (given '${nc.name.take(40)}'). Use one general word."
                 continue
             }
             if (table.find(name) != null) continue
@@ -239,7 +243,7 @@ object SortValidator {
                 val name = cleanName(a.category, MAX_CATEGORY_NAME)
                 if (name.isEmpty()) {
                     itemProblems[a.id] = "Item ${a.id} has no usable category (given '${a.category.trim().take(40)}'). " +
-                        "Use an existing category or a short noun."
+                        "Use an existing category or one general word."
                     continue
                 }
                 resolved = table.find(name)
@@ -264,7 +268,7 @@ object SortValidator {
         for ((name, bad) in badNames) {
             val (why, ids) = bad
             val msg = "'$name' is not a usable category name ($why). Items ${ids.joinToString(", ")} need an existing " +
-                "category or a short noun."
+                "category or one general word."
             ids.forEach { itemProblems[it] = msg }
         }
 

@@ -56,7 +56,7 @@ class SortPromptTest {
 
     @Test fun system_statesTheRules() {
         val s = SortPrompt.system().lowercase()
-        for (needle in listOf("existing categor", "never rename or merge", "one-item", "catch-all", "3 words", "40", "2-6 words", "description")) {
+        for (needle in listOf("existing categor", "never rename or merge", "one-item", "catch-all", "one general word", "40", "2-6 words", "description")) {
             assertTrue("system prompt lacks '$needle'", s.contains(needle))
         }
     }
@@ -107,6 +107,20 @@ class SortPromptTest {
     /** I3: both backends read the cap on new categories; the prompt version moved with the text. */
     @Test fun system_statesTheNewCategoryCap() {
         assertTrue(SortPrompt.system().contains("Add at most 12 new categories in one reply."))
-        assertEquals("sort-v3", SORT_PROMPT_VERSION)
+        assertEquals("sort-v4", SORT_PROMPT_VERSION)
+    }
+
+    /** Categories are general, one word each; the specific subject goes in the friendly name. */
+    @Test fun system_asksForOneGeneralWord_andKeepsSpecificsOutOfCategories() {
+        val s = SortPrompt.system()
+        assertTrue(s, s.contains("A new category name is one general word"))
+        assertTrue(s, s.contains("never two subjects joined"))
+        assertTrue(s, s.contains("The specific subject (a turtle, a seal, a dish) belongs in the friendly name"))
+        assertFalse(s, s.contains("3 words"))
+    }
+
+    @Test fun proposeUser_asksForOneGeneralWordPerGroup() {
+        val text = SortPrompt.proposeUser(listOf(item(1)))
+        assertTrue(text, text.contains("broad groups named with one general word each"))
     }
 }

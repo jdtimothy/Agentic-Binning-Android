@@ -80,16 +80,16 @@ class SortValidatorTest {
             listOf(
                 Triple(1L, "sea lion", "A"), // existing user category wins
                 Triple(2L, "boat", "B"), // the listed new category wins
-                Triple(3L, "Busy: Harbors", "C"), // adopted, cleaned
-                Triple(4L, "busy harbor", "D"), // near-duplicate of the adopted one
+                Triple(3L, "Harbors:", "C"), // adopted, cleaned
+                Triple(4L, "harbor", "D"), // near-duplicate of the adopted one
                 Triple(5L, "Boats", "E"),
                 Triple(6L, "Sea Lions", "F"),
             ),
         )
         val v = ok(validate(r, chunk = items, existing = listOf(category("Sea Lions", 9, createdBy = "user"))))
-        assertEquals(listOf("Boats", "Busy Harbors"), v.newCategories.map { it.name })
+        assertEquals(listOf("Boats", "Harbors"), v.newCategories.map { it.name })
         assertEquals(
-            listOf("Sea Lions", "Boats", "Busy Harbors", "Busy Harbors", "Boats", "Sea Lions"),
+            listOf("Sea Lions", "Boats", "Harbors", "Harbors", "Boats", "Sea Lions"),
             v.assignments.map { it.categoryName },
         )
     }
@@ -229,12 +229,12 @@ class SortValidatorTest {
 
     @Test fun normalize_mergesNewDuplicates_intoTheFirst() {
         val r = reply(
-            listOf("Sea lion" to "x", "sea lions" to "y", "Sea-Lions" to "z"),
-            listOf(Triple(1L, "Sea lion", "A"), Triple(2L, "sea lions", "B"), Triple(3L, "Sea-Lions", "C")),
+            listOf("Seal" to "x", "seals" to "y", "SEALS." to "z"),
+            listOf(Triple(1L, "Seal", "A"), Triple(2L, "seals", "B"), Triple(3L, "SEALS.", "C")),
         )
         val v = ok(validate(r))
-        assertEquals(listOf("Sea lion"), v.newCategories.map { it.name })
-        assertEquals(listOf("Sea lion", "Sea lion", "Sea lion"), v.assignments.map { it.categoryName })
+        assertEquals(listOf("Seal"), v.newCategories.map { it.name })
+        assertEquals(listOf("Seal", "Seal", "Seal"), v.assignments.map { it.categoryName })
     }
 
     @Test fun validate_dropsNewCategoriesNobodyUses() {
@@ -246,14 +246,14 @@ class SortValidatorTest {
     }
 
     @Test fun validate_categoryNamesAreCleanedAndCapped() {
-        val long = "Supercalifragilisticexpialidocious Mountain Ranges"
+        val long = "Supercalifragilisticexpialidociousmountainranges"
         val r = reply(
-            listOf("Sea/Lions: pics" to "d", long to "d"),
-            listOf(Triple(1L, "Sea/Lions: pics", "A"), Triple(2L, long, "B"), Triple(3L, "Sea/Lions: pics", "C")),
+            listOf(" Animals. " to "d", long to "d"),
+            listOf(Triple(1L, " Animals. ", "A"), Triple(2L, long, "B"), Triple(3L, " Animals. ", "C")),
         )
         val names = ok(validate(r)).newCategories.map { it.name }
-        assertEquals("Sea Lions pics", names[0])
-        assertTrue(names[1].length <= 40 && !names[1].endsWith(" "))
+        assertEquals("Animals", names[0])
+        assertEquals(40, names[1].length)
     }
 
     @Test fun validate_emptyCategoryNameRejected() {
@@ -392,14 +392,14 @@ class SortValidatorTest {
 
     @Test fun mergeProposals_cleansDedupesAndDropsExisting() {
         val proposals = listOf(
-            NewCategory("Sea lion", "x"),
-            NewCategory("sea lions", "dup"),
+            NewCategory("Seal", "x"),
+            NewCategory("seals", "dup"),
             NewCategory("Food", "already there"),
             NewCategory("///", "empty"),
             NewCategory("Boats", "y"),
         )
         val out = SortValidator.mergeProposals(proposals, listOf(category("Foods", 2)))
-        assertEquals(listOf("Sea lion", "Boats"), out.map { it.name })
+        assertEquals(listOf("Seal", "Boats"), out.map { it.name })
         assertEquals("model", out[0].createdBy)
     }
 
@@ -424,6 +424,7 @@ class SortValidatorTest {
         "Walk the",
         "Lets see Nature",
         "One two three four five six",
+        "Sea Turtles",
         "New Categories",
         "existing categories",
         "Category",
@@ -431,7 +432,7 @@ class SortValidatorTest {
 
     @Test fun badCategoryNames_areFlagged() {
         for (n in leakedNames) assertTrue(n, SortValidator.categoryNameProblem(n) != null)
-        val fine = listOf("Sunset Over the Sea", "Fire Performance", "Mama's Fish House", "Cats and Dogs", "Day at the Beach", "Food", "Photo")
+        val fine = listOf("Animals", "Sunsets", "Mama's", "Food", "Photo")
         for (n in fine) assertEquals(n, null, SortValidator.categoryNameProblem(n))
     }
 
@@ -535,12 +536,30 @@ class SortValidatorTest {
 
     /** M9: the feedback states the same word limit the rule enforces. */
     @Test fun categoryNameProblem_wordLimitFeedbackMatchesTheRule() {
-        assertEquals(null, SortValidator.categoryNameProblem("One two three four five"))
-        val why = SortValidator.categoryNameProblem("One two three four five six")
-        assertEquals("it has 6 words; use at most 5", why)
-        val r = reply(emptyList(), chunk.map { Triple(it.id, "One two three four five six", "N") })
+        assertEquals(null, SortValidator.categoryNameProblem("Animals"))
+        assertEquals("it has 2 words; use one general word", SortValidator.categoryNameProblem("Sea Turtles"))
+        val r = reply(emptyList(), chunk.map { Triple(it.id, "Sea Turtles", "N") })
         val problems = rejected(validate(r)).joinToString(" | ")
-        assertTrue(problems, problems.contains("use at most 5"))
-        assertTrue(problems, !problems.contains("at most 3"))
+        assertTrue(problems, problems.contains("use one general word"))
+        assertTrue(problems, problems.contains("need an existing category or one general word"))
+    }
+
+    /** A new category is one general word; the specific subject stays in the tags and the item's name. */
+    @Test fun categoryNameProblem_wordsJoinedByPunctuationCountAsWords() {
+        for (n in listOf("Turtles&Seals", "Sea-Life", "Food/Drink", "Water_Sports", "Surf+Sail")) {
+            assertEquals(n, "it has 2 words; use one general word", SortValidator.categoryNameProblem(n))
+        }
+    }
+
+    @Test fun validate_existingMultiWordCategories_stillTakeItems() {
+        val r = reply(emptyList(), chunk.map { Triple(it.id, if (it.id == 1L) "Sea Lions" else "Sunset Over Sea", "N") })
+        val v = ok(validate(r, existing = listOf(category("Sea Lions", 2, createdBy = "user"), category("Sunset Over Sea", 4))))
+        assertTrue(v.newCategories.isEmpty())
+        assertEquals(setOf("Sea Lions", "Sunset Over Sea"), v.assignments.map { it.categoryName }.toSet())
+    }
+
+    @Test fun mergeProposals_skipsMultiWordNames() {
+        val proposals = listOf(NewCategory("Sea Turtles and Seals", "x"), NewCategory("Animals", "y"))
+        assertEquals(listOf("Animals"), SortValidator.mergeProposals(proposals, emptyList()).map { it.name })
     }
 }
