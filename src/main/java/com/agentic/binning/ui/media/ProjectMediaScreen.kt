@@ -148,11 +148,14 @@ fun ProjectMediaScreen(
                             Grid(state, vm, hazeState, Modifier.weight(1f))
                         }
                     }
-                    Dock(state, vm, onBack, Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
+                    val bottom = Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                    if (state.selection != null) SelectionBar(state.selection.orEmpty().isNotEmpty(), vm, bottom) else Dock(state, vm, onBack, bottom)
                 }
             }
             state.filtersSheet?.let { FiltersSheetView(it, vm) }
             state.sheet?.let { DetailSheetHost(it, vm) }
+            state.move?.let { PickerSheet(it, vm.movePicker) }
+            state.removeSelected?.let { RemoveDialog(it, onCancel = vm::onCancelBulkRemove, onRemove = vm::onConfirmBulkRemove) }
         }
     }
 }

@@ -4,6 +4,7 @@ import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.projectmedia.CategoryChoice
 import com.agentic.binning.projectmedia.ItemDetail
+import com.agentic.binning.projectmedia.canTakeACategory
 import com.agentic.binning.projectmedia.isWaiting
 import com.agentic.binning.ui.analyze.ActionRow
 import com.agentic.binning.ui.analyze.actionTimeChip
@@ -186,5 +187,4 @@ fun detailUi(d: ItemDetail, draft: DetailDraft, zone: ZoneId): DetailUi {
 }
 
 /** Whether a tap on a tile with [status] opens the detail sheet (failed and missing items get theirs in Task 16). */
-fun opensDetail(status: ItemStatus): Boolean =
-    status == ItemStatus.Analyzed || status == ItemStatus.Sorted || status == ItemStatus.Binned
+fun opensDetail(status: ItemStatus): Boolean = canTakeACategory(status)

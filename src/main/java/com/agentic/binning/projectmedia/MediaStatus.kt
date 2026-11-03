@@ -28,6 +28,10 @@ data class MediaCounts(
 fun isWaiting(status: ItemStatus, categoryId: Long?, categorySetByUser: Boolean): Boolean =
     status == ItemStatus.Analyzed && categoryId == null && !categorySetByUser
 
+/** Whether an item with [status] can be given a category: it has been analyzed (or binned, Plan 3). */
+fun canTakeACategory(status: ItemStatus): Boolean =
+    status == ItemStatus.Analyzed || status == ItemStatus.Sorted || status == ItemStatus.Binned
+
 /**
  * Counts [items] into [MediaCounts]' buckets (Task 10). Project Media and the Analyze screen's
  * Project Media button both count through here. 2a's `ItemCounts` lumps statuses differently

@@ -4,6 +4,7 @@ import android.util.Log
 import com.agentic.binning.db.CategoryEntity
 import com.agentic.binning.project.OpenProject
 import com.agentic.binning.project.ProjectFolders
+import com.agentic.binning.projectmedia.CategoryChoice
 import com.agentic.binning.projectmedia.EditResult
 import com.agentic.binning.projectmedia.ItemDetail
 import com.agentic.binning.projectmedia.MediaFilter
@@ -40,6 +41,8 @@ class RepositoryMediaSource(private val project: OpenProject) : MediaSource {
         request.unlockName,
         request.unlockCategory,
     )
+
+    override suspend fun move(ids: List<Long>, category: CategoryChoice): EditResult = repository.moveItems(ids, category)
 
     override suspend fun remove(ids: List<Long>) = repository.removeItems(ids)
 }

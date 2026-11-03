@@ -83,7 +83,7 @@ fun DetailSheetHost(sheet: DetailSheetState, vm: ProjectMediaViewModel) {
     GlassSheet(onDismiss = vm::onCloseDetail, tall = true) {
         DetailContent(sheet, vm)
     }
-    sheet.picker?.let { picker -> GlassSheet(onDismiss = vm::onClosePicker, tall = false) { PickerContent(picker, vm) } }
+    sheet.picker?.let { picker -> PickerSheet(picker, vm.detailPicker) }
     sheet.remove?.let { RemoveDialog(it, onCancel = vm::onCancelRemove, onRemove = vm::onConfirmRemove) }
 }
 
@@ -394,11 +394,19 @@ internal fun Button(
     }
 }
 
-/** The category picker (mockup state 3b): New category… first, then every category with its count. */
+/**
+ * The category picker (mockup state 3b): New category… first, then every category with its count.
+ * For bulk move (state 4) it keeps the choice and saves from its footer ("Save · move N").
+ */
 @Composable
-private fun ColumnScope.PickerContent(picker: PickerUi, vm: ProjectMediaViewModel) {
+internal fun PickerSheet(picker: PickerUi, actions: PickerActions) {
+    GlassSheet(onDismiss = actions::onClose, tall = false) { PickerContent(picker, actions) }
+}
+
+@Composable
+private fun ColumnScope.PickerContent(picker: PickerUi, actions: PickerActions) {
     val tokens = LocalGlassTokens.current
-    SheetHead("Choose a category", vm::onClosePicker)
+    SheetHead(picker.title, actions::onClose)
     Column(
         Modifier
             .weight(1f, fill = false)
@@ -413,22 +421,39 @@ private fun ColumnScope.PickerContent(picker: PickerUi, vm: ProjectMediaViewMode
                 title = "New category…",
                 subtitle = "Yours: sorting never renames or merges it",
                 newStyle = true,
-                onClick = vm::onPickerNewOpen,
+                onClick = actions::onNewOpen,
             ) { Icon(MediaIcons.Plus, contentDescription = null, tint = tokens.accent, modifier = Modifier.size(18.dp)) }
         } else {
-            NewCategoryField(picker, vm)
+            NewCategoryField(picker, actions)
         }
         picker.pendingNew?.let { name ->
             RowDivider()
-            PickerRow(selected = true, title = name, subtitle = "New · created when you save", onClick = vm::onPickPendingNew) {
+            PickerRow(selected = true, title = name, subtitle = "New · created when you save", onClick = actions::onPickPendingNew) {
                 Icon(MediaIcons.Lock, contentDescription = null, tint = tokens.sub, modifier = Modifier.size(14.dp))
             }
         }
         picker.options.forEach { o ->
             RowDivider()
-            PickerRow(selected = o.selected, title = o.name, subtitle = o.description.takeIf { it.isNotBlank() }, onClick = { vm.onPickCategory(o.id) }) {
+            PickerRow(selected = o.selected, title = o.name, subtitle = o.description.takeIf { it.isNotBlank() }, onClick = { actions.onPick(o.id) }) {
                 if (o.locked) Icon(MediaIcons.Lock, contentDescription = "Yours", tint = tokens.sub, modifier = Modifier.size(13.dp))
                 Text("${o.count}", color = tokens.sub, style = TextStyle(fontSize = 12.sp, fontFeatureSettings = "tnum"))
+            }
+        }
+    }
+    picker.saveLabel?.let { label ->
+        HorizontalDivider(color = tokens.line)
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(MediaIcons.Info, contentDescription = null, tint = tokens.sub, modifier = Modifier.padding(top = 1.dp).size(14.dp))
+                Text(
+                    "Only the database changes now. The files move at the next Bin Files. Moved items count as set by you.",
+                    color = tokens.sub,
+                    fontSize = 12.sp,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button("Cancel", null, ButtonStyle.Secondary, onClick = actions::onClose)
+                Button(label, null, ButtonStyle.Primary, Modifier.weight(1f), enabled = picker.canSave, onClick = actions::onSave)
             }
         }
     }
@@ -480,19 +505,19 @@ private fun PickerRow(
 }
 
 @Composable
-private fun NewCategoryField(picker: PickerUi, vm: ProjectMediaViewModel) {
+private fun NewCategoryField(picker: PickerUi, actions: PickerActions) {
     val tokens = LocalGlassTokens.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("NEW CATEGORY", color = tokens.sub, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             BasicTextField(
                 value = picker.newName,
-                onValueChange = vm::onPickerNewName,
+                onValueChange = actions::onNewName,
                 singleLine = true,
                 textStyle = TextStyle(color = tokens.text, fontSize = 16.sp),
                 cursorBrush = SolidColor(tokens.accent),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { vm.onPickerAddNew() }),
+                keyboardActions = KeyboardActions(onDone = { actions.onAddNew() }),
                 modifier = Modifier.weight(1f).semantics { contentDescription = "New category" },
                 decorationBox = { inner ->
                     FieldBox {
@@ -501,7 +526,7 @@ private fun NewCategoryField(picker: PickerUi, vm: ProjectMediaViewModel) {
                     }
                 },
             )
-            Button("Add", null, ButtonStyle.Primary, enabled = picker.canAdd, onClick = vm::onPickerAddNew)
+            Button("Add", null, ButtonStyle.Primary, enabled = picker.canAdd, onClick = actions::onAddNew)
         }
         val error = picker.newError
         Text(
@@ -514,7 +539,7 @@ private fun NewCategoryField(picker: PickerUi, vm: ProjectMediaViewModel) {
 
 /** Remove from project (mockup state 4b): the file stays; the project forgets the item. */
 @Composable
-internal fun RemoveDialog(dialog: RemoveDialogUi, onCancel: () -> Unit, onRemove: () -> Unit, removeLabel: String = "Remove") {
+internal fun RemoveDialog(dialog: RemoveDialogUi, onCancel: () -> Unit, onRemove: () -> Unit) {
     val tokens = LocalGlassTokens.current
     Dialog(onDismissRequest = onCancel) {
         CompositionLocalProvider(LocalHazeState provides null) {
@@ -525,7 +550,7 @@ internal fun RemoveDialog(dialog: RemoveDialogUi, onCancel: () -> Unit, onRemove
                         Text(dialog.body, color = tokens.sub, fontSize = 14.sp, lineHeight = 20.sp)
                         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                             Button("Cancel", null, ButtonStyle.Secondary, onClick = onCancel)
-                            Button(removeLabel, MediaIcons.Remove, ButtonStyle.Danger, onClick = onRemove)
+                            Button(dialog.removeLabel, MediaIcons.Remove, ButtonStyle.Danger, onClick = onRemove)
                         }
                     }
                 }

@@ -148,7 +148,16 @@ class ProjectMediaRepository(
         return EditResult.Ok
     }
 
-    suspend fun moveItems(ids: List<Long>, category: CategoryChoice): EditResult {
+    /**
+     * Bulk Move to category, in one transaction: each analyzed item gets [category], locked as the
+     * user's. Items not analyzed yet (pending, failed, missing) are left as they are: a category on
+     * them would leave them neither waiting nor ready to bin.
+     */
+    suspend fun moveItems(ids: List<Long>, category: CategoryChoice): EditResult = db.useWriterConnection { connection ->
+        connection.immediateTransaction { moveItemsLocked(ids, category) }
+    }
+
+    private suspend fun moveItemsLocked(ids: List<Long>, category: CategoryChoice): EditResult {
         val categoryId = when (category) {
             is CategoryChoice.Existing -> {
                 if (db.media().category(category.id) == null) return EditResult.NotFound
@@ -161,7 +170,8 @@ class ProjectMediaRepository(
         }
         for (id in ids) {
             val item = db.media().item(id) ?: continue
-            val status = if (item.status == ItemStatus.Analyzed || item.status == ItemStatus.Sorted) ItemStatus.Sorted else item.status
+            if (!canTakeACategory(item.status)) continue
+            val status = if (item.status == ItemStatus.Analyzed) ItemStatus.Sorted else item.status
             db.media().updateItemEdit(
                 id = id,
                 name = item.friendlyName,

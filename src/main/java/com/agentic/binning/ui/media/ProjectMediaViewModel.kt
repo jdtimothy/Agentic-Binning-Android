@@ -6,6 +6,7 @@ import com.agentic.binning.db.CategoryEntity
 import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.pipeline.PipelinePhase
+import com.agentic.binning.projectmedia.CategoryChoice
 import com.agentic.binning.projectmedia.CategoryNames
 import com.agentic.binning.projectmedia.EditResult
 import com.agentic.binning.projectmedia.ItemDetail
@@ -18,6 +19,7 @@ import com.agentic.binning.projectmedia.MediaStatus
 import com.agentic.binning.projectmedia.RESORT_BUSY
 import com.agentic.binning.projectmedia.activeJobOf
 import com.agentic.binning.projectmedia.binFilesBlockedReason
+import com.agentic.binning.projectmedia.canTakeACategory
 import com.agentic.binning.projectmedia.isWaiting
 import com.agentic.binning.projectmedia.matches
 import com.agentic.binning.projectmedia.mediaCountsOf
@@ -71,6 +73,9 @@ interface MediaSource {
 
     /** The detail sheet's Save, in one transaction. */
     suspend fun save(request: SaveRequest): EditResult
+
+    /** Bulk Move to category: analyzed items get [category], locked as the user's. */
+    suspend fun move(ids: List<Long>, category: CategoryChoice): EditResult
 
     /** Remove from project: the rows go, the files stay (Q1). */
     suspend fun remove(ids: List<Long>)
@@ -147,13 +152,17 @@ data class MediaUiState(
     val filtersSheet: FiltersSheet?,
     /** The open item's detail sheet (Task 12). */
     val sheet: DetailSheetState?,
+    /** Select mode's Move to category picker (Task 13). */
+    val move: PickerUi?,
+    /** Select mode's Remove from project confirmation (Task 13). */
+    val removeSelected: RemoveDialogUi?,
 ) {
     companion object {
         val None = MediaUiState(
             hasProject = false, projectName = "", itemCount = 0, query = "", categoryCount = 0, chips = emptyList(),
             kind = null, setFilters = emptyList(), resultText = "", tiles = emptyList(), noMatchText = null,
             status = mediaStatus(MediaCounts(total = 0), null), binReason = null, busyReason = null, selection = null,
-            allVisibleSelected = false, empty = false, filtersSheet = null, sheet = null,
+            allVisibleSelected = false, empty = false, filtersSheet = null, sheet = null, move = null, removeSelected = null,
         )
     }
 }
@@ -170,6 +179,8 @@ data class PickerOption(
 )
 
 data class PickerUi(
+    /** "Choose a category", or "Move N items". */
+    val title: String,
     val options: List<PickerOption>,
     /** A new category chosen in this draft, listed (selected) above the others. */
     val pendingNew: String?,
@@ -179,9 +190,23 @@ data class PickerUi(
     /** The clash with an existing name (2a's normalizer), shown under the field. */
     val newError: String?,
     val canAdd: Boolean,
+    /** Bulk move only: the footer's "Save · move N"; the detail picker chooses on tap instead. */
+    val saveLabel: String?,
+    val canSave: Boolean,
 )
 
-data class RemoveDialogUi(val title: String, val body: String)
+/** What the category picker's rows and buttons do; the detail sheet and bulk move each have one. */
+interface PickerActions {
+    fun onClose()
+    fun onPick(id: Long)
+    fun onPickPendingNew()
+    fun onNewOpen()
+    fun onNewName(text: String)
+    fun onAddNew()
+    fun onSave()
+}
+
+data class RemoveDialogUi(val title: String, val body: String, val removeLabel: String = "Remove")
 
 /** The detail sheet with the picker and the remove dialog stacked over it. */
 data class DetailSheetState(
@@ -211,6 +236,16 @@ private data class Picks(
     val selection: Set<Long>? = null,
     /** Non-null while the Filters sheet is open: its draft shot type and day. */
     val draft: Draft? = null,
+    /** Non-null while select mode's Move to category picker is open. */
+    val move: MoveSession? = null,
+    val confirmBulkRemove: Boolean = false,
+)
+
+/** The bulk move picker: the category chosen so far and the New category… field. */
+private data class MoveSession(
+    val pick: CategoryPick? = null,
+    val picker: PickerSession = PickerSession(),
+    val saving: Boolean = false,
 )
 
 private data class Draft(val shot: String?, val day: LocalDate?)
@@ -419,6 +454,17 @@ class ProjectMediaViewModel(
         }
     }
 
+    /** The detail sheet's picker: a tap chooses and closes. */
+    val detailPicker: PickerActions = object : PickerActions {
+        override fun onClose() = onClosePicker()
+        override fun onPick(id: Long) = onPickCategory(id)
+        override fun onPickPendingNew() = this@ProjectMediaViewModel.onPickPendingNew()
+        override fun onNewOpen() = onPickerNewOpen()
+        override fun onNewName(text: String) = onPickerNewName(text)
+        override fun onAddNew() = onPickerAddNew()
+        override fun onSave() = Unit
+    }
+
     fun onRemoveDetail() = updateSession { it.copy(confirmRemove = true) }
 
     fun onCancelRemove() = updateSession { it.copy(confirmRemove = false) }
@@ -434,7 +480,93 @@ class ProjectMediaViewModel(
 
     fun onStartSelect() = picks.update { it.copy(selection = it.selection ?: emptySet()) }
 
-    fun onExitSelect() = picks.update { it.copy(selection = null) }
+    fun onExitSelect() = picks.update { it.copy(selection = null, move = null, confirmBulkRemove = false) }
+
+    /** The ticked items in tick order (a removed one is skipped by the edit itself). */
+    private fun selectedIds(): List<Long> = picks.value.selection?.toList().orEmpty()
+
+    /** Move to category: opens the picker for the ticked items (off with none ticked). */
+    fun onBulkMove() {
+        if (selectedIds().isEmpty()) return
+        picks.update { it.copy(move = MoveSession()) }
+    }
+
+    private fun updateMove(block: (MoveSession) -> MoveSession) = picks.update { p -> p.move?.let { p.copy(move = block(it)) } ?: p }
+
+    /** Select mode's move picker: a tap chooses; "Save · move N" moves. */
+    val movePicker: PickerActions = object : PickerActions {
+        override fun onClose() = picks.update { it.copy(move = null) }
+
+        override fun onPick(id: Long) {
+            val name = state.value.move?.options?.firstOrNull { it.id == id }?.name ?: return
+            updateMove { it.copy(pick = CategoryPick.Existing(id, name)) }
+        }
+
+        override fun onPickPendingNew() = Unit
+
+        override fun onNewOpen() = updateMove { it.copy(picker = it.picker.copy(newOpen = true)) }
+
+        override fun onNewName(text: String) = updateMove { it.copy(picker = it.picker.copy(newName = text)) }
+
+        override fun onAddNew() {
+            val ui = state.value.move ?: return
+            if (!ui.canAdd) return
+            val name = CategoryNames.clean(ui.newName)
+            updateMove { it.copy(pick = CategoryPick.New(name), picker = PickerSession()) }
+        }
+
+        override fun onSave() = saveMove()
+    }
+
+    private fun saveMove() {
+        val move = picks.value.move ?: return
+        val src = current ?: return
+        val ids = selectedIds()
+        val choice = when (val pick = move.pick) {
+            is CategoryPick.Existing -> CategoryChoice.Existing(pick.id)
+            is CategoryPick.New -> CategoryChoice.New(pick.name)
+            null -> return
+        }
+        if (move.saving || ids.isEmpty()) return
+        val statuses = state.value.tiles.associate { it.id to it.status }
+        val left = ids.count { id -> statuses[id]?.let { !canTakeACategory(it) } == true }
+        updateMove { it.copy(saving = true) }
+        scope.launch {
+            val result = withContext(io) { src.move(ids, choice) }
+            if (current !== src) return@launch
+            when (result) {
+                EditResult.Ok, is EditResult.Created -> {
+                    picks.update { it.copy(selection = null, move = null) }
+                    if (left > 0) {
+                        val moved = ids.size - left
+                        _messages.tryEmit("Moved ${countOf(moved, "item")}. $left not analyzed yet stayed where ${if (left == 1) "it was" else "they were"}.")
+                    }
+                }
+                is EditResult.Clash -> {
+                    updateMove { it.copy(saving = false) }
+                    _messages.tryEmit("A category named “${result.existing}” already exists.")
+                }
+                EditResult.InvalidName, EditResult.NotFound -> {
+                    updateMove { it.copy(saving = false) }
+                    _messages.tryEmit("Couldn't move the items; try again")
+                }
+            }
+        }
+    }
+
+    fun onBulkRemove() {
+        if (selectedIds().isEmpty()) return
+        picks.update { it.copy(confirmBulkRemove = true) }
+    }
+
+    fun onCancelBulkRemove() = picks.update { it.copy(confirmBulkRemove = false) }
+
+    fun onConfirmBulkRemove() {
+        val src = current ?: return
+        val ids = selectedIds()
+        picks.update { it.copy(selection = null, confirmBulkRemove = false, move = null) }
+        if (ids.isNotEmpty()) scope.launch { withContext(io) { src.remove(ids) } }
+    }
 
     /** Select all ticks every visible tile; when they all are, it unticks them (Clear). */
     fun onToggleSelectAll() {
@@ -577,6 +709,64 @@ class ProjectMediaViewModel(
             empty = empty,
             filtersSheet = sheet,
             sheet = d?.let { detailSheet(it, l, src.projectName) },
+            move = p.move?.takeIf { selection != null }?.let { m ->
+                val n = selection.orEmpty().size
+                pickerUi(
+                    title = "Move ${countOf(n, "item")}",
+                    chosen = (m.pick as? CategoryPick.Existing)?.id,
+                    pendingNew = (m.pick as? CategoryPick.New)?.name,
+                    session = m.picker,
+                    l = l,
+                    saveLabel = "Save · move $n",
+                    canSave = m.pick != null && n > 0 && !m.saving,
+                )
+            },
+            removeSelected = if (p.confirmBulkRemove && !selection.isNullOrEmpty()) bulkRemoveDialog(selection, l, src.projectName) else null,
+        )
+    }
+
+    private fun bulkRemoveDialog(ids: Set<Long>, l: Loaded, projectName: String): RemoveDialogUi {
+        if (ids.size == 1) {
+            val row = l.all.firstOrNull { it.id == ids.first() }
+            val name = row?.let(::tileName) ?: "this item"
+            return RemoveDialogUi(
+                title = "Remove “$name” from $projectName?",
+                body = "The file stays on your phone where it is now. The project forgets its analysis, name and category. " +
+                    "You can add it again later.",
+            )
+        }
+        return RemoveDialogUi(
+            title = "Remove ${ids.size} items from $projectName?",
+            body = "The files stay on your phone where they are now. The project forgets their analysis, names and categories. " +
+                "You can add them again later.",
+            removeLabel = "Remove ${ids.size}",
+        )
+    }
+
+    private fun pickerUi(
+        title: String,
+        chosen: Long?,
+        pendingNew: String?,
+        session: PickerSession,
+        l: Loaded,
+        saveLabel: String?,
+        canSave: Boolean,
+    ): PickerUi {
+        val byCategory = l.all.groupingBy { it.categoryId }.eachCount()
+        val clean = CategoryNames.clean(session.newName)
+        val clash = if (clean.isEmpty()) null else CategoryNames.clash(clean, l.categories.map { it.name })
+        return PickerUi(
+            title = title,
+            options = l.categories.map { c ->
+                PickerOption(c.id, c.name, c.description, byCategory[c.id] ?: 0, locked = c.createdBy == "user", selected = c.id == chosen)
+            },
+            pendingNew = pendingNew,
+            newOpen = session.newOpen,
+            newName = session.newName,
+            newError = clash?.let { "That is the same as “$it”. Pick it from the list instead." },
+            canAdd = clean.isNotEmpty() && clash == null,
+            saveLabel = saveLabel,
+            canSave = canSave,
         )
     }
 
@@ -588,19 +778,7 @@ class ProjectMediaViewModel(
                 is CategoryPick.New -> null
                 null -> item.categoryId
             }
-            val byCategory = l.all.groupingBy { it.categoryId }.eachCount()
-            val clean = CategoryNames.clean(ps.newName)
-            val clash = if (clean.isEmpty()) null else CategoryNames.clash(clean, l.categories.map { it.name })
-            PickerUi(
-                options = l.categories.map { c ->
-                    PickerOption(c.id, c.name, c.description, byCategory[c.id] ?: 0, locked = c.createdBy == "user", selected = c.id == chosen)
-                },
-                pendingNew = (d.draft.pick as? CategoryPick.New)?.name,
-                newOpen = ps.newOpen,
-                newName = ps.newName,
-                newError = clash?.let { "That is the same as “$it”. Pick it from the list instead." },
-                canAdd = clean.isNotEmpty() && clash == null,
-            )
+            pickerUi("Choose a category", chosen, (d.draft.pick as? CategoryPick.New)?.name, ps, l, saveLabel = null, canSave = false)
         }
         val name = item.friendlyName?.takeIf { it.isNotBlank() } ?: item.originalName
         return DetailSheetState(
@@ -656,6 +834,8 @@ class ProjectMediaViewModel(
             MatchedIn.Actions -> "actions"
             MatchedIn.Description -> "description"
         }
+
+        fun countOf(n: Int, noun: String) = if (n == 1) "1 $noun" else "$n ${noun}s"
 
         /** The friendly name, else the model's suggestion, else the file name. */
         fun tileName(row: MediaRow): String =

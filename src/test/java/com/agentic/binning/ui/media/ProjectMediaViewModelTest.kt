@@ -115,6 +115,13 @@ class ProjectMediaViewModelTest {
             return saveResult
         }
 
+        val moved = mutableListOf<Pair<List<Long>, CategoryChoice>>()
+
+        override suspend fun move(ids: List<Long>, category: CategoryChoice): EditResult {
+            moved += ids to category
+            return saveResult
+        }
+
         override suspend fun remove(ids: List<Long>) {
             removed += ids
             this@ProjectMediaViewModelTest.rows.value = this@ProjectMediaViewModelTest.rows.value.filter { it.id !in ids }
@@ -592,5 +599,136 @@ class ProjectMediaViewModelTest {
         advanceUntilIdle()
 
         assertNull(vm.state.value.sheet)
+    }
+
+    @Test
+    fun bulkMove_picksACategory_thenSavesTheSelection() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileLongPress(1)
+        vm.onTileClick(3)
+        advanceUntilIdle()
+
+        vm.onBulkMove()
+        advanceUntilIdle()
+        val picker = vm.state.value.move!!
+        assertEquals("Move 2 items", picker.title)
+        assertFalse(picker.canSave)
+        assertEquals("Save · move 2", picker.saveLabel)
+        // Nothing is ticked until the user picks one.
+        assertTrue(picker.options.none { it.selected })
+
+        vm.movePicker.onPick(2)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.move!!.options.single { it.id == 2L }.selected)
+        assertTrue(vm.state.value.move!!.canSave)
+
+        vm.movePicker.onSave()
+        advanceUntilIdle()
+        assertEquals(listOf(listOf(1L, 3L) to CategoryChoice.Existing(2)), source.moved)
+        assertNull(vm.state.value.move)
+        assertNull(vm.state.value.selection)
+    }
+
+    @Test
+    fun bulkMove_toANewCategory() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileLongPress(5)
+        vm.onBulkMove()
+        advanceUntilIdle()
+        vm.movePicker.onNewOpen()
+        vm.movePicker.onNewName("Mine!")
+        advanceUntilIdle()
+        assertEquals("That is the same as “Mine”. Pick it from the list instead.", vm.state.value.move!!.newError)
+
+        vm.movePicker.onNewName("Snorkeling")
+        advanceUntilIdle()
+        vm.movePicker.onAddNew()
+        advanceUntilIdle()
+        assertEquals("Snorkeling", vm.state.value.move!!.pendingNew)
+        vm.movePicker.onSave()
+        advanceUntilIdle()
+        assertEquals(listOf(listOf(5L) to CategoryChoice.New("Snorkeling")), source.moved)
+    }
+
+    @Test
+    fun bulkMove_cancelKeepsTheSelection_andNeedsOne() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onStartSelect()
+        vm.onBulkMove()
+        advanceUntilIdle()
+        // Nothing ticked: the bulk actions are off.
+        assertNull(vm.state.value.move)
+
+        vm.onTileClick(1)
+        vm.onBulkMove()
+        vm.movePicker.onClose()
+        advanceUntilIdle()
+        assertNull(vm.state.value.move)
+        assertEquals(setOf(1L), vm.state.value.selection)
+        assertTrue(source.moved.isEmpty())
+    }
+
+    @Test
+    fun bulkMove_saysWhenItemsNotAnalyzedAreLeftOut() = runTest {
+        val messages = mutableListOf<String>()
+        val vm = vm()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.messages.toList(messages) }
+        advanceUntilIdle()
+        vm.onTileLongPress(1)
+        vm.onTileClick(4) // Failed
+        vm.onBulkMove()
+        advanceUntilIdle()
+        vm.movePicker.onPick(1)
+        vm.movePicker.onSave()
+        advanceUntilIdle()
+
+        assertEquals(listOf(listOf(1L, 4L) to CategoryChoice.Existing(1)), source.moved)
+        assertEquals("Moved 1 item. 1 not analyzed yet stayed where it was.", messages.last())
+    }
+
+    @Test
+    fun bulkRemove_asksFirst_thenRemovesAndLeavesSelectMode() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileLongPress(1)
+        vm.onTileClick(2)
+        vm.onBulkRemove()
+        advanceUntilIdle()
+
+        val dialog = vm.state.value.removeSelected!!
+        assertEquals("Remove 2 items from Hawaii Photos?", dialog.title)
+        assertEquals(
+            "The files stay on your phone where they are now. The project forgets their analysis, names and categories. " +
+                "You can add them again later.",
+            dialog.body,
+        )
+        assertEquals("Remove 2", dialog.removeLabel)
+
+        vm.onCancelBulkRemove()
+        advanceUntilIdle()
+        assertNull(vm.state.value.removeSelected)
+        assertEquals(setOf(1L, 2L), vm.state.value.selection)
+
+        vm.onBulkRemove()
+        vm.onConfirmBulkRemove()
+        advanceUntilIdle()
+        assertEquals(listOf(listOf(1L, 2L)), source.removed)
+        assertNull(vm.state.value.selection)
+        assertEquals(listOf(3L, 4L, 5L), vm.state.value.tiles.map { it.id })
+    }
+
+    @Test
+    fun bulkRemove_ofOne_namesIt() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileLongPress(3)
+        vm.onBulkRemove()
+        advanceUntilIdle()
+
+        assertEquals("Remove “Item 3” from Hawaii Photos?", vm.state.value.removeSelected!!.title)
+        assertEquals("Remove", vm.state.value.removeSelected!!.removeLabel)
     }
 }
