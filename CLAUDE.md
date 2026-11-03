@@ -22,9 +22,9 @@ Jetpack Compose app (package `com.agentic.binning`). Plans live under
   selected and never make a paid Claude call without the owner.
 - **Plan 2b** (Project Media, editing, Re-sort, and Task 6A: Open project and
   Edit/× on Current projects) is in progress:
-  `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Tasks 1–12 and
-  6A are in `main`; Tasks 13 and 14 are open PRs, and 16–17 are on
-  `feat/plan-2b-task-16`, stacked on 14.
+  `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Tasks 1–14, 6A
+  and the one-word category rule are in `main`; Tasks 16–17 are on
+  `feat/plan-2b-task-16`.
   Task 15 (the Re-sort sheet) is left. Its "Product decisions" section holds
   every owner decision (none open). Mockups are in `docs/superpowers/mockups/` (open the HTML
   files in a browser; GitHub doesn't render them).
