@@ -40,7 +40,7 @@ object MovePlanner {
         // Plan them first so nothing else takes their name.
         val inPlace = HashSet<Long>()
         for (r in sorted) {
-            if (isInPlace(root, r)) {
+            if (inPlace(root, r)) {
                 inPlace += r.itemId
                 reserved += r.source.lower()
             }
@@ -61,6 +61,36 @@ object MovePlanner {
         return moves
     }
 
+    /** The target with no number: `<project>/<folder>/<name><ext>`. A destination other than this was numbered. */
+    fun plainTarget(projectDir: String, request: MoveRequest): String = target(projectDir.trimEnd('/'), request, 1)
+
+    /**
+     * Whether [request]'s source is already at its target: the plain target, or the same name with a
+     * " 2"-style number it got earlier, in the right folder (names compare ignoring case).
+     */
+    fun isInPlace(projectDir: String, request: MoveRequest): Boolean = inPlace(projectDir.trimEnd('/'), request)
+
+    /**
+     * [dest] if [taken] says it is free, otherwise the same name with the next free number: "Sunset.jpg"
+     * → "Sunset 2.jpg", and "Sunset 2.jpg" → "Sunset 3.jpg". For a name taken after planning: never overwrite.
+     */
+    fun nextFree(dest: String, taken: (String) -> Boolean): String {
+        if (!taken(dest)) return dest
+        val dir = dest.substringBeforeLast('/')
+        val file = dest.substringAfterLast('/')
+        val dot = file.lastIndexOf('.')
+        val stem = if (dot > 0) file.substring(0, dot) else file
+        val ext = if (dot > 0) file.substring(dot) else ""
+        val numbered = Regex("(.*) ([2-9]|[1-9][0-9]+)").matchEntire(stem)
+        val base = numbered?.groupValues?.get(1) ?: stem
+        var n = (numbered?.groupValues?.get(2)?.toInt() ?: 1) + 1
+        while (true) {
+            val candidate = "$dir/$base $n$ext"
+            if (!taken(candidate)) return candidate
+            n++
+        }
+    }
+
     /** The folder name for a category, safe on Android's shared storage. */
     fun folderFor(categoryName: String): String =
         ProjectFolders.folderNameFor(categoryName).ifEmpty { "Category" }
@@ -72,7 +102,7 @@ object MovePlanner {
         return "$root/${folderFor(r.folder)}/$name$ext"
     }
 
-    private fun isInPlace(root: String, r: MoveRequest): Boolean {
+    private fun inPlace(root: String, r: MoveRequest): Boolean {
         val plain = target(root, r, 1)
         if (plain.lower() == r.source.lower()) return true
         val folder = plain.substringBeforeLast('/')
