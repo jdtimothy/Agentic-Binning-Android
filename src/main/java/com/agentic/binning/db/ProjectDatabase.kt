@@ -12,6 +12,7 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
+import com.agentic.binning.project.ProjectOpenRules
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 
@@ -73,9 +74,13 @@ interface ProjectMetaDao {
  * Opens (creating if needed) the per-project database at [dbFile]. The folder lives on FUSE-backed
  * shared storage, so the journal mode is TRUNCATE rather than WAL. Room's annotations only cover
  * FTS3/4, so the FTS5 table is created by raw SQL in onCreate; its rowid is the item id.
+ *
+ * An older file is backed up first, whichever way it is being opened, because Room upgrades it on
+ * first use and the upgrade is one-way. That is file I/O, so call this off the main thread.
  */
-fun openProjectDatabase(context: Context, dbFile: File): ProjectDatabase =
-    Room.databaseBuilder<ProjectDatabase>(context.applicationContext, dbFile.absolutePath)
+fun openProjectDatabase(context: Context, dbFile: File): ProjectDatabase {
+    ProjectOpenRules.backupIfOlder(dbFile, PROJECT_DB_VERSION)
+    return Room.databaseBuilder<ProjectDatabase>(context.applicationContext, dbFile.absolutePath)
         .setDriver(BundledSQLiteDriver())
         .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
         .addCallback(object : RoomDatabase.Callback() {
@@ -88,3 +93,4 @@ fun openProjectDatabase(context: Context, dbFile: File): ProjectDatabase =
             }
         })
         .build()
+}

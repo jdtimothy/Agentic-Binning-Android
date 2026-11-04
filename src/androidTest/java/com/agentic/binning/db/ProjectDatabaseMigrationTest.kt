@@ -177,9 +177,15 @@ class ProjectDatabaseMigrationTest {
             fillV3()
             close()
         }
+        val v3Bytes = dbFile.readBytes().toList()
 
         val db = openProjectDatabase(context, dbFile)
         try {
+            assertEquals(
+                "the real open path backs the v3 file up first",
+                v3Bytes,
+                File(dbFile.parentFile, "${dbFile.name}.v3.bak").readBytes().toList(),
+            )
             assertEquals(listOf("/p/Beach"), db.moves().binnedFolders())
             assertEquals(null, db.moves().openRun())
             db.moves().addRemoved(listOf("/p/Beach/old.jpg"), "removed", 12L)

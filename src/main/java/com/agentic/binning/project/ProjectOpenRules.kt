@@ -1,6 +1,8 @@
 package com.agentic.binning.project
 
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.file.Files
 
 /** What a read-only look at a candidate `.binning/project.db` found (see `ProjectDatabaseProbe`). */
 data class DatabaseFacts(
@@ -99,6 +101,29 @@ object ProjectOpenRules {
     }
 
     /**
+     * Copies [dbFile] aside if its schema is older than [currentVersion], before Room upgrades it: an
+     * upgrade is one-way, since an older build can't open the result. Returns the copy, or null when
+     * none was needed. Throws if the copy fails, so nothing is upgraded without one.
+     */
+    fun backupIfOlder(dbFile: File, currentVersion: Int): File? {
+        val version = headerVersion(dbFile) ?: return null
+        if (version !in 1 until currentVersion) return null
+        val backup = backupFile(dbFile, version)
+        Files.copy(dbFile.toPath(), backup.toPath()) // fails rather than overwrite
+        return backup
+    }
+
+    /** `user_version` from a SQLite file's header, without opening it; null if it is missing or not SQLite. */
+    private fun headerVersion(dbFile: File): Int? {
+        if (!dbFile.isFile) return null
+        val header = ByteArray(SQLITE_HEADER_BYTES)
+        val read = dbFile.inputStream().use { it.readNBytes(header, 0, header.size) }
+        if (read < header.size) return null
+        if (!SQLITE_MAGIC.indices.all { header[it] == SQLITE_MAGIC[it] }) return null
+        return ByteBuffer.wrap(header, SQLITE_USER_VERSION_OFFSET, Int.SIZE_BYTES).int
+    }
+
+    /**
      * The project to open after the open one was removed: the first of [remaining], in list order,
      * that [openable] accepts. Null means none, and the sheet shows Current projects with no open project.
      */
@@ -107,4 +132,8 @@ object ProjectOpenRules {
 
     private fun isUnder(path: String, ancestor: String): Boolean =
         path.startsWith(ancestor.trimEnd(File.separatorChar) + File.separator)
+
+    private const val SQLITE_HEADER_BYTES = 100
+    private const val SQLITE_USER_VERSION_OFFSET = 60
+    private val SQLITE_MAGIC = "SQLite format 3\u0000".toByteArray(Charsets.US_ASCII)
 }

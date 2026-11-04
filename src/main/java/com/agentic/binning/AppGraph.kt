@@ -99,7 +99,6 @@ import com.agentic.binning.sorting.SortBudgets
 import com.agentic.binning.ui.settings.NEED_KEY_TEXT
 import com.agentic.binning.ui.settings.specOf
 import java.io.File
-import java.nio.file.Files
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -596,7 +595,7 @@ class AppGraph(val context: Context) {
             pipeline.stopAndReset()
             deferredStart = null
         }
-        val db = openProjectDatabase(context, dbFile)
+        val db = withContext(Dispatchers.IO) { openProjectDatabase(context, dbFile) }
         val stored = try {
             if (db.meta().get() == null) {
                 check(!existingOnly) { "An existing project database has no project_meta row" }
@@ -651,7 +650,8 @@ class AppGraph(val context: Context) {
      * is the `.binning` folder). A listed folder just switches to its entry. Otherwise the database
      * is probed read-only first ([ProjectDatabaseProbe]); a missing, unreadable, foreign or newer one
      * is refused with nothing changed on disk, an older one is copied to `project.db.v<N>.bak` before
-     * Room upgrades it, and the saved analysis opens as it is, never recreated.
+     * Room upgrades it ([openProjectDatabase] does that on every open), and the saved analysis opens
+     * as it is, never recreated.
      */
     suspend fun openExistingProject(picked: File): OpenExistingResult {
         val dir = ProjectOpenRules.projectDir(picked)
@@ -667,12 +667,6 @@ class AppGraph(val context: Context) {
         return when (val decision = ProjectOpenRules.decide(facts, PROJECT_DB_VERSION, PROJECT_DB_IDENTITY_HASHES)) {
             is DatabaseDecision.Refused -> OpenExistingResult.Refused(decision.reason.message)
             is DatabaseDecision.Open -> openRefusingFailures {
-                decision.backupFromVersion?.let { version ->
-                    withContext(Dispatchers.IO) {
-                        val backup = ProjectOpenRules.backupFile(dbFile, version)
-                        Files.copy(dbFile.toPath(), backup.toPath()) // fails rather than overwrite
-                    }
-                }
                 val ref = ProjectRef(ProjectOpenRules.listedName(facts, dir), ProjectRegistry.canonical(dir.path))
                 openProject(ref, existingOnly = true)
             }

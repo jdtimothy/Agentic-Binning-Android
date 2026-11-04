@@ -22,6 +22,46 @@ class ProjectOpenRulesTest {
     private fun decide(facts: DatabaseFacts) = ProjectOpenRules.decide(facts, current, hashes)
     private fun refused(reason: OpenRefusal) = DatabaseDecision.Refused(reason)
 
+    /** The first 100 bytes of a SQLite file: its magic string, and `user_version` at offset 60. */
+    private fun sqliteFile(userVersion: Int, name: String = "project.db"): File {
+        val bytes = ByteArray(100)
+        "SQLite format 3\u0000".toByteArray(Charsets.US_ASCII).copyInto(bytes)
+        bytes[60] = (userVersion ushr 24).toByte()
+        bytes[61] = (userVersion ushr 16).toByte()
+        bytes[62] = (userVersion ushr 8).toByte()
+        bytes[63] = userVersion.toByte()
+        return File(tmp.root, name).apply { writeBytes(bytes) }
+    }
+
+    @Test fun backupIfOlder_copiesAnOlderDatabaseBesideIt() {
+        val db = sqliteFile(3)
+        val backup = ProjectOpenRules.backupIfOlder(db, currentVersion = 4)
+        assertEquals("project.db.v3.bak", backup?.name)
+        assertEquals(db.readBytes().toList(), backup?.readBytes()?.toList())
+    }
+
+    @Test fun backupIfOlder_neverOverwritesAnEarlierBackup() {
+        val db = sqliteFile(3)
+        val first = File(tmp.root, "project.db.v3.bak").apply { writeText("earlier") }
+        assertEquals("project.db.v3.1.bak", ProjectOpenRules.backupIfOlder(db, currentVersion = 4)?.name)
+        assertEquals("earlier", first.readText())
+    }
+
+    @Test fun backupIfOlder_leavesCurrentAndNewerAlone() {
+        assertNull(ProjectOpenRules.backupIfOlder(sqliteFile(4), currentVersion = 4))
+        assertNull(ProjectOpenRules.backupIfOlder(sqliteFile(5), currentVersion = 4))
+        assertEquals(listOf("project.db"), tmp.root.list()!!.toList())
+    }
+
+    @Test fun backupIfOlder_ignoresWhatIsNotAnOlderProject() {
+        assertNull("a new project has no file yet", ProjectOpenRules.backupIfOlder(File(tmp.root, "none.db"), currentVersion = 4))
+        assertNull("version 0 was never set up by Room", ProjectOpenRules.backupIfOlder(sqliteFile(0), currentVersion = 4))
+        val other = File(tmp.root, "other.db").apply { writeBytes(ByteArray(100)) }
+        assertNull("not SQLite", ProjectOpenRules.backupIfOlder(other, currentVersion = 4))
+        val short = File(tmp.root, "short.db").apply { writeBytes(ByteArray(10)) }
+        assertNull("too short to have a header", ProjectOpenRules.backupIfOlder(short, currentVersion = 4))
+    }
+
     @Test fun currentVersion_opensWithoutBackup() =
         assertEquals(DatabaseDecision.Open(backupFromVersion = null), decide(good))
 
