@@ -48,8 +48,12 @@ data class ItemTagName(val itemId: Long, val name: String)
  * SkipQueryVerification on every query that touches it.
  */
 /** A Sorted item a Re-sort may unassign: its category isn't the user's, and it has an analysis to sort from. */
+/**
+ * Items a Re-sort makes waiting again: sorted or binned (Plan 3 B10: a binned item's file stays where
+ * it is until the next Bin Files moves it), not placed by the user, and with an analysis to read.
+ */
 private const val RESORTABLE =
-    "status = 'Sorted' AND categorySetByUser = 0 AND EXISTS (SELECT 1 FROM analysis WHERE analysis.itemId = item.id)"
+    "status IN ('Sorted', 'Binned') AND categorySetByUser = 0 AND EXISTS (SELECT 1 FROM analysis WHERE analysis.itemId = item.id)"
 
 internal const val FTS_REBUILD_ROW =
     "INSERT INTO item_fts(rowid, description, actions, tags, friendly_name, category) " +
@@ -205,8 +209,8 @@ abstract class SortDao {
     protected abstract suspend fun rebuildFtsRow(itemId: Long)
 
     /**
-     * Makes unlocked Sorted items waiting again for a Re-sort. Returns how many it unassigned.
-     * Failed, Missing and Binned items are left alone, and so is an item with no analysis (a failed
+     * Makes unlocked Sorted and Binned items (Plan 3 B10) waiting again for a Re-sort. Returns how
+     * many it unassigned. Failed and Missing items are left alone, and so is an item with no analysis (a failed
      * item set by hand): no sorter can read it, so unassigned it would wait forever. Empty
      * model-created categories are deleted.
      */

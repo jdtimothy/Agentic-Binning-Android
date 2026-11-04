@@ -414,6 +414,33 @@ class SortDaoTest {
         assertEquals("Beach", db.sort().categories().single().name)
     }
 
+    /** Plan 3 B10: Re-sort reaches an unlocked binned item; its file stays put until Bin Files. Not yet run on the phone. */
+    @Test fun prepareResort_includesUnlockedBinnedItems() = runTest {
+        val binned = addItem("a")
+        db.sort().applyChunk(listOf(newCategory("Beach")), listOf(Assignment(binned, "Beach", "One")))
+        db.items().setStatus(binned, ItemStatus.Binned)
+
+        assertEquals(1, db.sort().prepareResort(keepEdits = true))
+
+        assertEquals(ItemStatus.Analyzed, item(binned).status)
+        assertNull(item(binned).categoryId)
+        assertEquals("/x/a.jpg", item(binned).currentPath)
+        assertEquals(listOf(binned), db.sort().uncategorized().map { it.id })
+    }
+
+    /** Plan 3 B10 with Keep my edits: a binned item whose category the user set stays binned. Not yet run on the phone. */
+    @Test fun prepareResort_keepEdits_leavesLockedBinnedItems() = runTest {
+        val locked = addItem("a")
+        db.sort().applyChunk(listOf(newCategory("Beach")), listOf(Assignment(locked, "Beach", "One")))
+        val beachId = item(locked).categoryId!!
+        db.media().updateItemEdit(locked, "One", nameSetByUser = true, categoryId = beachId, categorySetByUser = true, status = ItemStatus.Binned)
+
+        assertEquals(0, db.sort().prepareResort(keepEdits = true))
+
+        assertEquals(ItemStatus.Binned, item(locked).status)
+        assertEquals(beachId, item(locked).categoryId)
+    }
+
     @Test fun prepareResort_withoutKeepEdits_clearsLocks() = runTest {
         val locked = addItem("a")
         db.sort().applyChunk(listOf(newCategory("Beach")), listOf(Assignment(locked, "Beach", "One")))
