@@ -356,6 +356,8 @@ and leave items shared with another listed project out of Bin Files.
 
 ## B11. MediaStore after a move, and what Gallery and the pickers show
 
+**Status: checked on the phone Nov 3-4, 2026.** One row at the new path and none at the old; `_id` and `date_modified` kept; the Camera album's count drops; the category folder is an album; a Favourite survives; re-picking says "already in this project". Not checked: Gallery's Revert, and the Android photo picker.
+
 Spec: "After a move, notify MediaStore (scan the new path, remove the old
 one)." Proposed: after each step, `MediaScannerConnection.scanFile` on both
 paths (scanning a path that no longer exists removes its row). Renames and

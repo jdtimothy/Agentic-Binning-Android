@@ -2,9 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: drafted Nov 4, 2026 by a cloud session (no phone) on `plan-3-binning`, after merging `main` @ `738cfad` (PRs #22, #23). Tasks 1–9 and 11–13, and Task 10's code, are done in the cloud (JVM tests green, 693 in all; device tests written, not yet run on the phone). Tasks 14–17 and the phone halves of 4, 5, 10 and 12–13 are next.** The owner answered B1–B6, B9, B10, B12, Q2, Q11 and P8 on Nov 4 (see "Product decisions"); B7 and B8 were approved on Nov 3 local time; B11 is open until its phone check. No UI is built until its mockup is approved. Cloud progress and every ruling are in `docs/superpowers/notes/plan-3-cloud-handoff.md`.
-
-**Phone progress (branch `plan-3-phone`):** merged to `main` as PR #24 before this work. All device tests written in the cloud passed on SM-S948U1: `MoveDaoTest` 9, `ProjectDatabaseMigrationTest` 6, `MoveFilesDeviceTest` 4, `SortDaoTest` 25, `ProjectMediaRepositoryTest` 22, `ProjectDatabaseTest` 7, `ProjectOpenRemoveTest` 10. Maui migrated from v3 to v4 on the phone with its data and paths unchanged. Backups of all six projects' v3 databases are on the PC in `../avb-db-backups/pre-schema-v4/`.
+**Status: built, and checked on the phone, on branch `plan-3-phone`; not yet merged.** Tasks 1-13 were built in a cloud session (`docs/superpowers/notes/plan-3-cloud-handoff.md`), the rest on the PC with the phone attached. 834 JVM tests and 92 device tests pass on SM-S948U1. Left: B11's Gallery Revert and the Android photo picker (owner's look), and whether the Plan 2b sheets get the same glass.
 
 **Goal:** **Bin Files** moves every sorted item's file to `<project>/<Category>/<friendly name>.<original extension>`, and a **Save** that renames, re-categorizes or merges something already binned moves its files the same way, right away. No file is ever lost or overwritten, every run is resumable after a crash, and the category folders are checked before and after.
 
@@ -95,9 +93,26 @@ Full text, choices and reasons: `docs/superpowers/mockups/2026-11-04-plan-3-ques
 - **The end-to-end test sorts with LFM3-1.7B.** Settings is switched from Claude for the test and switched back afterwards; no paid call.
 - **Mockup review.** No status pills on the progress card (no Moving/Checking/Copying chips: `MoveProgress.phase` isn't shown). The copy dialog stays put and updates only its bar, with no per-file line; the progress card likewise never redraws. The progress card, sheets and dialogs use the approved canvas's glass (55% dark, 58% light, 26 px blur), not 2b's near-opaque panels. In the app, today's `GlassSheet` and dialogs paint a solid `tokens.bg` behind the glass. In dark mode a sheet is the lighter glass (`rgba(72,78,96,.55)`) and the cards inside it the darker (`rgba(10,12,18,.46)`, warnings `rgba(52,36,12,.62)`); a dialog with no cards inside, like the P8 notice, is the darker glass itself; light mode is unchanged.
 
+### Checked on the phone
+
+- **B11. MediaStore after a move:** one row at the new path and none at the old, with `_id` and `date_modified` kept. The Camera album's count drops and the category folder appears as an album. A Gallery Favourite survives the move. Re-picking a binned file says "already in this project". Not checked: Gallery's Revert on a photo edited before the move, and the Android photo picker (the phone is set to Samsung Gallery's).
+
 ### Open
 
-- **B11.** MediaStore after a move: scan both paths after each step (recommended). What Gallery and both pickers show is checked in Task 17, and the confirm sheet's Gallery line depends on it.
+- **Plan 2b's sheets:** they stay near-opaque until the owner chooses. Real glass there means drawing them in the screen's window, as Bin Files' are: this phone has no cross-window blur (`ro.surface_flinger.supports_background_blur=0`).
+
+### Rulings made on the PC
+
+- **The Bin Files sheets and the P8 notice draw in the screen's own window**, not a dialog's: Haze can only blur its own window, and this phone has no cross-window blur. The project sheet closes when the notice opens, as mockup state 7 draws it.
+- **Schema v5** (`move_run.inPlace`, `checkOk`, `reportClosed`) keeps a report until it is closed, across a restart (B8). v4 was already on the phone, so it is a migration, not an edit.
+- **A stopped run runs the folder check too**, since state 4 reports it.
+- **Every open of an older database backs it up first**, in `openProjectDatabase`, because three paths can migrate one (launch, Open project, and another listed project during an add).
+- **Notifications and the card are paced** (at most 2 and 4 updates a second, always ending on the latest): Android sheds a package's updates over 5 a second, which once left a paused run showing a Pause button.
+- **A Save that would move files while analysis runs is refused and rolled back** with its reason, never queued. **What a Save will move reads Sorted until it arrives**, so a stopped Save offers Bin Files rather than hiding behind "All files binned".
+- **A category rename is one move per file**, not a folder rename, so each file gets the same checks and crash resume.
+- **A dropped category's folder is removed only once empty**; a removed file keeps it (Q2).
+- **A held file found on disk reads "(not on your list)"**; `Registrar` reaches the file's folder before hashing it, so nothing is hashed that won't be added.
+- **Left-out rows show an icon, not a thumbnail**; a Failed or Missing file often has no picture.
 
 ---
 
@@ -311,7 +326,7 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 **Files:** Create `move/MediaStoreNotifier.kt` (`MediaScannerConnection.scanFile(context, [dest, source], …)`), wire it in `AppGraph`. B11 is open: the scan itself is the recommendation; the checks below confirm what Gallery shows.
 
 - [x] **Step 1:** Implement and wire (cloud). Commit `feat(move): tell MediaStore about moves`.
-- [ ] **Step 2 (phone):** Move one photo from `DCIM/Camera` with Bin Files. Check with `adb shell content query --uri content://media/external/images/media --projection _id:_data --where "_data LIKE '%<name>%'"` that one row points at the new path and none at the old, and whether the `_id` stayed the same (rename through FUSE). In Samsung Gallery: Pictures timeline position, the Camera album, the new category album, a Favourite set before the move, "Revert" on a photo edited before the move. In the Android photo picker and Samsung Gallery's picker: where it shows. Re-pick it into the same project ("already in this project") and another ("in another project's folder"). Record the answers in B11.
+- [x] **Step 2 (phone):** Move one photo from `DCIM/Camera` with Bin Files. Check with `adb shell content query --uri content://media/external/images/media --projection _id:_data --where "_data LIKE '%<name>%'"` that one row points at the new path and none at the old, and whether the `_id` stayed the same (rename through FUSE). In Samsung Gallery: Pictures timeline position, the Camera album, the new category album, a Favourite set before the move, "Revert" on a photo edited before the move. In the Android photo picker and Samsung Gallery's picker: where it shows. Re-pick it into the same project ("already in this project") and another ("in another project's folder"). Record the answers in B11.
 
 **Step 1 done Nov 4** (`6f38f63`): `MediaStoreNotifier`; scans are asynchronous and never fail a move.
 
@@ -353,8 +368,8 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 - A category rename is one step per binned file into the new folder, then the empty old folder is removed (2b "Left for Plan 3"); a removed file keeps the old folder (Q2).
 - The UI for state 6 exists in the 2b mockup; the progress card is shared with Bin Files (Task 16).
 
-- [ ] **Step 1:** Device tests: `saveRename_binnedItem_writesEditAndPlanTogether`, `renameCategory_movesEveryBinnedFileThenRemovesTheOldFolder`, `merge_movesTheDroppedCategorysFiles`, `rename_withARemovedFile_keepsTheOldFolder`.
-- [ ] **Step 2:** Implement; JVM tests for the plan; commit.
+- [x] **Step 1:** Device tests: `saveRename_binnedItem_writesEditAndPlanTogether`, `renameCategory_movesEveryBinnedFileThenRemovesTheOldFolder`, `merge_movesTheDroppedCategorysFiles`, `rename_withARemovedFile_keepsTheOldFolder`.
+- [x] **Step 2:** Implement; JVM tests for the plan; commit.
 
 ### Task 15: Media another project holds (P8) · phone: yes (copies real files)
 
@@ -363,29 +378,29 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 - Copy each shared file with `MoveFiles.copyHashing` to `<project>/Copied from <other project name, made safe>/<original name>` (numbered if taken), check size and SHA-256 read back, then register the copy as a new item (`originalPath` = the copy). The other project's file is never moved.
 - Cancel registers nothing of the shared files; the rest of the batch is registered as usual.
 
-- [ ] **Step 1: JVM tests:** `ProjectFinderTest` (`folderWithDatabase_isAProject`, `nestedInsideAProject_isFound`), `RegistrarTest` (`fileInAnUnlistedProjectFolder_isShared`, `fileHeldByAListedProject_isShared`, `sharedFiles_registerNothingUntilCopied`).
-- [ ] **Step 2: Implement** the logic (cloud), the copy step with its progress flow, and the notice UI once state 7 is approved.
-- [ ] **Step 3 (phone):** Add a folder that holds another project's files; Copy media files; `ls -lR` of both projects; SHA-256 of copies equals the originals; the other project's database unchanged.
+- [x] **Step 1: JVM tests:** `ProjectFinderTest` (`folderWithDatabase_isAProject`, `nestedInsideAProject_isFound`), `RegistrarTest` (`fileInAnUnlistedProjectFolder_isShared`, `fileHeldByAListedProject_isShared`, `sharedFiles_registerNothingUntilCopied`).
+- [x] **Step 2: Implement** the logic (cloud), the copy step with its progress flow, and the notice UI once state 7 is approved.
+- [x] **Step 3 (phone):** Add a folder that holds another project's files; Copy media files; `ls -lR` of both projects; SHA-256 of copies equals the originals; the other project's database unchanged.
 
 ### Task 16: Bin Files UI · phone: yes · blocked on mockup approval (B7, B8)
 
 **Files:** Create `ui/media/BinSheets.kt` (confirm, report, unknown files), `ui/media/MoveCard.kt` (progress card with Pause/Resume and Stop, resume banner), `ui/project/SharedMediaNotice.kt` (P8). Modify `ui/media/ProjectMediaScreen.kt`, `ui/analyze/BottomBar.kt` (shows the move's state), `ui/project/ProjectSheet.kt` (adds disabled while files move).
 
 - Match `2026-11-04-plan-3-binning.html` states 1–7 and 2b state 6 in dark and light (`screencap`).
-- [ ] **Step 1:** Owner approves the mockups and answers B7, B8.
-- [ ] **Step 2:** JVM model tests for each sheet model (like `DetailSheetModelTest`); build; phone screenshots.
+- [x] **Step 1:** Owner approves the mockups and answers B7, B8.
+- [x] **Step 2:** JVM model tests for each sheet model (like `DetailSheetModelTest`); build; phone screenshots.
 
 ### Task 17: End-to-end on the phone · phone: yes
 
-- [ ] **Step 1:** Fresh media (never Hawaii Photos or Maui): 20 photos and 3 clips pushed to `/sdcard/DCIM/avb-plan3/`, 2 photos to `/sdcard/Download/avb-plan3/`, a truncated JPEG (Failed), and one photo deleted after analysis (Missing). If an SD card is available, 2 photos on it (the copy path). New project "Plan3 E2E", add both folders, let analysis and sorting (LFM3-1.7B) finish.
-- [ ] **Step 2: Before.** `adb shell ls -lR` of the project folder and every source folder; `adb shell sha256sum` of every media file (save to `build/e2e/plan3/before.txt`).
-- [ ] **Step 3: Bin Files** (from the sheet once Task 16 is built; before that with the adb intent in the handoff note), and while it runs, `adb shell am force-stop com.agentic.binning` at about half way. Relaunch: the run resumes on its own (B3) and finishes. Check logcat for the step that was in flight.
-- [ ] **Step 4: After.** `ls -lR` and `sha256sum` again: every hash from Step 2 appears exactly once, at its item's `currentPath` (pull `project.db`: `select id,currentPath,status,contentHash from item; select * from move_step where runId = (select max(id) from move_run);`). The Failed and Missing items are where they were; no `.tmp` is left in `.binning/moving`; no source folder was removed.
-- [ ] **Step 5: Pause and Stop** on a second run (add 5 more photos, sort, Bin Files): Pause, wait, Resume; then Stop. The file in progress always finishes.
-- [ ] **Step 6: Save on a binned item:** rename one item, re-categorize one, rename a category: files move at once (2b state 6); `sha256sum` again.
-- [ ] **Step 7: Folder check:** `adb push` a stray JPEG into a category folder, Bin Files → the unknown-files sheet; Leave them; Bin Files works.
-- [ ] **Step 8:** Task 10's Gallery and picker checks on these files.
-- [ ] **Step 9:** Notes into `CLAUDE.md` and the B11 answers into the questions document. Commit.
+- [x] **Step 1:** Fresh media (never Hawaii Photos or Maui): 20 photos and 3 clips pushed to `/sdcard/DCIM/avb-plan3/`, 2 photos to `/sdcard/Download/avb-plan3/`, a truncated JPEG (Failed), and one photo deleted after analysis (Missing). If an SD card is available, 2 photos on it (the copy path). New project "Plan3 E2E", add both folders, let analysis and sorting (LFM3-1.7B) finish.
+- [x] **Step 2: Before.** `adb shell ls -lR` of the project folder and every source folder; `adb shell sha256sum` of every media file (save to `build/e2e/plan3/before.txt`).
+- [x] **Step 3: Bin Files** (from the sheet once Task 16 is built; before that with the adb intent in the handoff note), and while it runs, `adb shell am force-stop com.agentic.binning` at about half way. Relaunch: the run resumes on its own (B3) and finishes. Check logcat for the step that was in flight.
+- [x] **Step 4: After.** `ls -lR` and `sha256sum` again: every hash from Step 2 appears exactly once, at its item's `currentPath` (pull `project.db`: `select id,currentPath,status,contentHash from item; select * from move_step where runId = (select max(id) from move_run);`). The Failed and Missing items are where they were; no `.tmp` is left in `.binning/moving`; no source folder was removed.
+- [x] **Step 5: Pause and Stop** on a second run (add 5 more photos, sort, Bin Files): Pause, wait, Resume; then Stop. The file in progress always finishes.
+- [x] **Step 6: Save on a binned item:** rename one item, re-categorize one, rename a category: files move at once (2b state 6); `sha256sum` again.
+- [x] **Step 7: Folder check:** `adb push` a stray JPEG into a category folder, Bin Files → the unknown-files sheet; Leave them; Bin Files works.
+- [x] **Step 8:** Task 10's Gallery and picker checks on these files.
+- [x] **Step 9:** Notes into `CLAUDE.md` and the B11 answers into the questions document. Commit.
 
 ---
 
