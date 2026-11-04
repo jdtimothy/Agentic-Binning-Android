@@ -143,4 +143,50 @@ class ProjectDatabaseMigrationTest {
             db.close()
         }
     }
+
+    /** A v3 database with a finished Bin Files run of one step (written by raw SQL: v3 had the tables, unused). */
+    private fun SQLiteConnection.fillV3() {
+        fillV2()
+        execSQL("INSERT INTO move_run (id, kind, startedAt, finishedAt, state) VALUES (1, 'Bin', 10, 11, 'Done')")
+        execSQL("INSERT INTO move_step (id, runId, itemId, source, dest, state) VALUES (1, 1, 1, '/x/a.jpg', '/p/Beach/a.jpg', 'Done')")
+    }
+
+    /** Plan 3 Task 4. Written in the cloud; not yet run on the phone. */
+    @Test fun migrate3To4_keepsMoveRowsAndAddsDefaults() {
+        helper.createDatabase(3).apply {
+            fillV3()
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(4)
+
+        assertEquals(4, db.long("PRAGMA user_version"))
+        assertEquals(2, db.long("SELECT COUNT(*) FROM item"))
+        assertEquals(1, db.long("SELECT COUNT(*) FROM item_fts WHERE item_fts MATCH 'pier'"))
+        assertEquals(1, db.long("SELECT COUNT(*) FROM move_step WHERE dest = '/p/Beach/a.jpg' AND state = 'Done'"))
+        assertEquals(0, db.long("SELECT bytes + attempts + keepSource + numbered FROM move_step WHERE id = 1"))
+        assertEquals(1, db.long("SELECT COUNT(*) FROM move_step WHERE error IS NULL"))
+        assertEquals(1, db.long("SELECT COUNT(*) FROM move_run WHERE message IS NULL AND removedFolders IS NULL"))
+        assertEquals(0, db.long("SELECT COUNT(*) FROM removed_file"))
+        db.close()
+    }
+
+    /** Plan 3 Task 4: the real open path opens a v3 file at v4 and the move DAO works on it. Not yet run on the phone. */
+    @Test fun openProjectDatabase_migratesAV3File() = runTest {
+        helper.createDatabase(3).apply {
+            fillV3()
+            close()
+        }
+
+        val db = openProjectDatabase(context, dbFile)
+        try {
+            assertEquals(listOf("/p/Beach"), db.moves().binnedFolders())
+            assertEquals(null, db.moves().openRun())
+            db.moves().addRemoved(listOf("/p/Beach/old.jpg"), "removed", 12L)
+            assertEquals(listOf("/p/Beach/old.jpg"), db.moves().removedPaths())
+            assertEquals(listOf(1L), db.analyses().search("pier"))
+        } finally {
+            db.close()
+        }
+    }
 }
