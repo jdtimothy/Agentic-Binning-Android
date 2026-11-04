@@ -83,8 +83,8 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
 
 /* ---------- The phone ---------- */
 .ph {
-  --bg: #06070B; --bgfade: rgba(6, 7, 11, 0.88); --glass: rgba(24, 27, 36, 0.55); --glass2: rgba(30, 34, 45, 0.80);
-  --sheet: rgba(20, 23, 31, 0.90); --border: rgba(255, 255, 255, 0.13); --hi: rgba(255, 255, 255, 0.20);
+  --bg: #06070B; --bgfade: rgba(6, 7, 11, 0.88); --glass: rgba(24, 27, 36, 0.55); --glass2: var(--glass);
+  --sheet: var(--glass); --border: rgba(255, 255, 255, 0.13); --hi: rgba(255, 255, 255, 0.20);
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.45); --tshadow: 0 6px 18px rgba(0, 0, 0, 0.35);
   --text: #F4F6FA; --sub: rgba(226, 232, 244, 0.72); --chip: rgba(255, 255, 255, 0.08); --chip2: rgba(255, 255, 255, 0.12);
   --accent: #6CB6FF; --on-accent: #04121F; --ink: #8CC6FF; --asoft: rgba(108, 182, 255, 0.18);
@@ -97,8 +97,8 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
   color-scheme: dark;
 }
 .ph.light {
-  --bg: #E8ECF2; --bgfade: rgba(232, 236, 242, 0.88); --glass: rgba(255, 255, 255, 0.58); --glass2: rgba(255, 255, 255, 0.82);
-  --sheet: rgba(245, 247, 251, 0.92); --border: rgba(255, 255, 255, 0.85); --hi: rgba(255, 255, 255, 1);
+  --bg: #E8ECF2; --bgfade: rgba(232, 236, 242, 0.88); --glass: rgba(255, 255, 255, 0.58); --glass2: var(--glass);
+  --sheet: var(--glass); --border: rgba(255, 255, 255, 0.85); --hi: rgba(255, 255, 255, 1);
   --shadow: 0 12px 32px rgba(40, 52, 80, 0.16); --tshadow: 0 6px 18px rgba(40, 52, 80, 0.18);
   --text: #0E1116; --sub: #4A5263; --chip: rgba(20, 28, 45, 0.06); --chip2: rgba(255, 255, 255, 0.78);
   --accent: #0A63D1; --on-accent: #FFFFFF; --ink: #0A55B5; --asoft: rgba(10, 99, 209, 0.12);
@@ -113,7 +113,7 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
 .ph input:focus { outline: none; }
 .ph input::placeholder { color: var(--sub); opacity: 1; }
 .ph svg { flex: none; }
-.glass { backdrop-filter: blur(24px) saturate(170%); -webkit-backdrop-filter: blur(24px) saturate(170%); background: var(--glass); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--hi), var(--shadow); }
+.glass { backdrop-filter: blur(26px) saturate(170%); -webkit-backdrop-filter: blur(26px) saturate(170%); background: var(--glass); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--hi), var(--shadow); }
 .blobs { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .blobs i { position: absolute; border-radius: 50%; opacity: var(--blob); }
 .blobs i:nth-child(1) { width: 340px; height: 340px; left: -120px; top: 40px; background: #2F6E8F; filter: blur(80px); }
@@ -211,7 +211,7 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
 .job .wait { font-size: 12px; color: var(--sub); display: flex; gap: 6px; align-items: flex-start; }
 
 .scrim { position: absolute; inset: 0; background: var(--scrim); border: 0; padding: 0; margin: 0; width: 100%; cursor: default; }
-.sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 90%; border-radius: 30px 30px 0 0; background: var(--sheet); backdrop-filter: blur(30px) saturate(170%); -webkit-backdrop-filter: blur(30px) saturate(170%); border: 1px solid var(--border); border-bottom: 0; box-shadow: inset 0 1px 0 var(--hi), 0 -12px 40px rgba(0, 0, 0, 0.3); display: flex; flex-direction: column; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 90%; border-radius: 30px 30px 0 0; background: var(--sheet); backdrop-filter: blur(26px) saturate(170%); -webkit-backdrop-filter: blur(26px) saturate(170%); border: 1px solid var(--border); border-bottom: 0; box-shadow: inset 0 1px 0 var(--hi), 0 -12px 40px rgba(0, 0, 0, 0.3); display: flex; flex-direction: column; }
 .sheet.tall { height: 90%; }
 .sheet.anim { animation: up 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 .handle { width: 40px; height: 5px; border-radius: 3px; background: var(--track); margin: 10px auto 2px; flex: none; }
@@ -309,7 +309,7 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
 .chg2 > div { border-radius: 16px; background: var(--chip); padding: 12px; font-size: 12.5px; display: flex; flex-direction: column; gap: 6px; }
 .chg2 h6 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sub); display: flex; gap: 5px; align-items: center; }
 .chg2 ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
-.dlg { position: absolute; left: 28px; right: 28px; top: 50%; transform: translateY(-50%); border-radius: 28px; padding: 22px 20px 16px; background: var(--sheet); backdrop-filter: blur(30px) saturate(170%); -webkit-backdrop-filter: blur(30px) saturate(170%); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--hi), 0 20px 60px rgba(0, 0, 0, 0.35); display: flex; flex-direction: column; gap: 12px; animation: pop 200ms ease; }
+.dlg { position: absolute; left: 28px; right: 28px; top: 50%; transform: translateY(-50%); border-radius: 28px; padding: 22px 20px 16px; background: var(--sheet); backdrop-filter: blur(26px) saturate(170%); -webkit-backdrop-filter: blur(26px) saturate(170%); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--hi), 0 20px 60px rgba(0, 0, 0, 0.35); display: flex; flex-direction: column; gap: 12px; animation: pop 200ms ease; }
 .dlg h3 { margin: 0; font-size: 19px; line-height: 1.25; }
 .dlg p { margin: 0; font-size: 14px; color: var(--sub); line-height: 1.45; }
 .dlg .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
@@ -343,10 +343,6 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
 .job .stopb { height: 34px; padding: 0 14px; border-radius: 17px; border: 0; background: var(--chip); color: var(--danger); font-weight: 600; font-size: 13px; flex: none; display: flex; align-items: center; gap: 6px; }
 .job .stopb[aria-disabled="true"] { color: var(--sub); }
 .job .banner { font-size: 12.5px; padding: 8px 10px; border-radius: 12px; background: var(--asoft); color: var(--ink); display: flex; gap: 8px; align-items: flex-start; }
-.phases { display: flex; gap: 4px; font-size: 10.5px; color: var(--sub); }
-.phases span { padding: 2px 7px; border-radius: 8px; background: var(--chip); }
-.phases span.on { background: var(--asoft); color: var(--ink); font-weight: 600; }
-.phases span.done { color: var(--ok); }
 .facts { display: flex; flex-direction: column; border-radius: 18px; background: var(--chip); overflow: hidden; }
 .fact { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13.5px; }
 .fact:first-child { border-top: 0; }
@@ -393,6 +389,7 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
     <p class="eyebrow">Agentic Binning · Plan 3 · mockups for review · Nov 4, 2026</p>
     <h1 class="pg">Bin Files</h1>
     <p>Clickable mockups of Bin Files on the Hawaii Photos sample project from the Plan 2b mockups, grown to 251 sorted items: 248 files to bin into 14 category folders, 1 failed clip and 2 missing photos. Each state is the same live phone in dark and light, in the look of <code>2026-10-31-plan-2b-project-media.html</code>; the progress card reuses 2b state 6 (Save in progress). Taps work inside every phone. Media are colored placeholders.</p>
+    <p>Revised after the owner's review: the progress card, sheets and dialogs now use the approved canvas's glass (55% dark, 58% light, 26px blur) rather than 2b's near-opaque panels; the status pills on the progress card are gone; the copy dialog updates only its bar.</p>
     <p>The decisions behind them are in <code>2026-11-04-plan-3-questions.md</code> next to this file. Each state names the question it shows. The mockups show the recommended answer to every open question, and the owner's answer where there is one (B3, B5, P8).</p>
     <nav aria-label="States"><ul class="index" id="index"></ul></nav>
   </header>
@@ -556,8 +553,6 @@ function jobCard(P) {
   if (j.paused) o += '<div class="cur"><b>Next: ' + esc(cur.name) + "." + cur.ext + "</b><small>The file in progress finished. Nothing is half moved.</small></div>";
   else {
     o += '<div class="cur"><b>' + esc(cur.name) + "." + cur.ext + "</b><small>" + cur.from + " → " + esc(cur.to) + (cur.copy ? " · copied: another storage" : "") + "</small></div>";
-    var ph = cur.copy ? ["Copying", "Checking", "Placing", "Deleting the original"] : ["Moving", "Checking"];
-    o += '<div class="phases">' + ph.map(function (t, i) { return '<span class="' + (i < j.phase ? "done" : i === j.phase ? "on" : "") + '">' + t + "</span>"; }).join("") + "</div>";
   }
   o += '<ul class="steps">';
   for (var k = Math.max(0, done - 2); k < done; k++) {
@@ -570,6 +565,24 @@ function jobCard(P) {
   o += j.paused ? '<button class="stopb" data-a="resume" style="color:var(--ink)">' + ic("play", 12) + "Resume</button>" : '<button class="stopb" data-a="pause" style="color:var(--ink)"' + (j.pausing || j.stopping ? ' aria-disabled="true"' : "") + ">" + IC_PAUSE + "Pause</button>";
   o += '<button class="stopb" data-a="stop"' + (j.stopping ? ' aria-disabled="true"' : "") + ">" + ic("stop", 14) + "Stop</button></div></section>";
   return o;
+}
+
+/* Updates the card's contents where it stands: the card is never redrawn, and the bar animates. */
+function patchJob(P) {
+  var cur = P.el.querySelector(".job");
+  if (!cur) { render(P); return; }
+  var holder = document.createElement("div");
+  holder.innerHTML = jobCard(P);
+  var next = holder.firstChild, bar = cur.querySelector(".bar"), nextBar = next.querySelector(".bar");
+  var width = nextBar.firstChild.style.width, now = nextBar.getAttribute("aria-valuenow");
+  bar.remove();
+  cur.innerHTML = next.innerHTML;
+  cur.replaceChild(bar, cur.querySelector(".bar"));
+  bar.firstChild.style.width = width;
+  bar.setAttribute("aria-valuenow", now);
+  var status = P.el.querySelector(".dock .stxt"), dot = P.el.querySelector(".dock .dot"), j = P.job;
+  if (status) status.textContent = j.paused ? "Bin Files paused · " + j.done + " of " + TOTAL + " files" : "Binning · " + Math.min(j.done + 1, TOTAL) + " of " + TOTAL + " files";
+  if (dot) dot.className = "dot " + (j.paused ? "warn" : "run");
 }
 
 /* State 3 / 4: report */
@@ -607,23 +620,27 @@ function extraSheet(P) {
 
 /* State 7: media already in another project (P8) */
 function p8Dialog(P) {
-  var d = P.p8, o = '<button class="scrim" tabindex="-1" aria-label="Wait"></button><div class="dlg" role="alertdialog" aria-modal="true" aria-label="Already in another project">';
+  return '<button class="scrim" tabindex="-1" aria-label="Wait"></button><div class="dlg" role="alertdialog" aria-modal="true" aria-label="Already in another project">' + p8Inner(P.p8) + "</div>";
+}
+function p8Inner(d) {
+  var o = "";
   if (d.stage === "ask") {
     o += "<h3>3 files are already in another project</h3><p>In <b>Maui</b>: 2 files. In <b>Sort Test</b> (not on your list): 1 file. The other 9 files you picked are being added.</p>";
     o += "<p>Copy media files puts a copy of each in <code>" + PROJECT + "/Copied from Maui/</code> and <code>Copied from Sort Test/</code>. The other projects' files stay exactly where they are.</p>";
     o += '<div class="row"><button class="btn s" data-a="p8cancel">Cancel</button><button class="btn p" data-a="p8copy" style="flex:none">' + ic("copy") + "Copy media files</button></div>";
   } else if (d.stage === "copy") {
-    var pct = Math.round((d.done / 3) * 100);
     o += "<h3>Copying 3 files</h3><p>Each copy is checked against its original before it's added.</p>";
-    o += '<div class="bar"><i style="width:' + pct + '%"></i></div><p class="meta">' + Math.min(d.done + 1, 3) + " of 3 · " + ["Maui Sunrise Crater.jpg", "Road to Hana Falls.mp4", "Test Card Red.jpg"][Math.min(d.done, 2)] + "</p>";
+    o += '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i style="width:0%"></i></div>';
     o += '<div class="row"><button class="btn s" aria-disabled="true" style="opacity:.5">Copying…</button></div>';
   } else {
     o += "<h3>" + (d.copied ? "12 added" : "9 added, 3 left out") + "</h3>";
     o += d.copied ? "<ul><li>9 added from where they are</li><li>3 copied into Copied from Maui and Copied from Sort Test</li></ul><p>They're analyzed and sorted like any other item, and Bin Files moves them into their category folders.</p>" : "<p>The 3 files in Maui and Sort Test weren't added. Pick them again to copy them.</p>";
     o += '<div class="row"><button class="btn p" data-a="p8ok" style="flex:none">OK</button></div>';
   }
-  return o + "</div>";
+  return o;
 }
+/* Swaps the dialog's contents where it stands, so it never redraws or flashes. */
+function p8Swap(P) { P.el.querySelector(".dlg").innerHTML = p8Inner(P.p8); }
 
 /* ------------------------------------------------------------- phones */
 var PHONES = [];
@@ -660,11 +677,11 @@ function run(P, from, resumed) {
     j.phase++;
     if (j.phase > (stepAt(j.done).copy ? 3 : 1)) {
       j.phase = 0; j.done += j.done < 20 || j.stopping || j.pausing ? 1 : 9; P.binned = j.done;
-      if (j.pausing) { j.pausing = false; j.paused = true; render(P); return; }
+      if (j.pausing) { j.pausing = false; j.paused = true; patchJob(P); return; }
       if (j.stopping) { clearInterval(P.jt); P.moving = false; P.mode = "report"; P.report = { kind: "stopped", why: "user" }; render(P); return; }
       if (j.done >= TOTAL) { j.done = TOTAL; clearInterval(P.jt); P.moving = false; P.mode = "report"; P.report = { kind: "done" }; render(P); return; }
     }
-    render(P);
+    patchJob(P);
   }, 120);
 }
 function act(P, a, v) {
@@ -675,19 +692,28 @@ function act(P, a, v) {
   else if (a === "stop") {
     if (!P.job || P.job.stopping) return;
     if (P.job.paused) { clearInterval(P.jt); P.moving = false; P.mode = "report"; P.report = { kind: "stopped", why: "user" }; render(P); return; }
-    P.job.stopping = true; render(P);
+    P.job.stopping = true; patchJob(P);
   }
-  else if (a === "pause") { if (P.job && !P.job.pausing && !P.job.stopping) { P.job.pausing = true; render(P); } }
-  else if (a === "resume") { if (P.job) { P.job.paused = false; render(P); } }
+  else if (a === "pause") { if (P.job && !P.job.pausing && !P.job.stopping) { P.job.pausing = true; patchJob(P); } }
+  else if (a === "resume") { if (P.job) { P.job.paused = false; patchJob(P); } }
   else if (a === "why") { P.report.why = v; render(P); }
   else if (a === "left") say(P, "Opens the item's sheet (2b state 8)");
   else if (a === "leave") { say(P, "2 files left in Beach Scenes; the check skips them"); P.mode = "idle"; render(P); setTimeout(function () { run(P, 0); }, 900); }
   else if (a === "addextra") { P.mode = "idle"; say(P, "2 added · they're analyzed and sorted, then binned"); }
   else if (a === "p8copy") {
-    P.p8.stage = "copy"; P.p8.done = 0; render(P);
-    clearInterval(P.jt); P.jt = setInterval(function () { P.p8.done++; if (P.p8.done >= 3) { clearInterval(P.jt); P.p8.stage = "done"; P.p8.copied = true; } render(P); }, 900);
+    P.p8.stage = "copy"; P.p8.done = 0; p8Swap(P);
+    clearInterval(P.jt); P.jt = setInterval(function () {
+      P.p8.done++;
+      var bar = P.el.querySelector(".dlg .bar"), pct = Math.round((P.p8.done / 3) * 100);
+      bar.firstChild.style.width = pct + "%";
+      bar.setAttribute("aria-valuenow", pct);
+      if (P.p8.done >= 3) {
+        clearInterval(P.jt);
+        setTimeout(function () { P.p8.stage = "done"; P.p8.copied = true; p8Swap(P); }, 450);
+      }
+    }, 900);
   }
-  else if (a === "p8cancel") { P.p8.stage = "done"; P.p8.copied = false; render(P); }
+  else if (a === "p8cancel") { P.p8.stage = "done"; P.p8.copied = false; p8Swap(P); }
   else if (a === "p8ok") { P.mode = "p8after"; render(P); }
 }
 function setup(P) {
@@ -717,7 +743,7 @@ function mount(el, state, theme) {
 /* ------------------------------------------------------------- page */
 var STATES = [
   { id: "confirm", no: "1", q: "B7", title: "Bin Files confirm", body: "Bin Files is on: 248 files are ready and nothing waits. The confirm sheet says how many files go into how many folders, where they come from, that there is no undo and what Gallery will show. The failed clip and the two missing photos are listed: they stay where they are and don't block.", tryit: ["Tap Bin 248 files to start (state 2).", "Tap a left-out item: it opens its sheet.", "Cancel, then tap Bin Files on the bottom bar to open it again."] },
-  { id: "progress", no: "2", q: "Q11, B1, B2", title: "Progress, Pause and Stop", body: "The progress card from 2b state 6, for Bin Files: the current file, where it comes from and goes, and its phases. A file on internal storage is renamed into place, then checked (two phases). A file on the SD card is copied, checked, placed, then the original deleted (four). Re-sort, Edit and Select are greyed out: other edits wait. The user may leave the screen; the move runs in the foreground service, and the notification (below) has Pause and Stop too. Both finish the file in progress first (owner, Nov 4).", tryit: ["Tap Pause: the file in progress finishes, then the card says Paused with Resume and Stop.", "Tap Stop: the current file finishes and the stopped report opens.", "Let it run to the end for the report (state 3)."], notif: true },
+  { id: "progress", no: "2", q: "Q11, B1, B2", title: "Progress, Pause and Stop", body: "The progress card from 2b state 6, for Bin Files: the current file and where it comes from and goes. The card stays put; only its text and bar change. A file on internal storage is renamed into place, then checked. A file on the SD card is copied, checked, placed, then the original deleted. Re-sort, Edit and Select are greyed out: other edits wait. The user may leave the screen; the move runs in the foreground service, and the notification (below) has Pause and Stop too. Both finish the file in progress first (owner, Nov 4).", tryit: ["Tap Pause: the file in progress finishes, then the card says Paused with Resume and Stop.", "Tap Stop: the current file finishes and the stopped report opens.", "Let it run to the end for the report (state 3)."], notif: true },
   { id: "report", no: "3", q: "B8, B4", title: "Report", body: "The run finished. The headline, then what moved, names that got a number, the empty folder removed (Turtle Beach, emptied by an earlier merge) and the folder check. One SD card clip couldn't be copied cleanly twice, so it was skipped and stays where it was (B4, owner's answer). Below, every item left where it is, with why.", tryit: ["Tap a left-out item.", "Done closes it; the status line and Bin Files update."] },
   { id: "stopped", no: "4", q: "B2, B6", title: "Stopped: by the user, or storage full", body: "A run that stopped early says why, how many moved and how many are still where they were, and that nothing was lost. The toggle at the top switches between the two reasons. Storage full only happens while copying from another storage (B6). Bin Files or Try again plans the rest afresh.", tryit: ["Switch between Stopped by you and Storage full.", "Tap Bin 211 files: the run carries on from file 38."] },
   { id: "extra", no: "5", q: "B5, Q2", title: "Folder check: files Bin Files doesn't know", body: "Before moving anything, Bin Files checks the category folders. Two photos copied into Beach Scenes with a file manager belong to no item, so nothing moves until the user chooses. A binned photo deleted in Gallery is only marked Missing: it never blocks.", tryit: ["Leave them: they are recorded like removed files and Bin Files starts.", "Add to project: they are registered and analyzed; Bin Files waits for them."] },

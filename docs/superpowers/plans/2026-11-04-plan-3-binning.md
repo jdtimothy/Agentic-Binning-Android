@@ -93,6 +93,7 @@ Full text, choices and reasons: `docs/superpowers/mockups/2026-11-04-plan-3-ques
 - **B8. The report as drawn** in mockup states 3 and 4.
 - **Every open of an older database makes the backup**, not only Open project: `openProjectDatabase` copies it to `project.db.v<N>.bak` first, so a listed project opening at launch, or another listed project opened during an add, is covered too (`ffd2e05`).
 - **The end-to-end test sorts with LFM3-1.7B.** Settings is switched from Claude for the test and switched back afterwards; no paid call.
+- **Mockup review.** No status pills on the progress card (no Moving/Checking/Copying chips: `MoveProgress.phase` isn't shown). The copy dialog stays put and updates only its bar, with no per-file line; the progress card likewise never redraws. The progress card, sheets and dialogs use the approved canvas's glass (55% dark, 58% light, 26 px blur), not 2b's near-opaque panels. In the app, today's `GlassSheet` and dialogs paint a solid `tokens.bg` behind the glass.
 
 ### Open
 
