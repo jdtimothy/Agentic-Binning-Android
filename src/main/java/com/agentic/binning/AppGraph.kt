@@ -47,6 +47,7 @@ import com.agentic.binning.model.VisionModelException
 import com.agentic.binning.model.VisionProfile
 import com.agentic.binning.db.RoomBinStore
 import com.agentic.binning.move.BinFilesJob
+import com.agentic.binning.move.MediaStoreNotifier
 import com.agentic.binning.move.MoveNotifier
 import com.agentic.binning.move.MoveReport
 import com.agentic.binning.move.RealMoveFiles
@@ -305,7 +306,7 @@ class AppGraph(val context: Context) {
     private val moveFiles by lazy { RealMoveFiles { android.system.Os.stat(it.path).st_dev } }
 
     /** Tells MediaStore about each move (B11, Plan 3 Task 10). */
-    private val moveNotifier = MoveNotifier { _, _ -> }
+    private val moveNotifier: MoveNotifier by lazy { MediaStoreNotifier(context) }
 
     /** One job per open project, so a report keeps what the database doesn't (in-place count, the check). */
     @Volatile
