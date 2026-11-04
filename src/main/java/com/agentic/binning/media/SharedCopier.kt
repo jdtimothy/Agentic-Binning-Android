@@ -32,7 +32,7 @@ class SharedCopier(private val files: MoveFiles, projectDir: String) {
     suspend fun copy(
         held: List<HeldFile>,
         isKnown: suspend (hash: String) -> Boolean,
-        register: suspend (path: String) -> Boolean,
+        register: suspend (path: String, hash: String) -> Boolean,
         onProgress: (done: Int, total: Int) -> Unit,
     ): SharedCopyResult {
         // Unchecked temp files from a copy the app died in; never trusted. The engine's own are left alone.
@@ -65,9 +65,8 @@ class SharedCopier(private val files: MoveFiles, projectDir: String) {
         data class NoSpace(val needed: Long) : Outcome
     }
 
-    private suspend fun copyOne(file: HeldFile, index: Int, isKnown: suspend (String) -> Boolean, register: suspend (String) -> Boolean): Outcome {
+    private suspend fun copyOne(file: HeldFile, index: Int, isKnown: suspend (String) -> Boolean, register: suspend (String, String) -> Boolean): Outcome {
         if (!files.exists(file.path)) return Outcome.Failed
-        if (isKnown(files.sha256(file.path))) return Outcome.AlreadyHere
 
         val size = files.size(file.path)
         val free = files.usableSpace(root)
@@ -76,7 +75,9 @@ class SharedCopier(private val files: MoveFiles, projectDir: String) {
 
         val temp = "$root/.binning/moving/$TEMP_PREFIX$index.tmp"
         files.mkdirs(temp.substringBeforeLast('/'))
-        var checked = false
+        // A file is read to copy it, hashing as it goes, and the copy read once to check it: large videos
+        // come through here. So a file this project already holds is found after copying, not before.
+        var checkedHash: String? = null
         for (attempt in 1..MoveEngine.COPY_TRIES) {
             val hash = try {
                 files.copyHashing(file.path, temp)
@@ -87,13 +88,17 @@ class SharedCopier(private val files: MoveFiles, projectDir: String) {
                 files.delete(temp)
                 return Outcome.Failed
             }
+            if (isKnown(hash)) {
+                files.delete(temp)
+                return Outcome.AlreadyHere
+            }
             if (files.size(temp) == size && files.sha256(temp) == hash) {
-                checked = true
+                checkedHash = hash
                 break
             }
             files.delete(temp)
         }
-        if (!checked) return Outcome.Failed
+        val hash = checkedHash ?: return Outcome.Failed
         files.setLastModified(temp, files.lastModified(file.path))
 
         val folder = BinFilesJob.COPIED_FROM + MovePlanner.folderFor(file.project)
@@ -108,7 +113,7 @@ class SharedCopier(private val files: MoveFiles, projectDir: String) {
             }
             dest = MovePlanner.nextFree(dest, files::exists)
         }
-        if (!register(dest)) {
+        if (!register(dest, hash)) {
             // Only this app's own checked copy: an unregistered file would trip nothing but clutter the folder.
             files.delete(dest)
             return Outcome.Failed

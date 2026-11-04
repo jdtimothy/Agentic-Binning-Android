@@ -14,9 +14,12 @@ data class ProjectFolder(val dir: File, val name: String)
  * each folder once.
  */
 class ProjectFinder(
+    /** The open project's folder: found like any other, but its database isn't read for a name nobody needs. */
+    ownDir: File? = null,
     private val nameOf: (File) -> String? = { ProjectDatabaseProbe.probe(it).metaName },
 ) {
     private val known = HashMap<String, ProjectFolder?>()
+    private val own = ownDir?.canonicalPath
 
     fun projectContaining(file: File): ProjectFolder? {
         val start = file.absoluteFile.parentFile ?: return null
@@ -31,7 +34,8 @@ class ProjectFinder(
             walked += dir.path
             val db = ProjectFolders.databaseFile(dir)
             if (db.isFile) {
-                found = ProjectFolder(dir, nameOf(db)?.trim()?.takeIf { it.isNotEmpty() } ?: dir.name)
+                val name = if (dir.canonicalPath == own) null else nameOf(db)?.trim()?.takeIf { it.isNotEmpty() }
+                found = ProjectFolder(dir, name ?: dir.name)
                 break
             }
             dir = dir.parentFile

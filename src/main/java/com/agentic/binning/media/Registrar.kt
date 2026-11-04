@@ -97,14 +97,15 @@ class Registrar(
 
     /**
      * Adds a checked copy of a file another project holds (P8): an ordinary item of this project, though
-     * the other project has the same hash. False if this project already holds it.
+     * the other project has the same hash. False if this project already holds it. [contentHash] is the
+     * hash the copier just checked, so the file needn't be read again.
      */
-    suspend fun registerCopy(candidate: Candidate): Boolean {
+    suspend fun registerCopy(candidate: Candidate, contentHash: String? = null): Boolean {
         val path = candidate.file.absolutePath
         if (itemDao.findByPaths(listOf(path)).isNotEmpty()) return false
-        val contentHash = hash(candidate.file)
-        if (itemDao.findByHashes(listOf(contentHash)).isNotEmpty()) return false
-        insert(candidate, contentHash)
+        val checked = contentHash ?: hash(candidate.file)
+        if (itemDao.findByHashes(listOf(checked)).isNotEmpty()) return false
+        insert(candidate, checked)
         return true
     }
 

@@ -263,6 +263,14 @@ class RegistrarTest {
         assertEquals(ItemStatus.Pending, item.status)
     }
 
+    /** The copier has just checked the file by SHA-256: it isn't read a fifth time. */
+    @Test fun aCopy_withItsHashKnown_isNotHashedAgain() = runTest {
+        val r = registrar()
+        assertTrue(r.registerCopy(candidate("a.jpg", File(thisRef.path, "Copied from X")), contentHash = "known"))
+        assertEquals("known", store.items.single().contentHash)
+        assertEquals(0, hashCalls)
+    }
+
     @Test fun aCopyOfSomethingThisProjectHolds_isRefused() = runTest {
         val r = registrar()
         r.register(listOf(candidate("a.jpg"))).toList()

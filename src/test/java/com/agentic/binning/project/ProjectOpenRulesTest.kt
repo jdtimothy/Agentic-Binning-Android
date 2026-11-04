@@ -47,6 +47,23 @@ class ProjectOpenRulesTest {
         assertEquals("earlier", first.readText())
     }
 
+    /** The finding: an open that never migrates left one more full copy every time. */
+    @Test fun backupIfOlder_anIdenticalBackupIsEnough() {
+        val db = sqliteFile(3)
+        assertEquals("project.db.v3.bak", ProjectOpenRules.backupIfOlder(db, currentVersion = 4)?.name)
+        assertNull(ProjectOpenRules.backupIfOlder(db, currentVersion = 4))
+        assertEquals(setOf("project.db", "project.db.v3.bak"), tmp.root.list()!!.toSet())
+    }
+
+    /** The same version with other contents (an older build ran since): that is new data to keep. */
+    @Test fun backupIfOlder_changedContents_getAnotherBackup() {
+        val db = sqliteFile(3)
+        ProjectOpenRules.backupIfOlder(db, currentVersion = 4)
+        db.appendText("more")
+        assertEquals("project.db.v3.1.bak", ProjectOpenRules.backupIfOlder(db, currentVersion = 4)?.name)
+        assertNull(ProjectOpenRules.backupIfOlder(db, currentVersion = 4))
+    }
+
     @Test fun backupIfOlder_leavesCurrentAndNewerAlone() {
         assertNull(ProjectOpenRules.backupIfOlder(sqliteFile(4), currentVersion = 4))
         assertNull(ProjectOpenRules.backupIfOlder(sqliteFile(5), currentVersion = 4))

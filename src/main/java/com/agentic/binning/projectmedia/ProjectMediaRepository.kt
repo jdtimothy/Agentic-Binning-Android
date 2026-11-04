@@ -1,5 +1,6 @@
 package com.agentic.binning.projectmedia
 
+import android.util.Log
 import androidx.room.immediateTransaction
 import androidx.room.useWriterConnection
 import com.agentic.binning.analysis.ActionEntry
@@ -7,6 +8,7 @@ import com.agentic.binning.db.CategoryEntity
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.db.MediaGridRow
 import com.agentic.binning.db.ProjectDatabase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -34,7 +36,8 @@ class ProjectMediaRepository(
 ) {
     /**
      * Runs [edit] in one transaction with the move plan for the items it reports. An edit refused because
-     * a run is in progress rolls back with its plan, so nothing is half done and nothing is queued.
+     * a run is in progress rolls back with its plan, so nothing is half done and nothing is queued. So
+     * does one whose plan fails: planning reads the other listed projects, and any of them may be unreadable.
      */
     private suspend fun withMoves(edit: suspend (affected: MutableCollection<Long>) -> EditResult): EditResult {
         var runId: Long? = null
@@ -45,7 +48,14 @@ class ProjectMediaRepository(
                     val affected = ArrayList<Long>()
                     val result = edit(affected)
                     if (saveMoves != null && result == EditResult.Ok && affected.isNotEmpty()) {
-                        runId = saveMoves.plan(affected)
+                        runId = try {
+                            saveMoves.plan(affected)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.w(TAG, "A Save's move plan failed", e)
+                            throw MovesRefused(PLAN_FAILED)
+                        }
                         if (runId != null) saveMoves.blockedReason()?.let { throw MovesRefused(it) }
                     }
                     result
@@ -410,6 +420,9 @@ class ProjectMediaRepository(
 }
 
 private val DetailJson = Json { ignoreUnknownKeys = true }
+
+private const val TAG = "ProjectMedia"
+private const val PLAN_FAILED = "Couldn't work out the file moves, so nothing was saved"
 
 /** How a Save moves binned files: wired by AppGraph over the move engine and the foreground service. */
 interface SaveMoveHooks {

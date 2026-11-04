@@ -272,8 +272,12 @@ private fun UnknownSheet(ui: UnknownUi, vm: BinFilesViewModel) {
         onClose = vm::onCloseSheet,
         footer = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button("Leave them", null, ButtonStyle.Secondary, onClick = vm::onLeaveFiles)
-                Button("Add to project", MediaIcons.Plus, ButtonStyle.Primary, Modifier.weight(1f), onClick = vm::onAddFiles)
+                if (ui.canAdd) {
+                    Button("Leave them", null, ButtonStyle.Secondary, onClick = vm::onLeaveFiles)
+                    Button("Add to project", MediaIcons.Plus, ButtonStyle.Primary, Modifier.weight(1f), onClick = vm::onAddFiles)
+                } else {
+                    Button("Leave them", null, ButtonStyle.Primary, Modifier.weight(1f), onClick = vm::onLeaveFiles)
+                }
             }
         },
     ) {
@@ -288,8 +292,12 @@ private fun UnknownSheet(ui: UnknownUi, vm: BinFilesViewModel) {
             Icon(MediaIcons.Info, contentDescription = null, tint = tokens.accent, modifier = Modifier.padding(top = 1.dp).size(18.dp))
             Text(
                 buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append("Add to project") }
-                    append(" analyzes and sorts them, then the next Bin Files moves them into their own category. ")
+                    if (ui.canAdd) {
+                        withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append("Add to project") }
+                        append(" analyzes and sorts them, then the next Bin Files moves them into their own category. ")
+                    } else {
+                        append("These can't be added: they aren't photos or videos, or a project already holds the same file. ")
+                    }
                     withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append("Leave them") }
                     append(" keeps them where they are and the check skips them from now on.")
                 },

@@ -428,6 +428,20 @@ class BinFilesJobTest {
         assertEquals(ItemStatus.Binned, store.status(1))
     }
 
+    /** P8: another project's file is copied, never moved, by a Save as by Bin Files. */
+    @Test fun planSave_aFileAnotherProjectHolds_isCopiedNotMoved() = runTest {
+        fs.put("$p/Beach/Old.jpg", "x")
+        store.item(1, "$p/Beach/Old.jpg", 1, "New", ItemStatus.Binned)
+        store.shared = setOf("$p/Beach/Old.jpg")
+
+        val runId = job.planSave(listOf(1))!!
+
+        assertTrue(store.ms.steps.single().keepSource)
+        assertEquals(MoveOutcome.Done, job.resume(runId, MoveControl()) {})
+        assertEquals("the other project's file stays", "x", fs.content("$p/Beach/Old.jpg"))
+        assertEquals("x", fs.content("$p/Beach/New.jpg"))
+    }
+
     /** Items not binned only change in the database; their files move at the next Bin Files. */
     @Test fun planSave_leavesFilesThatAreNotBinned() = runTest {
         fs.put("/storage/emulated/0/DCIM/a.jpg", "A")

@@ -55,10 +55,16 @@ class BinModelsTest {
     // ---------------------------------------------------------------- State 1: confirm
 
     @Test fun confirm_saysHowManyFilesGoWhere() {
-        val ui = confirmUi(preview(), "Hawaii Photos")
+        val ui = confirmUi(preview(), "/storage/emulated/0/Agentic Binning/Hawaii Photos")
         assertEquals("Bin 248 files into 14 folders", ui.headline)
         assertEquals("Into Agentic Binning/Hawaii Photos/, one folder per category.", ui.intro)
         assertEquals("Bin 248 files", ui.startLabel)
+    }
+
+    /** A project opened from another folder bins there: the no-undo sheet must say where. */
+    @Test fun confirm_namesTheProjectsRealFolder() {
+        val ui = confirmUi(preview(), "/storage/emulated/0/DCIM/Trip")
+        assertEquals("Into DCIM/Trip/, one folder per category.", ui.intro)
     }
 
     @Test fun confirm_singular() {
@@ -305,6 +311,20 @@ class BinModelsTest {
         assertTrue(ui.primaryStartsARun)
     }
 
+    /** A Save's report can't promise a count: Bin Files covers more than the Save did. */
+    @Test fun stoppedSave_offersBinFilesThroughTheConfirmSheet() {
+        val ui = reportUi(report(state = RunState.Stopped, moved = 1, stillToMove = 2).copy(kind = MoveKind.Save))
+        assertEquals("Bin Files", ui.primary)
+        assertTrue(ui.primaryStartsARun)
+        assertTrue(ui.confirmFirst)
+    }
+
+    @Test fun stoppedBinFiles_promisesItsCount() {
+        val ui = reportUi(report(state = RunState.Stopped, moved = 37, stillToMove = 211))
+        assertFalse(ui.confirmFirst)
+        assertEquals(211, ui.stillToMove)
+    }
+
     @Test fun failedRun_saysWhatWentWrong() {
         val ui = reportUi(report(state = RunState.Failed, message = "a.jpg wasn't where it should be after moving it", moved = 2, stillToMove = 5, checkOk = null))
         assertEquals("Bin Files stopped: something went wrong.", ui.callout?.bold)
@@ -314,6 +334,12 @@ class BinModelsTest {
     }
 
     // ---------------------------------------------------------------- State 5: unknown files
+
+    /** Once Add to project has failed for a file, the sheet stops offering it. */
+    @Test fun unknownFiles_cantAdd_explainsLeaveThem() {
+        val ui = unknownUi(LayoutProblems(emptyList(), listOf("/p/Beach/notes.txt")), "/p", "Trip", canAdd = false) { UnknownFileFacts("Nov 2", "1 KB") }
+        assertFalse(ui.canAdd)
+    }
 
     @Test fun unknownFiles_showPathsInsideTheProjectWithSizeAndDate() {
         val p = "/storage/emulated/0/Agentic Binning/Trip"

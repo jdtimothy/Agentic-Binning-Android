@@ -23,7 +23,7 @@ class SharedCopierTest {
     private suspend fun copy(vararg held: HeldFile, onProgress: (Int, Int) -> Unit = { _, _ -> }) = copier.copy(
         held.toList(),
         isKnown = { it in known },
-        register = { path -> registered += path; true },
+        register = { path, _ -> registered += path; true },
         onProgress = onProgress,
     )
 
@@ -119,14 +119,23 @@ class SharedCopierTest {
         assertTrue(fs.files.keys.none { it.endsWith(".tmp") })
     }
 
-    /** The same picture picked twice, or already in this project: no second copy. */
+    /** The same picture picked twice, or already in this project: no second copy is kept. */
     @Test fun aFileThisProjectAlreadyHolds_isNotCopiedAgain() = runTest {
         val h = held("$other/a.jpg")
         known += FakeMoveFiles.hash("data:$other/a.jpg")
         val r = copy(h)
         assertEquals(0, r.copied)
         assertEquals(1, r.alreadyHere)
-        assertTrue(fs.log.none { it.startsWith("copy") })
+        assertTrue(registered.isEmpty())
+        assertTrue("nothing left behind", fs.files.keys.none { it.endsWith(".tmp") || it.contains("Copied from") })
+    }
+
+    /** The finding: four full reads of each file. Copying reads the source once, the check the copy once. */
+    @Test fun aCopyIsReadOnlyToCopyAndToCheck() = runTest {
+        val hashes = ArrayList<String>()
+        copier.copy(listOf(held("$other/a.jpg")), isKnown = { false }, register = { _, hash -> hashes += hash; true }, onProgress = { _, _ -> })
+        assertEquals("only the read-back", 1, fs.sha256Calls)
+        assertEquals(listOf(FakeMoveFiles.hash("data:$other/a.jpg")), hashes)
     }
 
     /** The app died part way through an earlier copy: its unchecked temp files are never trusted or kept. */
@@ -145,7 +154,7 @@ class SharedCopierTest {
     }
 
     @Test fun aFailedRegistration_keepsTheCopyOutOfTheCount() = runTest {
-        val r = copier.copy(listOf(held("$other/a.jpg")), isKnown = { false }, register = { false }, onProgress = { _, _ -> })
+        val r = copier.copy(listOf(held("$other/a.jpg")), isKnown = { false }, register = { _, _ -> false }, onProgress = { _, _ -> })
         assertEquals(0, r.copied)
         assertEquals(1, r.failed)
         assertFalse("an unregistered copy isn't left to trip the folder check", fs.exists("$p/Copied from Maui/a.jpg"))

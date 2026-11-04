@@ -35,6 +35,13 @@ class SharedNoticeTest {
         assertEquals("In Maui: 1 file.", sharedAskUi(listOf(maui), added = 0, projectName = "Trip").lines[0])
     }
 
+    /** Q11: nothing is added while files move, this included. */
+    @Test fun whileFilesMove_saysNothingWasCopied() {
+        val ui = sharedWaitsForMoveUi(listOf(maui, maui2), added = 1)
+        assertEquals("1 added, 2 left out", ui.title)
+        assertEquals(listOf("Files are moving, so nothing was copied. Pick them again when the files have moved."), ui.lines)
+    }
+
     @Test fun cancelled_saysWhatWasLeftOut() {
         val ui = sharedCancelledUi(listOf(maui, maui2, sort), added = 9)
         assertEquals("9 added, 3 left out", ui.title)

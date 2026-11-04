@@ -53,6 +53,10 @@ data class ReportUi(
     /** The button beside [primary] that only closes; null when [primary] does. */
     val secondary: String?,
     val primaryStartsARun: Boolean,
+    /** [primary] opens the confirm sheet: a Save's report can't say what a Bin Files would move. */
+    val confirmFirst: Boolean = false,
+    /** What [primary] promises to move, when it names a count; more than this asks first. */
+    val stillToMove: Int = 0,
 )
 
 data class UnknownRowUi(val path: String, val sub: String)
@@ -66,6 +70,8 @@ data class UnknownUi(
     val missing: List<UnknownRowUi>,
     /** The files Add to project and Leave them act on. */
     val paths: List<String>,
+    /** False once Add to project has failed for these: only Leave them can get past them. */
+    val canAdd: Boolean = true,
 )
 
 /** What the user asked of the run in progress, until it has happened (B2). */
@@ -86,6 +92,8 @@ data class MoveCardUi(
     val canStop: Boolean,
 )
 
+private const val SHARED_STORAGE = "/storage/emulated/0/"
+
 private fun files(n: Int) = if (n == 1) "1 file" else "$n files"
 
 private fun folders(n: Int) = if (n == 1) "1 folder" else "$n folders"
@@ -100,7 +108,8 @@ private fun leftRows(leftOut: List<LeftOut>) = leftOut.filter { it.reason != Lef
     }
 }
 
-fun confirmUi(p: BinPreview, projectName: String): ConfirmUi {
+/** [projectPath] is the project's real folder, wherever it was opened from: this sheet can't be undone. */
+fun confirmUi(p: BinPreview, projectPath: String): ConfirmUi {
     val facts = buildList {
         p.sources.forEach { add(FactUi(FactIcon.Photos, "From ${it.folder}", it.path, "${it.count}")) }
         if (p.otherStorage > 0) {
@@ -117,7 +126,7 @@ fun confirmUi(p: BinPreview, projectName: String): ConfirmUi {
     }
     return ConfirmUi(
         headline = "Bin ${files(p.files)} into ${folders(p.folders)}",
-        intro = "Into Agentic Binning/$projectName/, one folder per category.",
+        intro = "Into ${projectPath.removePrefix(SHARED_STORAGE).trimEnd('/')}/, one folder per category.",
         facts = facts,
         callouts = listOf(
             CalloutUi("Each file moves into its category folder and is checked. Nothing is overwritten: a name that's taken gets a number.", bold = "No undo."),
@@ -240,23 +249,30 @@ private fun stoppedReport(r: MoveReport): ReportUi {
         checkFact(r.checkOk, if (total == 0) "Nothing missing or extra" else movedSub)?.let(::add)
     }
     val again = storage || failed
+    val save = r.kind == MoveKind.Save
     return ReportUi(
-        title = if (r.kind == MoveKind.Save) "Saving stopped" else "Bin Files stopped",
+        title = if (save) "Saving stopped" else "Bin Files stopped",
         headline = null,
         sub = null,
         callout = callout,
         facts = facts,
         skipped = r.skipped.map(::skippedRow),
         left = leftRows(r.leftOut),
-        primary = if (again) "Try again" else "Bin ${files(r.stillToMove)}",
+        primary = when {
+            save -> "Bin Files"
+            again -> "Try again"
+            else -> "Bin ${files(r.stillToMove)}"
+        },
         secondary = "Close",
         primaryStartsARun = true,
+        confirmFirst = save,
+        stillToMove = r.stillToMove,
     )
 }
 
 private const val STORAGE_PREFIX = "Storage is full. "
 
-fun unknownUi(problems: LayoutProblems, projectPath: String, projectName: String, facts: (String) -> UnknownFileFacts): UnknownUi {
+fun unknownUi(problems: LayoutProblems, projectPath: String, projectName: String, canAdd: Boolean = true, facts: (String) -> UnknownFileFacts): UnknownUi {
     fun inside(path: String) = path.removePrefix(projectPath.trimEnd('/') + "/")
     return UnknownUi(
         callout = CalloutUi(
@@ -272,5 +288,6 @@ fun unknownUi(problems: LayoutProblems, projectPath: String, projectName: String
             UnknownRowUi(inside(it), "Binned, but no longer there. It is listed as Missing and doesn't block Bin Files.")
         },
         paths = problems.unexpected,
+        canAdd = canAdd,
     )
 }

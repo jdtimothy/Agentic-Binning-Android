@@ -66,11 +66,12 @@ class BinFilesJob(
         val categories = store.categoryNames()
         val items = store.binItems()
         val onDisk = FolderCheck.categoryFiles(root, categories.values, files::listFiles)
-        val shared = store.sharedPaths(movable(items).map { it.currentPath })
+        val movable = movable(items)
+        val shared = store.sharedPaths(movable.map { it.currentPath })
         val plan = BinPlanner.plan(root, items, categories, onDisk.toSet(), files::exists, shared)
         val (kept, moved) = plan.steps.partition { it.keepSource }
         val (renames, otherStorage) = moved.partition { files.sameVolume(it.source, root) }
-        val eligible = items.count { it.categoryId in categories && it in movable(items) }
+        val eligible = movable.count { it.categoryId in categories }
         return BinPreview(
             files = plan.steps.size,
             folders = plan.steps.map { it.dest.substringBeforeLast('/').lowercase() }.distinct().size,
@@ -132,7 +133,9 @@ class BinFilesJob(
         if (binned.isEmpty()) return null
         val categories = store.categoryNames()
         val onDisk = FolderCheck.categoryFiles(root, categories.values, files::listFiles)
-        val plan = BinPlanner.plan(root, items, categories, onDisk.toSet(), files::exists, only = binned)
+        // P8: another project's file is copied, never moved, by a Save as by Bin Files.
+        val shared = store.sharedPaths(items.filter { it.id in binned }.map { it.currentPath })
+        val plan = BinPlanner.plan(root, items, categories, onDisk.toSet(), files::exists, shared, only = binned)
         if (plan.steps.isEmpty()) return null
         val bytes = plan.steps.associate { it.itemId to files.size(it.source) }
         val runId = store.writeRun(MoveKind.Save, clock(), plan.steps, bytes, emptyList(), plan.becameMissing)

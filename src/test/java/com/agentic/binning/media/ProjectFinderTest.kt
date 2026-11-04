@@ -37,6 +37,15 @@ class ProjectFinderTest {
         assertEquals("Old Trip", ProjectFinder { null }.projectContaining(File(dir, "a.jpg"))?.name)
     }
 
+    /** The finding: a full integrity check of the open project's own database, for a name nobody reads. */
+    @Test fun theOpenProjectsOwnDatabase_isNotProbed() {
+        val dir = project("This Project")
+        var reads = 0
+        val finder = ProjectFinder(ownDir = dir) { reads++; "Name" }
+        assertEquals(dir.path, finder.projectContaining(File(dir, "Beach/a.jpg"))?.dir?.path)
+        assertEquals(0, reads)
+    }
+
     /** A scan asks about thousands of files in one folder: the database is read once. */
     @Test fun aFolderIsAskedOnce() {
         val dir = project("Sort Test")

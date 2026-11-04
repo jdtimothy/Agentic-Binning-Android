@@ -115,6 +115,20 @@ Full text, choices and reasons: `docs/superpowers/mockups/2026-11-04-plan-3-ques
 - **A held file found on disk reads "(not on your list)"**; `Registrar` reaches the file's folder before hashing it, so nothing is hashed that won't be added.
 - **Left-out rows show an icon, not a thumbnail**; a Failed or Missing file often has no picture.
 
+### Rulings from the review of PR #25
+
+All nine findings are fixed with tests. The phone checks are still to do: findings 1, 2, 3 and 4 on a test project, and the device tests, including the two below that couldn't be watched failing on the PC.
+
+1. **A report's button moves only what it promises.** A stopped Save's button is Bin Files and opens the confirm sheet, since its run covered only what was edited. A stopped Bin Files carries on with no second confirm only if its count still matches; otherwise it asks.
+2. **The confirm sheet names the project's real folder**, not `Agentic Binning/<name>`: a project can be opened from anywhere.
+3. **A Save copies a file another project holds, as Bin Files does.** The lookup runs from inside the edit's transaction, in `outsideThisTransaction` (`db/OtherDatabases.kt`). Room 2.7 finds a transaction's connection through a context key shared by every database, with no check of which one, so a plain query on another project would read this project's rows, and every Save would copy. Checked in Room 2.7.2's bytecode; `OtherDatabasesDeviceTest` runs it on real databases. **A plan that fails refuses the Save and rolls it back**, as one unreadable listed project would otherwise crash every Save of a binned item.
+4. **Add to project reports what really happened.** What can't become an item stays on the sheet with only Leave them, since it would otherwise block the next Bin Files for good.
+5. **A backup with the same contents is enough.** An open that runs no query leaves the file old, so the next open would copy it again without limit.
+6. **Nothing is copied while files move, and nothing moves while files are added.** The notice's Copy says so and copies nothing; Bin Files and a Save that moves files wait for an add or copy in progress.
+7. **A copy reads each file twice: once to copy, once to check.** So a file this project already holds is found after copying, which costs a temp copy of it. Rare, and cheaper than hashing every large video first.
+8. **The Bin Files preview works out what can move once**, not once per item.
+9. **The open project's own database isn't probed** for a name nobody reads.
+
 ---
 
 ## File Structure

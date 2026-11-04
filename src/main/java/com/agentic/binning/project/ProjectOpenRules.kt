@@ -103,14 +103,27 @@ object ProjectOpenRules {
     /**
      * Copies [dbFile] aside if its schema is older than [currentVersion], before Room upgrades it: an
      * upgrade is one-way, since an older build can't open the result. Returns the copy, or null when
-     * none was needed. Throws if the copy fails, so nothing is upgraded without one.
+     * none was needed. An open that runs no query never upgrades the file, so the next open finds it old
+     * again: a backup with the same contents is enough, or copies would pile up without limit. Throws if
+     * the copy fails, so nothing is upgraded without one.
      */
     fun backupIfOlder(dbFile: File, currentVersion: Int): File? {
         val version = headerVersion(dbFile) ?: return null
         if (version !in 1 until currentVersion) return null
+        if (hasBackupOf(dbFile, version)) return null
         val backup = backupFile(dbFile, version)
         Files.copy(dbFile.toPath(), backup.toPath()) // fails rather than overwrite
         return backup
+    }
+
+    private fun hasBackupOf(dbFile: File, version: Int): Boolean {
+        val prefix = "${dbFile.name}.v$version."
+        val earlier = dbFile.absoluteFile.parentFile?.listFiles { f -> f.name.startsWith(prefix) && f.name.endsWith(".bak") }.orEmpty()
+        val length = dbFile.length()
+        val same = earlier.filter { it.length() == length }
+        if (same.isEmpty()) return false
+        val bytes = dbFile.readBytes()
+        return same.any { it.readBytes().contentEquals(bytes) }
     }
 
     /** `user_version` from a SQLite file's header, without opening it; null if it is missing or not SQLite. */

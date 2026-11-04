@@ -37,6 +37,9 @@ class BinFilesViewModelTest {
         val left = ArrayList<List<String>>()
         val added = ArrayList<List<String>>()
 
+        /** What Add to project really added; null adds everything it is given. */
+        var addable: Set<String>? = null
+
         override val projectName = "Trip"
         override val projectPath = "/storage/emulated/0/Agentic Binning/Trip"
         override suspend fun preview() = preview
@@ -48,7 +51,10 @@ class BinFilesViewModelTest {
         override suspend fun closeReport(runId: Long) { closed += runId; unread = null }
         override suspend fun facts(path: String) = UnknownFileFacts("Nov 2", "3.4 MB")
         override suspend fun leave(paths: List<String>) { left += paths }
-        override suspend fun add(paths: List<String>) { added += paths }
+        override suspend fun add(paths: List<String>): Set<String> {
+            added += paths
+            return addable ?: paths.toSet()
+        }
     }
 
     private val actions = FakeActions()
@@ -250,8 +256,34 @@ class BinFilesViewModelTest {
     }
 
     /** State 4: "Bin 211 files" carries on with no second confirm, and closes the report it replaces. */
+    /** A report stays until it's closed, so more files may be ready by now: never move more than it says. */
+    @Test fun stoppedReport_moreReadyThanItSays_asksFirst() = runTest {
+        actions.unread = report(RunState.Stopped, still = 2)
+        actions.preview = BinPreview(5, 1, emptyList(), 0, 0, 0, 0, 0, emptyList())
+        val vm = vm()
+        runCurrent()
+        vm.onReportPrimary()
+        runCurrent()
+        assertEquals(0, actions.starts)
+        assertEquals("Bin 5 files", (vm.state.value.sheet as BinSheetUi.Confirm).ui.startLabel)
+    }
+
+    /** The finding: a stopped Save's button ran a full Bin Files with no confirm. */
+    @Test fun stoppedSave_primaryOpensTheConfirmSheetAndMovesNothing() = runTest {
+        actions.unread = saveReport(RunState.Stopped)
+        actions.preview = BinPreview(248, 14, emptyList(), 0, 0, 0, 0, 0, emptyList())
+        val vm = vm()
+        runCurrent()
+        vm.onReportPrimary()
+        runCurrent()
+        assertEquals(0, actions.starts)
+        assertEquals(listOf(9L), actions.closed)
+        assertEquals("Bin 248 files", (vm.state.value.sheet as BinSheetUi.Confirm).ui.startLabel)
+    }
+
     @Test fun stoppedReport_primaryClosesItAndStartsTheRest() = runTest {
         actions.unread = report(RunState.Stopped, still = 2)
+        actions.preview = BinPreview(2, 1, emptyList(), 0, 0, 0, 0, 0, emptyList())
         val vm = vm()
         runCurrent()
         vm.onReportPrimary()
@@ -350,6 +382,47 @@ class BinFilesViewModelTest {
         assertEquals(0, actions.starts)
         assertNull(vm.state.value.sheet)
         assertEquals(listOf("1 added · it's analyzed and sorted, then binned"), messages)
+    }
+
+    /** The finding: "1 added" while the next Bin Files blocked on the same file, for ever. */
+    @Test fun addToProject_whatCantBeAdded_staysOnTheSheetWithOnlyLeaveThem() = runTest {
+        val two = LayoutProblems(emptyList(), listOf("$p/Beach/IMG.jpg", "$p/Beach/notes.txt"))
+        actions.addable = setOf("$p/Beach/IMG.jpg")
+        val vm = vm()
+        runCurrent()
+        val messages = ArrayList<String>()
+        backgroundScope.launch { vm.messages.collect { messages += it } }
+        runCurrent()
+        view.value = BinPipelineView(PipelinePhase.Idle, null, 1, MoveOutcome.Blocked(two), null)
+        runCurrent()
+
+        vm.onAddFiles()
+        runCurrent()
+
+        assertEquals(listOf("1 added · 1 can't be added"), messages)
+        val sheet = vm.state.value.sheet as BinSheetUi.Unknown
+        assertEquals(listOf("$p/Beach/notes.txt"), sheet.ui.paths)
+        assertEquals(listOf("Beach/notes.txt"), sheet.ui.unknown.map { it.path })
+        assertEquals(false, sheet.ui.canAdd)
+
+        vm.onLeaveFiles()
+        runCurrent()
+        assertEquals(listOf(listOf("$p/Beach/notes.txt")), actions.left)
+    }
+
+    @Test fun addToProject_nothingAdded_saysSoAndNeverClaimsIt() = runTest {
+        actions.addable = emptySet()
+        val vm = vm()
+        runCurrent()
+        val messages = ArrayList<String>()
+        backgroundScope.launch { vm.messages.collect { messages += it } }
+        runCurrent()
+        view.value = BinPipelineView(PipelinePhase.Idle, null, 1, MoveOutcome.Blocked(problems), null)
+        runCurrent()
+        vm.onAddFiles()
+        runCurrent()
+        assertEquals(listOf("1 can't be added"), messages)
+        assertTrue(vm.state.value.sheet is BinSheetUi.Unknown)
     }
 
     /** Closing the sheet doesn't bring it back: the outcome stays in the state until the next run. */

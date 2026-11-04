@@ -82,6 +82,12 @@ fun sharedCancelledUi(held: List<HeldFile>, added: Int): SharedNoticeUi {
     )
 }
 
+/** Q11: a run started while the notice was up. Nothing is added while files move. */
+fun sharedWaitsForMoveUi(held: List<HeldFile>, added: Int): SharedNoticeUi = SharedNoticeUi(
+    title = if (added == 0) "Nothing added" else "$added added, ${held.size} left out",
+    lines = listOf("Files are moving, so nothing was copied. Pick them again when the files have moved."),
+)
+
 fun sharedDoneUi(r: SharedCopyResult, added: Int): SharedNoticeUi {
     val total = added + r.copied
     return SharedNoticeUi(

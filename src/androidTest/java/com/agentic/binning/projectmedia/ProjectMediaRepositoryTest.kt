@@ -181,7 +181,10 @@ class ProjectMediaRepositoryTest {
         assertTrue(hooks.planned.isEmpty())
     }
 
-    /** A failure writing the plan takes the edit with it: never a name with no plan to match. */
+    /**
+     * A failure writing the plan takes the edit with it: never a name with no plan to match. It is refused,
+     * not thrown: planning reads the other listed projects, and one unreadable project mustn't crash a Save.
+     */
     @Test fun save_planFails_rollsTheEditBack() = runTest {
         val repo = ProjectMediaRepository(db, saveMoves = object : SaveMoveHooks {
             override fun blockedReason() = null
@@ -189,7 +192,10 @@ class ProjectMediaRepositoryTest {
             override suspend fun started(runId: Long) = Unit
         })
         val id = binnedItem("a")
-        assertEquals(true, runCatching { repo.saveItem(id, "New name", null, unlockName = false, unlockCategory = false) }.isFailure)
+        assertEquals(
+            EditResult.Busy("Couldn't work out the file moves, so nothing was saved"),
+            repo.saveItem(id, "New name", null, unlockName = false, unlockCategory = false),
+        )
         assertEquals("a", db.media().item(id)?.friendlyName)
     }
 

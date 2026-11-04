@@ -50,8 +50,11 @@ interface BinActions {
     /** Leave them (B5): the folder check skips these files from now on. */
     suspend fun leave(paths: List<String>)
 
-    /** Add to project (B5): they are analyzed and sorted like any other item. */
-    suspend fun add(paths: List<String>)
+    /**
+     * Add to project (B5): they are analyzed and sorted like any other item. Returns those that became
+     * items; the rest (not media, or a file a project already holds) still block until they are left.
+     */
+    suspend fun add(paths: List<String>): Set<String>
 }
 
 /** The parts of the pipeline's state these surfaces read. */
@@ -180,10 +183,13 @@ class BinFilesViewModel(
         val a = current ?: return
         launchSafely {
             val preview = withContext(io) { a.preview() } ?: return@launchSafely
-            if (current !== a) return@launchSafely
-            // B9: a plan with nothing to move only marks and reports; there is nothing to confirm.
-            if (preview.files == 0) start(a) else sheet.value = BinSheetUi.Confirm(confirmUi(preview, a.projectName))
+            if (current === a) confirm(a, preview)
         }
+    }
+
+    private fun confirm(a: BinActions, preview: BinPreview) {
+        // B9: a plan with nothing to move only marks and reports; there is nothing to confirm.
+        if (preview.files == 0) start(a) else sheet.value = BinSheetUi.Confirm(confirmUi(preview, a.projectPath))
     }
 
     fun onConfirm() {
@@ -222,11 +228,21 @@ class BinFilesViewModel(
         launchSafely { withContext(io) { a.closeReport(runId) } }
     }
 
-    /** State 4's Bin N files or Try again carries on with no second confirm; a Done only closes. */
+    /**
+     * State 4's Bin N files or Try again carries on with no second confirm, if N is still what would move:
+     * a report stays until it is closed, and more may be ready by now. A Save's report asks first, as its
+     * run covered only what it edited. A Done only closes. Nothing moves that a button didn't promise.
+     */
     fun onReportPrimary() {
         val open = sheet.value as? BinSheetUi.Report ?: return
         onCloseSheet()
-        if (open.ui.primaryStartsARun) current?.let(::start)
+        val a = current ?: return
+        if (!open.ui.primaryStartsARun) return
+        launchSafely {
+            val preview = withContext(io) { a.preview() } ?: return@launchSafely
+            if (current !== a) return@launchSafely
+            if (!open.ui.confirmFirst && preview.files == open.ui.stillToMove) start(a) else confirm(a, preview)
+        }
     }
 
     fun onLeaveFiles() {
@@ -246,9 +262,20 @@ class BinFilesViewModel(
         val a = current ?: return
         sheet.value = null
         launchSafely {
-            withContext(io) { a.add(open.ui.paths) }
-            val n = open.ui.paths.size
-            _messages.tryEmit(if (n == 1) "1 added · it's analyzed and sorted, then binned" else "$n added · they're analyzed and sorted, then binned")
+            val added = withContext(io) { a.add(open.ui.paths) }
+            val rows = open.ui.paths.zip(open.ui.unknown).filter { (path, _) -> path !in added }
+            if (rows.isEmpty()) {
+                val n = added.size
+                _messages.tryEmit(if (n == 1) "1 added · it's analyzed and sorted, then binned" else "$n added · they're analyzed and sorted, then binned")
+                return@launchSafely
+            }
+            // What couldn't become an item would only block the next Bin Files: say so, and offer what works.
+            _messages.tryEmit(if (added.isEmpty()) "${rows.size} can't be added" else "${added.size} added · ${rows.size} can't be added")
+            if (current === a) {
+                sheet.value = BinSheetUi.Unknown(
+                    open.ui.copy(paths = rows.map { it.first }, unknown = rows.map { it.second }, missing = emptyList(), canAdd = false),
+                )
+            }
         }
     }
 

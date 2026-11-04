@@ -233,6 +233,11 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
     override fun onCopyHeld() {
         val files = heldFiles
         if (files.isEmpty()) return
+        if (graph.pipeline.state.value.phase.isMoving) {
+            notice = SharedNoticeState.Done(sharedWaitsForMoveUi(files, heldBatchAdded))
+            heldFiles = emptyList()
+            return
+        }
         notice = SharedNoticeState.Copying(files.size, 0f)
         registering = true
         scope.launch {

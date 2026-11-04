@@ -36,7 +36,6 @@ import com.agentic.binning.media.MediaScanner
 import com.agentic.binning.media.MediaUris
 import com.agentic.binning.media.ProjectItemLookup
 import com.agentic.binning.media.Registrar
-import com.agentic.binning.media.RegistrationOutcome
 import com.agentic.binning.media.RegistrationProgress
 import com.agentic.binning.media.RegistrationSummary
 import com.agentic.binning.model.ClaudeTextModel
@@ -51,11 +50,16 @@ import com.agentic.binning.model.VisionModel
 import com.agentic.binning.model.VisionModelException
 import com.agentic.binning.model.VisionProfile
 import com.agentic.binning.db.RoomBinStore
+import com.agentic.binning.db.outsideThisTransaction
 import com.agentic.binning.move.BinFilesJob
 import com.agentic.binning.move.MediaStoreNotifier
 import com.agentic.binning.move.MoveNotifier
 import com.agentic.binning.move.formatBytes
+import com.agentic.binning.media.RegistrationOutcome
+import com.agentic.binning.pipeline.MOVE_WAITS_FOR_ADD
 import com.agentic.binning.pipeline.SAVE_BUSY
+import com.agentic.binning.pipeline.SAVE_WAITS_FOR_ADD
+import java.util.concurrent.atomic.AtomicInteger
 import com.agentic.binning.projectmedia.SaveMoveHooks
 import com.agentic.binning.ui.media.BinActions
 import com.agentic.binning.ui.media.UnknownFileFacts
@@ -328,7 +332,7 @@ class AppGraph(val context: Context) {
     private fun binFilesJob(project: OpenProject): BinFilesJob {
         binJob?.takeIf { it.first === project }?.let { return it.second }
         val job = BinFilesJob(
-            store = RoomBinStore(project.db, ::sharedWithOtherProjects),
+            store = RoomBinStore(project.db) { paths -> sharedWithOtherProjects(project.ref, paths) },
             files = moveFiles,
             notifier = moveNotifier,
             projectDir = project.ref.path,
@@ -339,17 +343,17 @@ class AppGraph(val context: Context) {
 
     /**
      * Which of [paths] another listed project also holds (P8's follow-on ruling: copied, never moved).
-     * Opens each other project's database that exists and closes it again.
+     * Opens each other project's database that exists and closes it again. A Save asks from inside its
+     * transaction, so this leaves that transaction behind: see [outsideThisTransaction].
      */
-    private suspend fun sharedWithOtherProjects(paths: List<String>): Set<String> = withContext(Dispatchers.IO) {
-        val current = pipelineProject().ref
+    private suspend fun sharedWithOtherProjects(current: ProjectRef, paths: List<String>): Set<String> = outsideThisTransaction {
         val opened = mutableListOf<ProjectDatabase>()
         try {
             val others = registry.list().filter { !ProjectRegistry.samePath(it.path, current.path) }.mapNotNull { ref ->
                 val dbFile = ProjectFolders.databaseFile(File(ref.path))
                 if (!dbFile.isFile) null else openProjectDatabase(context, dbFile).also { opened += it }
             }
-            if (others.isEmpty()) return@withContext emptySet()
+            if (others.isEmpty()) return@outsideThisTransaction emptySet()
             paths.chunked(500).flatMap { chunk -> others.flatMap { db -> db.items().findByPaths(chunk).map { it.currentPath } } }.toSet()
         } finally {
             withContext(NonCancellable) { opened.forEach { it.close() } }
@@ -364,12 +368,20 @@ class AppGraph(val context: Context) {
     fun binFiles(ref: ProjectRef): MoveStart {
         if (pipelineTarget != ref) return MoveStart.Refused(MOVE_NOT_OPEN)
         if (pipeline.state.value.phase.isRunning) return MoveStart.Refused(MOVE_BUSY)
+        if (addsRunning.get() > 0) return MoveStart.Refused(MOVE_WAITS_FOR_ADD)
         return if (startAnalysis(ref, RunKind.BinFiles)) MoveStart.Started else MoveStart.Refused(MOVE_NOT_STARTED)
     }
 
+    /** Registrations and copies in progress: files don't start moving under them (Q11). */
+    private val addsRunning = AtomicInteger(0)
+
     /** A Save's file moves for [project] (Plan 3 Task 14): the plan is written with the edit, then run here. */
     fun saveMoveHooks(project: OpenProject): SaveMoveHooks = object : SaveMoveHooks {
-        override fun blockedReason() = if (pipeline.state.value.phase.isRunning) SAVE_BUSY else null
+        override fun blockedReason() = when {
+            pipeline.state.value.phase.isRunning -> SAVE_BUSY
+            addsRunning.get() > 0 -> SAVE_WAITS_FOR_ADD
+            else -> null
+        }
 
         override suspend fun plan(ids: Collection<Long>) = binFilesJob(project).planSave(ids)
 
@@ -419,10 +431,18 @@ class AppGraph(val context: Context) {
             if (isOpen()) binFilesJob(project).leave(paths)
         }
 
-        override suspend fun add(paths: List<String>) {
-            if (!isOpen()) return
+        override suspend fun add(paths: List<String>): Set<String> {
+            if (!isOpen()) return emptySet()
             val candidates = paths.map(::File).filter { it.isFile }.mapNotNull { file -> MediaScanner.kindOf(file)?.let { Candidate(file, it) } }
-            register(project, candidates, paths.size - candidates.size, {}, ::startAnalysisAfterAdd)
+            val added = HashSet<String>()
+            register(
+                project,
+                candidates,
+                paths.size - candidates.size,
+                { progress -> (progress.last as? RegistrationOutcome.Added)?.let { added += it.path } },
+                ::startAnalysisAfterAdd,
+            )
+            return added
         }
     }
 
@@ -912,7 +932,9 @@ class AppGraph(val context: Context) {
      */
     suspend fun copyHeld(held: List<HeldFile>, onProgress: (done: Int, total: Int) -> Unit): SharedCopyResult {
         val project = checkNotNull(_currentProject.value) { "No project is open" }
-        val result = withContext(Dispatchers.IO) {
+        addsRunning.incrementAndGet()
+        val result = try {
+            withContext(Dispatchers.IO) {
             val registrar = Registrar(
                 thisProject = project.ref,
                 itemDao = project.db.items(),
@@ -924,9 +946,9 @@ class AppGraph(val context: Context) {
             SharedCopier(moveFiles, project.ref.path).copy(
                 held,
                 isKnown = { hash -> project.db.items().findByHashes(listOf(hash)).isNotEmpty() },
-                register = { path ->
+                register = { path, hash ->
                     val file = File(path)
-                    val added = MediaScanner.kindOf(file)?.let { registrar.registerCopy(Candidate(file, it)) } ?: false
+                    val added = MediaScanner.kindOf(file)?.let { registrar.registerCopy(Candidate(file, it), hash) } ?: false
                     if (added) {
                         moveNotifier.moved(null, path)
                         project.db.moves().dropRemoved(listOf(path))
@@ -935,6 +957,9 @@ class AppGraph(val context: Context) {
                 },
                 onProgress = onProgress,
             )
+            }
+        } finally {
+            addsRunning.decrementAndGet()
         }
         if (result.copied > 0) {
             try {
@@ -956,6 +981,7 @@ class AppGraph(val context: Context) {
         onRegistered: suspend (OpenProject) -> Unit,
     ): RegistrationSummary {
         val opened = mutableListOf<ProjectDatabase>()
+        addsRunning.incrementAndGet()
         try {
             val lookups = withContext(Dispatchers.IO) { openOtherProjects(project.ref, opened) }
             val registrar = Registrar(
@@ -963,7 +989,7 @@ class AppGraph(val context: Context) {
                 itemDao = project.db.items(),
                 otherProjects = lookups,
                 registry = registry,
-                findProject = ProjectFinder()::projectContaining,
+                findProject = ProjectFinder(ownDir = File(project.ref.path))::projectContaining,
                 metadata = MediaMetadataReader::read,
                 clock = System::currentTimeMillis,
             )
@@ -986,6 +1012,7 @@ class AppGraph(val context: Context) {
             }
             return summary
         } finally {
+            addsRunning.decrementAndGet()
             withContext(NonCancellable + Dispatchers.IO) { opened.forEach { it.close() } }
         }
     }

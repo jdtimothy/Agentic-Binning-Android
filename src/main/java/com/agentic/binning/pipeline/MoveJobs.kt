@@ -25,6 +25,10 @@ sealed interface MoveStart {
 /** A Save that would move files while another run is going: refused, never queued (Q11). */
 const val SAVE_BUSY = "Saving moves files, so it waits until analysis is done"
 
+/** Q11, the other way round: files don't start moving while others are being added or copied in. */
+const val MOVE_WAITS_FOR_ADD = "Bin Files waits until the files are added"
+const val SAVE_WAITS_FOR_ADD = "Saving moves files, so it waits until the files are added"
+
 /** Bin Files while another run is going: disabled with this reason, never queued (Q11, Q12). */
 const val MOVE_BUSY = "Bin Files is available when analysis is stopped or done"
 
