@@ -26,6 +26,10 @@ import com.agentic.binning.db.SortRunEntity
 import com.agentic.binning.db.UncategorizedItem
 import com.agentic.binning.db.openProjectDatabase
 import com.agentic.binning.media.Candidate
+import com.agentic.binning.media.HeldFile
+import com.agentic.binning.media.ProjectFinder
+import com.agentic.binning.media.SharedCopier
+import com.agentic.binning.media.SharedCopyResult
 import com.agentic.binning.media.ItemStoreLookup
 import com.agentic.binning.media.MediaMetadataReader
 import com.agentic.binning.media.MediaScanner
@@ -899,9 +903,49 @@ class AppGraph(val context: Context) {
         return register(project, candidates, skipped, onProgress, onRegistered)
     }
 
-    private fun scanExclusions(current: ProjectRef): Set<String> {
-        val otherFolders = registry.list().filter { it.path != current.path }.map { File(it.path).canonicalPath }
-        return (otherFolders + ProjectFolders.binningDir(File(current.path)).canonicalPath).toSet()
+    /** Only this project's own workings: another project's files are found and offered for copying (P8). */
+    private fun scanExclusions(current: ProjectRef): Set<String> = setOf(ProjectFolders.binningDir(File(current.path)).canonicalPath)
+
+    /**
+     * Copy media files (P8): checked copies of [held] in `Copied from <project>/`, added as ordinary
+     * items of the open project and then analyzed. The other projects' files are only read.
+     */
+    suspend fun copyHeld(held: List<HeldFile>, onProgress: (done: Int, total: Int) -> Unit): SharedCopyResult {
+        val project = checkNotNull(_currentProject.value) { "No project is open" }
+        val result = withContext(Dispatchers.IO) {
+            val registrar = Registrar(
+                thisProject = project.ref,
+                itemDao = project.db.items(),
+                otherProjects = emptyList(),
+                registry = registry,
+                metadata = MediaMetadataReader::read,
+                clock = System::currentTimeMillis,
+            )
+            SharedCopier(moveFiles, project.ref.path).copy(
+                held,
+                isKnown = { hash -> project.db.items().findByHashes(listOf(hash)).isNotEmpty() },
+                register = { path ->
+                    val file = File(path)
+                    val added = MediaScanner.kindOf(file)?.let { registrar.registerCopy(Candidate(file, it)) } ?: false
+                    if (added) {
+                        moveNotifier.moved(null, path)
+                        project.db.moves().dropRemoved(listOf(path))
+                    }
+                    added
+                },
+                onProgress = onProgress,
+            )
+        }
+        if (result.copied > 0) {
+            try {
+                startAnalysisAfterAdd(project)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "After-copy step failed", e)
+            }
+        }
+        return result
     }
 
     private suspend fun register(
@@ -919,6 +963,7 @@ class AppGraph(val context: Context) {
                 itemDao = project.db.items(),
                 otherProjects = lookups,
                 registry = registry,
+                findProject = ProjectFinder()::projectContaining,
                 metadata = MediaMetadataReader::read,
                 clock = System::currentTimeMillis,
             )

@@ -16,7 +16,8 @@ data class Candidate(val file: File, val kind: ItemKind)
 sealed interface RegistrationOutcome {
     data class Added(val path: String) : RegistrationOutcome
     data class DuplicateInProject(val path: String) : RegistrationOutcome
-    data class HeldByOtherProject(val path: String, val projectName: String) : RegistrationOutcome
+    /** [listed] is false for a project found by its folder's database, off Current projects (P8). */
+    data class HeldByOtherProject(val path: String, val projectName: String, val listed: Boolean = true) : RegistrationOutcome
     data class Unreadable(val path: String, val reason: String) : RegistrationOutcome
 }
 
@@ -43,6 +44,8 @@ class Registrar(
     private val itemDao: ItemStore,
     private val otherProjects: List<ProjectItemLookup>,
     private val registry: ProjectRegistry,
+    /** The project a file sits inside, found on disk whether or not it is listed (P8). */
+    private val findProject: (File) -> ProjectFolder? = { null },
     private val hash: (File) -> String = ContentHasher::sha256,
     private val metadata: (Candidate) -> MediaMetadata,
     private val clock: () -> Long,
@@ -73,6 +76,9 @@ class Registrar(
         if (owner != null && File(owner.path).canonicalPath != thisFolder) {
             return RegistrationOutcome.HeldByOtherProject(path, owner.name)
         }
+        findProject(candidate.file)?.takeIf { it.dir.canonicalPath != thisFolder }?.let {
+            return RegistrationOutcome.HeldByOtherProject(path, it.name, listed = false)
+        }
 
         // 2. Already in this project; the path is checked first so a known file is never re-hashed.
         if (itemDao.findByPaths(listOf(path)).isNotEmpty()) return RegistrationOutcome.DuplicateInProject(path)
@@ -85,6 +91,25 @@ class Registrar(
         }
 
         // 4. New.
+        insert(candidate, contentHash)
+        return RegistrationOutcome.Added(path)
+    }
+
+    /**
+     * Adds a checked copy of a file another project holds (P8): an ordinary item of this project, though
+     * the other project has the same hash. False if this project already holds it.
+     */
+    suspend fun registerCopy(candidate: Candidate): Boolean {
+        val path = candidate.file.absolutePath
+        if (itemDao.findByPaths(listOf(path)).isNotEmpty()) return false
+        val contentHash = hash(candidate.file)
+        if (itemDao.findByHashes(listOf(contentHash)).isNotEmpty()) return false
+        insert(candidate, contentHash)
+        return true
+    }
+
+    private suspend fun insert(candidate: Candidate, contentHash: String) {
+        val path = candidate.file.absolutePath
         val meta = metadata(candidate)
         itemDao.insert(
             ItemEntity(
@@ -101,6 +126,5 @@ class Registrar(
                 addedAt = clock(),
             ),
         )
-        return RegistrationOutcome.Added(path)
     }
 }

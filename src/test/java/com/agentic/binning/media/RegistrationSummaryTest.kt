@@ -65,4 +65,15 @@ class RegistrationSummaryTest {
     @Test fun skipped_countsAsUnreadable() {
         assertEquals("2 couldn't be read", RegistrationSummary(skipped = 2).text(Locale.US))
     }
+
+    /** P8: the notice needs each held file, not only how many there are. */
+    @Test fun held_listsEachFile() {
+        val summary = summaryOf(
+            RegistrationOutcome.HeldByOtherProject("/a", "Maui"),
+            RegistrationOutcome.Added("/b"),
+            RegistrationOutcome.HeldByOtherProject("/c", "Sort Test", listed = false),
+        )
+        assertEquals(listOf(HeldFile("/a", "Maui", true), HeldFile("/c", "Sort Test", false)), summary.held)
+        assertEquals(1, summary.added)
+    }
 }
