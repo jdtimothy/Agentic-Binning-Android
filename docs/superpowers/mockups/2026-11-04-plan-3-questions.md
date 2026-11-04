@@ -2,7 +2,7 @@
 
 Nov 4, 2026 · goes with `2026-11-04-plan-3-binning.html`
 
-Answered on Nov 4 by the owner: B1, B2, B3, B4, B5, B10, Q11 and P8. Everything else is open.
+Answered on Nov 4 by the owner: B1, B2, B3, B4, B5, B6, B9, B10, B12, Q2, Q11 and P8. **Open: B7 (confirm sheet), B8 (report) and B11 (MediaStore and what Gallery shows)**, to settle when the owner reviews the mockups.
 
 These are the decisions the spec leaves open, the two carried from Plan 2b
 (Q11 and P8), and the ones the move engine had to make before it could be
@@ -24,15 +24,15 @@ B2 and so on, so they never clash with 2b's Q1–Q19.
 | B3 | A crashed run resumes on its own when the project opens | **Approved Nov 4** (as recommended) |
 | B4 | A copy that doesn't match its original | **Decided Nov 4**: retry once, then skip that file and carry on |
 | B5 | Folder check before and after; extra files block until added or ignored | **Approved Nov 4** (as recommended) |
-| B6 | Storage full: check before each copy, stop cleanly | Open (recommend: as described; only copies need space now) |
+| B6 | Storage full: check before each copy, stop cleanly | **Approved Nov 4** (as described) |
 | B7 | A confirm sheet before Bin Files | Open (recommend: yes) |
 | B8 | What the report lists, and where it stays | Open (recommend: as described) |
-| B9 | Bin Files when nothing needs to move | Open (recommend: off; in-place items just count as binned) |
+| B9 | Bin Files when nothing needs to move | **Approved Nov 4** (as described) |
 | B10 | Re-sort includes binned items (spec) or leaves them out (2b Task 9) | **Approved Nov 4**: include them, as the spec says |
-| Q2 | The removed-file record | Approved Oct 31 in principle; details open (recommend: as described) |
+| Q2 | The removed-file record | Approved Oct 31; **details approved Nov 4** |
 | P8 | Media another project already holds | **Decided Nov 4** (owner's own design): notice with Cancel / Copy media files; copies go to `<project>/Copied from <other>/` |
 | B11 | MediaStore after a move, and what Gallery and both pickers show | Open (recommend: scan both paths; keep the file's date) |
-| B12 | Source folders are never removed; only category folders the app made | Open (recommend: yes) |
+| B12 | Source folders are never removed; only empty folders the app made | **Approved Nov 4** (as described) |
 
 ## B1. How a file moves: rename on the same storage, copy across
 
@@ -193,6 +193,8 @@ would block Bin Files on every file the user deletes in Gallery.
 
 ## B6. Storage full mid-move
 
+**Status: approved Nov 4, 2026** (as described).
+
 Renames (B1) need no space. Only copies across volumes do: each file needs its
 own size free on the project's storage while it moves (the original is
 deleted before the next one starts).
@@ -250,6 +252,8 @@ shown after a restart. Steps are kept as history (B12 needs them).
 
 ## B9. Bin Files when nothing needs to move
 
+**Status: approved Nov 4, 2026** (as described).
+
 - Bin Files stays off when every sorted item is in place, with "All files
   are binned" on tap (2b Task 3). No "check only" run.
 - If Bin Files is on but the plan finds nothing to move (every item counted
@@ -280,6 +284,8 @@ has tidied, but Keep my edits already protects what they set. Either way
 nothing moves until Bin Files.
 
 ## Q2. The removed-file record *(approved Oct 31 in principle)*
+
+**Status: details approved Nov 4, 2026** (as described).
 
 Approved: a removed binned item's file stays where it is, and its path is
 remembered so the folder check skips it. The details:
@@ -391,6 +397,8 @@ What the owner will see after a file moves out of a folder like DCIM/Camera
 in the app depends on the rest; it is what the owner should expect.
 
 ## B12. Which folders may be removed
+
+**Status: approved Nov 4, 2026** (as described).
 
 Spec: "A category folder left empty is removed only if it is truly empty."
 
