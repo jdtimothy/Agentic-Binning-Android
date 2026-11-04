@@ -1,6 +1,9 @@
 package com.agentic.binning.projectmedia
 
 import com.agentic.binning.db.ItemStatus
+import com.agentic.binning.move.MoveKind
+import com.agentic.binning.move.MovePhase
+import com.agentic.binning.move.MoveProgress
 import com.agentic.binning.pipeline.PipelinePhase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -54,8 +57,15 @@ class MediaCountsTest {
         assertNull(activeJobOf(PipelinePhase.Idle))
         assertNull(activeJobOf(PipelinePhase.Stopped))
         assertNull(activeJobOf(null))
+        // Plan 3: a move is Binning or Saving, with its progress.
+        val bin = MoveProgress(MoveKind.Bin, done = 12, total = 248, current = "A.jpg", phase = MovePhase.Moving, paused = false)
+        assertEquals(ActiveJob.Binning(12, 248), activeJobOf(PipelinePhase.Moving, bin))
+        assertEquals(ActiveJob.Binning(12, 248, paused = true), activeJobOf(PipelinePhase.MovingPaused, bin.copy(paused = true)))
+        assertEquals(ActiveJob.Saving(1, 3), activeJobOf(PipelinePhase.Moving, bin.copy(kind = MoveKind.Save, done = 1, total = 3)))
+        // Before the first progress (the folder check), a move is Binning with nothing counted yet.
+        assertEquals(ActiveJob.Binning(0, 0), activeJobOf(PipelinePhase.Moving, null))
         // Every phase is covered above.
-        assertEquals(8, PipelinePhase.entries.size)
+        assertEquals(10, PipelinePhase.entries.size)
     }
 
     @Test fun pausedAnalysis_blocksBinFiles() {

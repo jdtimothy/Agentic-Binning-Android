@@ -6,6 +6,9 @@ import com.agentic.binning.model.VisionModel
 import com.agentic.binning.model.describe
 import com.agentic.binning.model.VisionModelException
 import com.agentic.binning.model.VisionProfile
+import com.agentic.binning.move.MoveControl
+import com.agentic.binning.move.MoveOutcome
+import com.agentic.binning.move.MoveProgress
 import com.agentic.binning.project.ProjectRef
 import com.agentic.binning.projectmedia.RESORT_BUSY
 import com.agentic.binning.projectmedia.RESORT_NOT_OPEN
@@ -32,13 +35,25 @@ enum class PipelinePhase {
     Idle, LoadingModel, Preparing, Describing, Paused, Stopped, Releasing,
 
     /** The vision model is released and the sorting model files analyzed items into categories. */
-    Categorizing;
+    Categorizing,
+
+    /** Bin Files or a Save is moving files (Plan 3); no model is loaded. */
+    Moving,
+
+    /** A move paused between files (B2); it still owns the project, so nothing else starts. */
+    MovingPaused;
 
     /** True while a run is in progress (including Paused); the service, wake lock and keep-screen-on follow this. */
     val isRunning: Boolean get() = this != Idle && this != Stopped
 
-    /** Pause holds the vision model between items; categorizing has nothing to hold, so it can't pause. */
-    val canPause: Boolean get() = isRunning && this != Paused && this != Categorizing
+    /**
+     * Pause holds the vision model between items, or a move between files; categorizing has nothing
+     * to hold, so it can't pause.
+     */
+    val canPause: Boolean get() = isRunning && this != Paused && this != Categorizing && this != MovingPaused
+
+    /** Files are moving, or a move is paused: other jobs and edits wait (Q11). */
+    val isMoving: Boolean get() = this == Moving || this == MovingPaused
 }
 
 data class PipelineState(
@@ -68,6 +83,10 @@ data class PipelineState(
      * message); cleared once a later one finishes them all or finds nothing to do. Kept across a Stop.
      */
     val sortNotice: String? = null,
+    /** The move in progress (phases [PipelinePhase.Moving] and [PipelinePhase.MovingPaused]); null otherwise. */
+    val moveProgress: MoveProgress? = null,
+    /** How the last move ended (or why it didn't start), for the report; kept until the next move. */
+    val moveOutcome: MoveOutcome? = null,
 )
 
 /** Where the pipeline reports problems it recovers from; the app logs them. */
@@ -118,6 +137,8 @@ class PipelineController(
     private val prepareResort: suspend (keepEdits: Boolean) -> Int = { 0 },
     /** Null if [SortingModelChoice] can run now (a key is saved, the model is downloaded); otherwise why not. */
     private val sortingAvailable: suspend (SortingModelChoice) -> String? = { null },
+    /** Moves files for Bin Files (Plan 3); one job at a time, under [JobKind.Binning]. */
+    private val mover: FileMover = FileMover { _, _, _, _ -> MoveOutcome.Done },
 ) {
     private enum class Control { Run, Pause, Stop }
 
@@ -131,6 +152,9 @@ class PipelineController(
     private var job: Job? = null
     private val jobs = mutableSetOf<Job>()
     private var lastProject: ProjectRef? = null
+
+    /** Pause and Stop of the move in progress; null when no move runs. Guarded by [lock]. */
+    private var moveControl: MoveControl? = null
 
     /** Set while [stopAndReset] winds the pipeline down; every [start] is refused meanwhile. */
     private var closed = false
@@ -177,8 +201,89 @@ class PipelineController(
         return ResortStart.Started
     }
 
+    /**
+     * Bin Files for [project] (Plan 3): refused while any run is in progress (never queued) and for a
+     * project that is not open. Runs under [JobKind.Binning]; [pause], [resume] and [stop] then act
+     * between files (B2).
+     */
+    fun binFiles(project: ProjectRef): MoveStart = launchMove(project, MoveJob.BinFiles, paused = false)
+
+    /** Finishes the open move run [runId] (B3), paused if it was paused; refused like [binFiles]. */
+    fun resumeMove(project: ProjectRef, runId: Long, paused: Boolean): MoveStart = launchMove(project, MoveJob.Resume(runId), paused)
+
+    private fun launchMove(project: ProjectRef, job: MoveJob, paused: Boolean): MoveStart {
+        synchronized(lock) {
+            if (closed || !isCurrent(project)) return MoveStart.Refused(MOVE_NOT_OPEN)
+            if (_state.value.phase.isRunning) return MoveStart.Refused(MOVE_BUSY)
+            val previous = job()
+            lastProject = project
+            acceptingReruns = false
+            rerunRequested = false
+            val control = MoveControl(startPaused = paused)
+            moveControl = control
+            val gen = ++generation
+            _state.update {
+                val sameProject = it.project == project
+                PipelineState(
+                    phase = PipelinePhase.Moving,
+                    project = project,
+                    currentItemId = null,
+                    partial = null,
+                    lastProfile = if (sameProject) it.lastProfile else null,
+                    pending = if (sameProject) it.pending else 0,
+                    analyzed = if (sameProject) it.analyzed else 0,
+                    total = if (sameProject) it.total else 0,
+                    failed = if (sameProject) it.failed else 0,
+                    sortNotice = if (sameProject) it.sortNotice else null,
+                )
+            }
+            val launched = scope.launch {
+                withContext(NonCancellable) { previous?.join() }
+                runMove(project, gen, job, control)
+            }
+            jobs += launched
+            this.job = launched
+            launched.invokeOnCompletion { cause ->
+                synchronized(lock) {
+                    jobs -= launched
+                    if (moveControl === control) moveControl = null
+                }
+                if (cause != null) {
+                    update(gen) { if (it.phase.isRunning) it.copy(phase = PipelinePhase.Stopped, moveProgress = null) else it }
+                }
+            }
+        }
+        return MoveStart.Started
+    }
+
+    private fun job(): Job? = job
+
+    private suspend fun runMove(project: ProjectRef, gen: Int, job: MoveJob, control: MoveControl) {
+        val outcome = try {
+            arbiter.withJob(JobKind.Binning) {
+                mover.run(project, job, control) { progress ->
+                    update(gen) {
+                        it.copy(phase = if (progress.paused) PipelinePhase.MovingPaused else PipelinePhase.Moving, moveProgress = progress)
+                    }
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.warn("Moving files for ${project.name} failed", e)
+            MoveOutcome.Failed(e.message ?: e.javaClass.simpleName)
+        }
+        synchronized(lock) { if (moveControl === control) moveControl = null }
+        update(gen) { it.copy(phase = PipelinePhase.Idle, moveProgress = null, moveOutcome = outcome) }
+    }
+
     private fun launchRun(project: ProjectRef, analyze: Boolean, resort: ResortRequest? = null) {
         synchronized(lock) {
+            if (moveControl != null) {
+                // Q11: nothing starts while files move, and nothing queues behind the move either.
+                log.warn("${if (analyze) "Analysis" else "Categorizing"} start for ${project.name} refused: files are moving", null)
+                return
+            }
             if (closed || !isCurrent(project)) {
                 log.warn("${if (analyze) "Analysis" else "Categorizing"} start for ${project.name} refused: it is not the open project", null)
                 return
@@ -242,6 +347,10 @@ class PipelineController(
     /** Holds after the current item; the model stays loaded. Ignored while categorizing ([PipelinePhase.canPause]). */
     fun pause() {
         synchronized(lock) {
+            moveControl?.let {
+                it.pause()
+                return
+            }
             if (job?.isActive == true && control.value == Control.Run && _state.value.phase.canPause) control.value = Control.Pause
         }
     }
@@ -249,6 +358,10 @@ class PipelineController(
     /** Continues a paused run, or starts a new run for the last project after a stop. */
     fun resume() {
         val project = synchronized(lock) {
+            moveControl?.let {
+                it.resume()
+                return
+            }
             if (job?.isActive == true) {
                 if (control.value == Control.Pause) control.value = Control.Run
                 return
@@ -265,6 +378,13 @@ class PipelineController(
      * waits for the categorizing one, so cancelling only [job] would leave the sorting model running.
      */
     fun stop() {
+        synchronized(lock) {
+            // A move never stops half way through a file (B2): it is asked to stop between files.
+            moveControl?.let {
+                it.stop()
+                return
+            }
+        }
         val running = synchronized(lock) {
             jobs.filter { it.isActive }.also { if (it.isNotEmpty()) control.value = Control.Stop }
         }

@@ -317,6 +317,9 @@ fun statusOf(
         PipelinePhase.Releasing -> return "Finishing up" to StatusTone.Active
         // The progress ("40 of 120") is in the counts slot, see countTextOf.
         PipelinePhase.Categorizing -> return "Categorizing" to StatusTone.Active
+        // Plan 3: the counts slot shows "12 of 248" (see countTextOf).
+        PipelinePhase.Moving -> return "Binning files" to StatusTone.Active
+        PipelinePhase.MovingPaused -> return "Bin Files paused" to StatusTone.Paused
         // Kept short beside the speed; the reason, if any, is in the output card (OutputState.runError).
         PipelinePhase.Stopped -> return "Stopped" to StatusTone.Quiet
         PipelinePhase.Idle, null -> Unit
@@ -407,6 +410,7 @@ private fun cardOutput(hasProject: Boolean, empty: Boolean, card: CardItem?, sta
 fun countTextOf(hasProject: Boolean, statuses: List<ItemStatus>, state: PipelineState?): String {
     if (!hasProject) return ""
     if (state?.phase == PipelinePhase.Categorizing && state.sortTotal > 0) return "${state.sortDone} of ${state.sortTotal}"
+    state?.moveProgress?.takeIf { state.phase.isMoving && it.total > 0 }?.let { return "${it.done} of ${it.total}" }
     val analyzed = statuses.count { it.isAnalyzed }
     val failed = statuses.count { it == ItemStatus.Failed || it == ItemStatus.Missing }
     return "$analyzed of ${statuses.size} analyzed" + if (failed > 0) " · $failed failed" else ""

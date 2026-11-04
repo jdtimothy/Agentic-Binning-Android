@@ -1,6 +1,8 @@
 package com.agentic.binning.projectmedia
 
 import com.agentic.binning.db.ItemStatus
+import com.agentic.binning.move.MoveKind
+import com.agentic.binning.move.MoveProgress
 import com.agentic.binning.pipeline.PipelinePhase
 
 /**
@@ -56,18 +58,27 @@ fun <T> mediaCountsOf(items: List<T>, status: (T) -> ItemStatus, waiting: (T) ->
 sealed interface ActiveJob {
     data object Analysis : ActiveJob
     data object Sorting : ActiveJob
-    data class Saving(val filesDone: Int, val filesTotal: Int) : ActiveJob
-    data class Binning(val filesDone: Int, val filesTotal: Int) : ActiveJob
+    data class Saving(val filesDone: Int, val filesTotal: Int, val paused: Boolean = false) : ActiveJob
+    data class Binning(val filesDone: Int, val filesTotal: Int, val paused: Boolean = false) : ActiveJob
 }
 
 /**
- * The job running now, from the pipeline's phase (Task 10): categorizing is Sorting, any other
- * running phase (including Paused, which holds the vision model) is Analysis; Idle, Stopped or no
- * run is none. Saving and Binning come with Plan 3. Not from `ModelArbiter.active` (Task 6.3).
+ * The job running now, from the pipeline's phase (Task 10): categorizing is Sorting, a move is
+ * Binning or Saving with its [move] progress (Plan 3), any other running phase (including Paused,
+ * which holds the vision model) is Analysis; Idle, Stopped or no run is none. Not from
+ * `ModelArbiter.active` (Task 6.3).
  */
-fun activeJobOf(phase: PipelinePhase?): ActiveJob? = when {
+fun activeJobOf(phase: PipelinePhase?, move: MoveProgress? = null): ActiveJob? = when {
     phase == null || !phase.isRunning -> null
     phase == PipelinePhase.Categorizing -> ActiveJob.Sorting
+    phase.isMoving -> {
+        val paused = phase == PipelinePhase.MovingPaused
+        if (move?.kind == MoveKind.Save) {
+            ActiveJob.Saving(move.done, move.total, paused)
+        } else {
+            ActiveJob.Binning(move?.done ?: 0, move?.total ?: 0, paused)
+        }
+    }
     else -> ActiveJob.Analysis
 }
 

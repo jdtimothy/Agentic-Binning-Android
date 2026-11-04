@@ -40,8 +40,9 @@ abstract class MoveDao : MoveStore {
     /** For a plan with nothing to move: the in-place items are marked binned and the gone ones Missing. */
     @Transaction
     open suspend fun markItems(inPlace: List<Long>, missing: List<Long>) {
-        if (inPlace.isNotEmpty()) markBinned(inPlace)
-        if (missing.isNotEmpty()) markMissing(missing)
+        // Chunked: SQLite allows 999 bound variables, and a project may hold thousands of items.
+        inPlace.chunked(500).forEach { markBinned(it) }
+        missing.chunked(500).forEach { markMissing(it) }
     }
 
     @Query("SELECT * FROM move_run WHERE state IN ('Running', 'Paused') ORDER BY id DESC LIMIT 1")

@@ -5,10 +5,19 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * What a started run does: analyze waiting items (and categorize at the end), only categorize, or
- * re-sort ([AppGraph.resort]: clear the unlocked assignments, then categorize with a chosen model).
+ * What a started run does: analyze waiting items (and categorize at the end), only categorize,
+ * re-sort ([AppGraph.resort]: clear the unlocked assignments, then categorize with a chosen model),
+ * or move files (Plan 3).
  */
-enum class RunKind { Analyze, CategorizeOnly, Resort }
+enum class RunKind {
+    Analyze, CategorizeOnly, Resort,
+
+    /** Bin Files (Plan 3): check, plan and move the open project's sorted files. */
+    BinFiles,
+
+    /** Finish a Bin Files run the app didn't (B3). */
+    ResumeMove,
+}
 
 /** What [AnalysisLauncher] reads and writes in one project's database. */
 interface ProjectRunFlags {
