@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: drafted Nov 4, 2026 by a cloud session (no phone) on `plan-3-binning`, after merging `main` @ `738cfad` (PRs #22, #23).** The owner answered B1–B6, B9, B10, B12, Q2, Q11 and P8 on Nov 4 (see "Product decisions"); B7, B8 and B11 are open until the owner reviews the mockups. No UI is built until its mockup is approved. Cloud progress and every ruling are in `docs/superpowers/notes/plan-3-cloud-handoff.md`; the task list below marks what is done.
+**Status: drafted Nov 4, 2026 by a cloud session (no phone) on `plan-3-binning`, after merging `main` @ `738cfad` (PRs #22, #23). Tasks 1–9 and 11–13, and Task 10's code, are done in the cloud (JVM tests green, 693 in all; device tests written, not yet run on the phone). Tasks 14–17 and the phone halves of 4, 5, 10 and 12–13 are next.** The owner answered B1–B6, B9, B10, B12, Q2, Q11 and P8 on Nov 4 (see "Product decisions"); B7, B8 and B11 are open until the owner reviews the mockups. No UI is built until its mockup is approved. Cloud progress and every ruling are in `docs/superpowers/notes/plan-3-cloud-handoff.md`.
 
 **Goal:** **Bin Files** moves every sorted item's file to `<project>/<Category>/<friendly name>.<original extension>`, and a **Save** that renames, re-categorizes or merges something already binned moves its files the same way, right away. No file is ever lost or overwritten, every run is resumable after a crash, and the category folders are checked before and after.
 
@@ -135,9 +135,11 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 - `sealed interface MoveOutcome`: `Done`, `Stopped`, `StorageFull(neededBytes)`, `Failed(message)`, `Blocked(problems: LayoutProblems)` (the check before), `NothingToMove(inPlace)`.
 - State names parse back with a fallback (`StepState.of("…") ?: Failed`), so an unknown value from a newer build never crashes the resume.
 
-- [ ] **Step 1: Test** `states_roundTripTheirNames`, `unknownState_isFailedNotACrash`, `openRuns_areRunningAndPaused`. Run `./gradlew testDebugUnitTest --tests '*MoveModelTest'`. Expected: fails (no class), then passes.
-- [ ] **Step 2: Implement.**
-- [ ] **Step 3: Commit** `feat(move): run and step states`.
+- [x] **Step 1: Test** `states_roundTripTheirNames`, `unknownState_isFailedNotACrash`, `openRuns_areRunningAndPaused`. Run `./gradlew testDebugUnitTest --tests '*MoveModelTest'`. Expected: fails (no class), then passes.
+- [x] **Step 2: Implement.**
+- [x] **Step 3: Commit** `feat(move): run and step states`.
+
+**Done Nov 4** (`4659b76`): `MoveModelTest` 4 tests.
 
 ### Task 2: Bin planner · phone: no
 
@@ -157,9 +159,11 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
   - `only` limits the plan to those items (a Save).
 - `MovePlanner.isInPlace(projectDir, request)` and `MovePlanner.nextFree(dest, taken: (String) -> Boolean)` become public (the engine uses `nextFree` for a name taken since planning).
 
-- [ ] **Step 1: Tests:** `sortedItems_getStepsInIdOrder`, `inPlace_isMarkedNotMoved`, `binnedButMoved_isPlannedAgain` (B10), `failedAndMissing_areLeftOutWithTheirReason`, `goneSource_becomesMissing`, `goneSourceButAtTarget_isInPlace`, `takenName_isNumbered`, `sharedItem_isCopiedNotMoved`, `only_limitsThePlan`, `nextFree_skipsEveryTakenNumber`. Expected: fail, then pass.
-- [ ] **Step 2: Implement.**
-- [ ] **Step 3: Commit** `feat(move): bin planner`.
+- [x] **Step 1: Tests:** `sortedItems_getStepsInIdOrder`, `inPlace_isMarkedNotMoved`, `binnedButMoved_isPlannedAgain` (B10), `failedAndMissing_areLeftOutWithTheirReason`, `goneSource_becomesMissing`, `goneSourceButAtTarget_isInPlace`, `takenName_isNumbered`, `sharedItem_isCopiedNotMoved`, `only_limitsThePlan`, `nextFree_skipsEveryTakenNumber`. Expected: fail, then pass.
+- [x] **Step 2: Implement.**
+- [x] **Step 3: Commit** `feat(move): bin planner`.
+
+**Done Nov 4** (`4a4ed8b`): `BinPlannerTest` 11 tests (`goneSourceButAtTarget_isInPlace` became `goneBinnedFile_becomesMissing`: a first planning never claims a file at the target; the engine's resume does that, Task 7; `extension_comesFromTheOriginalName` added).
 
 ### Task 3: Folder check · phone: no
 
@@ -173,9 +177,11 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
   - Files whose name starts with `.` are ignored (ruling: a hidden file is never media; B12 still won't delete a folder holding one).
 - `FolderCheck.categoryFiles(projectDir, categoryNames, list: (dir) -> List<String>)`: the files to pass as `filesOnDisk`, recursive.
 
-- [ ] **Step 1: Tests:** `clean_isOk`, `missingBinned_isReportedNotBlocking`, `unknownFile_isUnexpected`, `removedFile_isSkipped`, `unbinnedItemInACategoryFolder_isExpected`, `hiddenFiles_areIgnored`, `filesOutsideCategoryFolders_areIgnored`, `caseDiffers_stillMatches`.
-- [ ] **Step 2: Implement** over `LayoutCheck` (binned paths = binned items; ignored = removed plus every other item's path).
-- [ ] **Step 3: Commit** `feat(move): folder check before and after`.
+- [x] **Step 1: Tests:** `clean_isOk`, `missingBinned_isReportedNotBlocking`, `unknownFile_isUnexpected`, `removedFile_isSkipped`, `unbinnedItemInACategoryFolder_isExpected`, `hiddenFiles_areIgnored`, `filesOutsideCategoryFolders_areIgnored`, `caseDiffers_stillMatches`.
+- [x] **Step 2: Implement** over `LayoutCheck` (binned paths = binned items; ignored = removed plus every other item's path).
+- [x] **Step 3: Commit** `feat(move): folder check before and after`.
+
+**Done Nov 4** (`ffd1f13`): `FolderCheckTest` 10 tests.
 
 ### Task 4: Schema v4 and the move DAO · phone: no (device tests run later)
 
@@ -196,11 +202,13 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 - `removedPaths()`, `addRemoved(paths, reason, at)`, `dropRemoved(paths)`.
 - Items and categories for the planner and check: `binItems()`, `categoryNames()`.
 
-- [ ] **Step 1: Write the device tests** (written, not yet run on the phone): `MoveDaoTest`: `writeRun_isOneTransaction`, `recordMoved_updatesItemAndStepTogether`, `recordMoved_keepsHashOnClash`, `startStep_countsAttempts`, `openRun_findsRunningAndPaused`, `binnedFolders_areDoneDestinationsOnly`, `removedPaths_addAndDrop`. `ProjectDatabaseMigrationTest`: `migrate3To4_keepsMoveRowsAndAddsDefaults`, `openProjectDatabase_migratesAV3File`.
-- [ ] **Step 2: Implement**; build to export `4.json`; add its hash to `PROJECT_DB_IDENTITY_HASHES` (`ProjectSchemaTest` checks it).
-- [ ] **Step 3:** `./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest`. Expected: BUILD SUCCESSFUL; `ProjectSchemaTest` passes with v4.
-- [ ] **Step 4: Commit** `feat(db): schema v4 for moves and removed files`.
+- [x] **Step 1: Write the device tests** (written, not yet run on the phone): `MoveDaoTest`: `writeRun_isOneTransaction`, `recordMoved_updatesItemAndStepTogether`, `recordMoved_keepsHashOnClash`, `startStep_countsAttempts`, `openRun_findsRunningAndPaused`, `binnedFolders_areDoneDestinationsOnly`, `removedPaths_addAndDrop`. `ProjectDatabaseMigrationTest`: `migrate3To4_keepsMoveRowsAndAddsDefaults`, `openProjectDatabase_migratesAV3File`.
+- [x] **Step 2: Implement**; build to export `4.json`; add its hash to `PROJECT_DB_IDENTITY_HASHES` (`ProjectSchemaTest` checks it).
+- [x] **Step 3:** `./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest`. Expected: BUILD SUCCESSFUL; `ProjectSchemaTest` passes with v4.
+- [x] **Step 4: Commit** `feat(db): schema v4 for moves and removed files`.
 - [ ] **Step 5 (phone):** run `MoveDaoTest` and `ProjectDatabaseMigrationTest`. Expected: OK.
+
+**Done Nov 4** (`d70568b`, `recordReverted` added in `f7d4e71`): v4 hash `e2915b6307ad16155355e32e657395f2`; `ProjectSchemaTest` passes. `MoveDaoTest` (9) and `ProjectDatabaseMigrationTest.migrate3To4_*` (2): **written, not yet run on the phone**.
 
 ### Task 5: File operations · phone: no (device test runs later)
 
@@ -210,9 +218,11 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 - `interface MoveFiles`: `exists`, `size`, `lastModified`, `setLastModified`, `sameVolume(a, b)`, `renameNoReplace(from, to): Boolean` (false if `to` exists; never overwrites), `copyHashing(from, to): String` (SHA-256 of the bytes read; throws `IOException`, `NoSpaceException` for ENOSPC), `sha256(path)`, `delete(path)`, `mkdirs(dir)`, `usableSpace(dir)`, `listFiles(dir)` (recursive), `removeEmptyDir(dir): Boolean`.
 - `class RealMoveFiles(volumeOf: (File) -> Any?)`: `java.nio.file.Files.move` without `REPLACE_EXISTING` after an existence check (FUSE has no link-based no-replace rename; the window is closed by the engine re-checking the destination). `volumeOf` is `Os.stat(path).st_dev` on Android and `Files.getFileStore` on the JVM.
 
-- [ ] **Step 1: JVM tests:** `rename_neverReplaces`, `copyHashing_returnsTheSourceHash`, `removeEmptyDir_keepsANonEmptyFolder` (a hidden file counts), `listFiles_isRecursive`, `sameVolume_onOneTempDir`.
-- [ ] **Step 2: Device test** (written, not yet run on the phone): `MoveFilesDeviceTest`: rename within `/storage/emulated/0` keeps size, last-modified and content; `sameVolume` true inside shared storage and false against the app's internal files dir; ENOSPC can't be forced, so only the type is checked.
-- [ ] **Step 3: Implement. Commit** `feat(move): file operations`.
+- [x] **Step 1: JVM tests:** `rename_neverReplaces`, `copyHashing_returnsTheSourceHash`, `removeEmptyDir_keepsANonEmptyFolder` (a hidden file counts), `listFiles_isRecursive`, `sameVolume_onOneTempDir`.
+- [x] **Step 2: Device test** (written, not yet run on the phone): `MoveFilesDeviceTest`: rename within `/storage/emulated/0` keeps size, last-modified and content; `sameVolume` true inside shared storage and false against the app's internal files dir; ENOSPC can't be forced, so only the type is checked.
+- [x] **Step 3: Implement. Commit** `feat(move): file operations`.
+
+**Done Nov 4** (`5012802`): `RealMoveFilesTest` 8 tests on the JVM. `MoveFilesDeviceTest` (4): **written, not yet run on the phone** (needs All files access granted).
 
 ### Task 6: Move engine · phone: no
 
@@ -221,7 +231,7 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 **Interfaces:**
 - `interface MoveStore` (implemented over `MoveDao` in Task 9): `steps(runId)`, `startStep`, `setStepState`, `setStepDest`, `recordMoved`, `recordMissing`, `setRunState`.
 - `class MoveControl`: `pause()`, `resume()`, `stop()`; `StateFlow` of the request. The engine reads it **only between files**.
-- `fun interface MoveNotifier { fun moved(from: String, to: String) }` (Task 10 implements it).
+- `fun interface MoveNotifier { fun moved(from: String?, to: String) }` (`from` is null when the source stays, P8; Task 10 implements it).
 - `class MoveEngine(store, files, notifier, projectDir, clock)`: `suspend fun run(runId, control, onProgress): MoveOutcome`.
 
 **Rules per step** (from Planned; Task 7 covers the other states):
@@ -233,10 +243,12 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 6. `notifier.moved(source, dest)` after each Done step (nothing for a `keepSource` copy's source, which stays).
 7. Each step runs under `NonCancellable`: cancelling the coroutine (service destroyed, project switch) stops after the current file, like Stop.
 
-- [ ] **Step 1: Tests:** `rename_movesAndRecords`, `rename_destTaken_takesTheNextNumber`, `rename_checkFails_failsTheRun`, `copy_acrossVolumes_movesAndDeletesTheSource`, `copy_neverOverwrites`, `copy_mismatchOnce_retriesAndSucceeds`, `copy_mismatchTwice_skipsAndKeepsTheSource`, `copy_spaceShort_stopsBeforeCopying`, `copy_spaceRunsOut_deletesTheHalfCopy`, `keepSource_neverDeletesTheSource`, `missingSource_marksMissingAndCarriesOn`, `lowSpace_stopsEveryRun`, `pause_finishesTheCurrentFileFirst`, `stop_finishesTheCurrentFileFirst`, `cancel_finishesTheCurrentStep`, `thirdStart_isSkipped`, `progress_countsEveryStep`, `notifier_getsBothPaths`.
-- [ ] **Step 2: Implement.**
-- [ ] **Step 3:** `./gradlew testDebugUnitTest`. Expected: all pass.
-- [ ] **Step 4: Commit** `feat(move): move engine`.
+- [x] **Step 1: Tests:** `rename_movesAndRecords`, `rename_destTaken_takesTheNextNumber`, `rename_checkFails_failsTheRun`, `copy_acrossVolumes_movesAndDeletesTheSource`, `copy_neverOverwrites`, `copy_mismatchOnce_retriesAndSucceeds`, `copy_mismatchTwice_skipsAndKeepsTheSource`, `copy_spaceShort_stopsBeforeCopying`, `copy_spaceRunsOut_deletesTheHalfCopy`, `keepSource_neverDeletesTheSource`, `missingSource_marksMissingAndCarriesOn`, `lowSpace_stopsEveryRun`, `pause_finishesTheCurrentFileFirst`, `stop_finishesTheCurrentFileFirst`, `cancel_finishesTheCurrentStep`, `thirdStart_isSkipped`, `progress_countsEveryStep`, `notifier_getsBothPaths`.
+- [x] **Step 2: Implement.**
+- [x] **Step 3:** `./gradlew testDebugUnitTest`. Expected: all pass.
+- [x] **Step 4: Commit** `feat(move): move engine`.
+
+**Done Nov 4** (`f7d4e71`): `MoveEngineTest` 30 tests, Task 7's included. Added beyond the list: `rename_ioError_skipsAndCarriesOn` (an I/O error that leaves the source untouched skips the file), `stop_whilePaused_endsWithoutMovingMore`. `MoveStore.recordReverted` covers a recorded destination that vanished while its source is still there.
 
 ### Task 7: Resume after a crash · phone: no (wiring checked on the phone in Task 17)
 
@@ -250,9 +262,11 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 - A Paused run resumes Paused (B2): the card shows Resume and Stop.
 - `AppGraph` calls `resumeOpenRun` after a project opens and before `autoStart` (analysis waits for the move).
 
-- [ ] **Step 1: Tests:** `resume_planned_redoesTheMove`, `resume_planned_renameAlreadyDone_recordsIt`, `resume_copied_discardsTheTempAndRedoes`, `resume_verified_deletesTheSourceOnly`, `resume_verified_keepSource_keepsIt`, `resume_bothGone_marksMissing`, `resume_pausedRun_staysPaused`.
-- [ ] **Step 2: Implement** the engine part; `AppGraph` wiring with Task 9.
-- [ ] **Step 3: Commit** `feat(move): resume an interrupted run`.
+- [x] **Step 1: Tests:** `resume_planned_redoesTheMove`, `resume_planned_renameAlreadyDone_recordsIt`, `resume_copied_discardsTheTempAndRedoes`, `resume_verified_deletesTheSourceOnly`, `resume_verified_keepSource_keepsIt`, `resume_bothGone_marksMissing`, `resume_pausedRun_staysPaused`.
+- [x] **Step 2: Implement** the engine part; `AppGraph` wiring with Task 9.
+- [x] **Step 3: Commit** `feat(move): resume an interrupted run`.
+
+**Done Nov 4** (`f7d4e71` engine, `98908d9` wiring): also `firstStart_sourceGoneButTargetThere_isMissing`, `resume_verified_isFinishedEvenAfterTwoStarts`, `resume_verified_destGone_keepsTheSource`. `AppGraph.resumeOpenMove` runs before analysis' auto-start on project open and app resume. Checked on the phone in Task 17.
 
 ### Task 8: Report data · phone: no
 
@@ -260,8 +274,10 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 
 **Interfaces:** `MoveReport.of(run, steps, folderCount, leftOut: List<LeftOutRow>, check: LayoutProblems?)` → `MoveReport(kind, outcome, moved, copiedShared, skipped: List<SkippedRow>, numbered: List<String>, becameMissing, removedFolders, keptFolders, stillToMove, folderCheckOk, headline)`. Headline examples: "248 files binned into 14 category folders", "Nothing to move. 12 files were already in place.", "Bin Files stopped: storage is full". The layout depends on B8 (open); the numbers don't.
 
-- [ ] **Step 1: Tests:** `done_headlineCountsFiles`, `stopped_saysHowManyAreLeft`, `skipped_areListedWithWhy`, `nothingToMove_headline`, `numbered_listsTheNames`.
-- [ ] **Step 2: Implement. Commit** `feat(move): report data`.
+- [x] **Step 1: Tests:** `done_headlineCountsFiles`, `stopped_saysHowManyAreLeft`, `skipped_areListedWithWhy`, `nothingToMove_headline`, `numbered_listsTheNames`.
+- [x] **Step 2: Implement. Commit** `feat(move): report data`.
+
+**Done Nov 4** (`46a5120`): `MoveReportTest` 9 tests. `BinFilesJob.report(runId)`; the in-place count and the check result are kept in memory only (lost on restart; fine until B8 is settled).
 
 ### Task 9: Bin Files as a pipeline job · phone: no (service checked in Task 17)
 
@@ -275,17 +291,21 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 - `BinFilesJob.run(project, control, onProgress): MoveOutcome`: folder check (B5: missing → Missing; unknown → `Blocked`, nothing written) → `BinPlanner.plan` → `MoveDao.writeRun` (or `NothingToMove`) → `MoveEngine.run` → remove empty folders the app made (B12) → folder check again → `finishRun`.
 - The service maps `Moving` to "Binning <project> · 12 of 248" / "Saving · 2 of 3 files", with Pause/Resume and Stop actions; the wake lock is held while Moving and released while MovingPaused.
 
-- [ ] **Step 1: Tests:** `binFiles_isRefusedWhileARunIsInProgress`, `binFiles_runsUnderTheBinningJob`, `start_isRefusedWhileFilesMove`, `pause_and_resume_actBetweenFiles`, `stop_endsAfterTheCurrentFile`, `binFilesJob_unknownFiles_blocksBeforeWriting`, `binFilesJob_missingBinned_isMarkedAndCarriesOn`, `binFilesJob_removesOnlyEmptyFoldersItMade`, `binFilesJob_nothingToMove_marksInPlace`.
-- [ ] **Step 2: Implement** controller and job; service, notification and `AppGraph` wiring.
-- [ ] **Step 3:** `./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest`. Expected: BUILD SUCCESSFUL.
-- [ ] **Step 4: Commit** `feat(pipeline): Bin Files as a Binning job`.
+- [x] **Step 1: Tests:** `binFiles_isRefusedWhileARunIsInProgress`, `binFiles_runsUnderTheBinningJob`, `start_isRefusedWhileFilesMove`, `pause_and_resume_actBetweenFiles`, `stop_endsAfterTheCurrentFile`, `binFilesJob_unknownFiles_blocksBeforeWriting`, `binFilesJob_missingBinned_isMarkedAndCarriesOn`, `binFilesJob_removesOnlyEmptyFoldersItMade`, `binFilesJob_nothingToMove_marksInPlace`.
+- [x] **Step 2: Implement** controller and job; service, notification and `AppGraph` wiring.
+- [x] **Step 3:** `./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest`. Expected: BUILD SUCCESSFUL.
+- [x] **Step 4: Commit** `feat(pipeline): Bin Files as a Binning job`.
+
+**Done Nov 4** (`98908d9`): `BinFilesJobTest` 13, `MoveJobTest` 9. **Until Task 16 builds the UI, Bin Files is started over adb** (the same intent the Re-sort uses, `run_kind BinFiles`; see the handoff note). `ProjectMediaViewModel.onBinFiles` still shows its placeholder (B7 open). On the Analyze screen the status row says "Binning files" with "12 of 248" in the counts slot (no mockup; minimal text so the existing screen isn't wrong).
 
 ### Task 10: MediaStore after a move · phone: yes
 
 **Files:** Create `move/MediaStoreNotifier.kt` (`MediaScannerConnection.scanFile(context, [dest, source], …)`), wire it in `AppGraph`. B11 is open: the scan itself is the recommendation; the checks below confirm what Gallery shows.
 
-- [ ] **Step 1:** Implement and wire (cloud). Commit `feat(move): tell MediaStore about moves`.
+- [x] **Step 1:** Implement and wire (cloud). Commit `feat(move): tell MediaStore about moves`.
 - [ ] **Step 2 (phone):** Move one photo from `DCIM/Camera` with Bin Files. Check with `adb shell content query --uri content://media/external/images/media --projection _id:_data --where "_data LIKE '%<name>%'"` that one row points at the new path and none at the old, and whether the `_id` stayed the same (rename through FUSE). In Samsung Gallery: Pictures timeline position, the Camera album, the new category album, a Favourite set before the move, "Revert" on a photo edited before the move. In the Android photo picker and Samsung Gallery's picker: where it shows. Re-pick it into the same project ("already in this project") and another ("in another project's folder"). Record the answers in B11.
+
+**Step 1 done Nov 4** (`6f38f63`): `MediaStoreNotifier`; scans are asynchronous and never fail a move.
 
 ### Task 11: Status, counts and Bin Files state · phone: no
 
@@ -296,21 +316,27 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 - `binFilesBlockedReason`: while files move, "Bin Files is running"; the 2b reasons otherwise.
 - The view model exposes the move's progress and the last report data for the (unbuilt) sheets, and refuses Save, Edit, Select actions and Re-sort with "Edits wait until the files have moved" while files move (2b state 6).
 
-- [ ] **Step 1: Tests** first (status lines, counts by path, refusals). **Step 2: Implement. Step 3: Commit** `feat(projectmedia): Bin Files status and counts`.
+- [x] **Step 1: Tests** first (status lines, counts by path, refusals). **Step 2: Implement. Step 3: Commit** `feat(projectmedia): Bin Files status and counts`.
+
+**Done Nov 4** (`98908d9` `activeJobOf`, `a512463`): `MediaStatusTest` +2, `MediaCountsTest` updated, `ProjectMediaViewModelTest.movingFiles_showsProgressAndHoldsEdits`. **Deviation (ruling):** counts stay by status, not by path: the engine sets Binned when a file reaches its target and Re-sort (Task 12) takes it back, so status and path agree; the planner still decides by path. Save, Remove, Retry and Set by hand are refused while files move.
 
 ### Task 12: Re-sort reaches binned items (B10) · phone: no (device test runs later)
 
 **Files:** `db/SortDao.kt` (`RESORTABLE` includes `Binned`; unassigning sets `Analyzed`), `SortDaoTest` (device).
 
-- [ ] **Step 1: Device tests** (written, not yet run on the phone): `prepareResort_includesUnlockedBinnedItems`, `prepareResort_keepEdits_leavesLockedBinnedItems`.
-- [ ] **Step 2: Implement. Commit** `feat(sort): Re-sort reaches binned items`.
+- [x] **Step 1: Device tests** (written, not yet run on the phone): `prepareResort_includesUnlockedBinnedItems`, `prepareResort_keepEdits_leavesLockedBinnedItems`.
+- [x] **Step 2: Implement. Commit** `feat(sort): Re-sort reaches binned items`.
+
+**Done Nov 4** (`831370b`). Device tests **written, not yet run on the phone**. `PipelineFakes.FakeSortStore.prepareResort` follows the same rule.
 
 ### Task 13: The removed-file record (Q2) · phone: no (device test runs later)
 
 **Files:** `projectmedia/ProjectMediaRepository.kt` (`removeItems` adds `removed_file` rows for items whose `currentPath` is in a category folder, same transaction), `db/ProjectMediaDao.kt`, Leave them (`MoveDao.addRemoved(…, "left")`), registration drops a row when its path is added again; `BinFilesJob` drops rows whose file is gone.
 
-- [ ] **Step 1: Device tests** (written, not yet run on the phone): `remove_binnedItem_recordsItsPath`, `remove_unbinnedItem_recordsNothing`, `removedPath_isDroppedWhenAddedAgain`.
-- [ ] **Step 2: Implement. Commit** `feat(projectmedia): remember removed binned files`.
+- [x] **Step 1: Device tests** (written, not yet run on the phone): `remove_binnedItem_recordsItsPath`, `remove_unbinnedItem_recordsNothing`, `removedPath_isDroppedWhenAddedAgain`.
+- [x] **Step 2: Implement. Commit** `feat(projectmedia): remember removed binned files`.
+
+**Done Nov 4** (`011f23c`). Also records a removed item that sits inside the project folder without being binned (one a Re-sort took out of binned, B10), so the folder check never stops on it. Device tests `remove_binnedItem_recordsItsPath`, `remove_unbinnedItem_recordsNothing`, `remove_itemInsideTheProjectFolder_recordsItsPath`: **written, not yet run on the phone**. `removedPath_isDroppedWhenAddedAgain` is in `AppGraph.register` (no device test constructs `AppGraph`, 2b Task 6A); checked in Task 17 Step 7.
 
 ### Task 14: Save moves binned files · phone: yes (moves real files)
 
@@ -345,7 +371,7 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 
 - [ ] **Step 1:** Fresh media (never Hawaii Photos or Maui): 20 photos and 3 clips pushed to `/sdcard/DCIM/avb-plan3/`, 2 photos to `/sdcard/Download/avb-plan3/`, a truncated JPEG (Failed), and one photo deleted after analysis (Missing). If an SD card is available, 2 photos on it (the copy path). New project "Plan3 E2E", add both folders, let analysis and sorting (LFM3-1.7B) finish.
 - [ ] **Step 2: Before.** `adb shell ls -lR` of the project folder and every source folder; `adb shell sha256sum` of every media file (save to `build/e2e/plan3/before.txt`).
-- [ ] **Step 3: Bin Files**, and while it runs, `adb shell am force-stop com.agentic.binning` at about half way. Relaunch: the run resumes on its own (B3) and finishes. Check logcat for the step that was in flight.
+- [ ] **Step 3: Bin Files** (from the sheet once Task 16 is built; before that with the adb intent in the handoff note), and while it runs, `adb shell am force-stop com.agentic.binning` at about half way. Relaunch: the run resumes on its own (B3) and finishes. Check logcat for the step that was in flight.
 - [ ] **Step 4: After.** `ls -lR` and `sha256sum` again: every hash from Step 2 appears exactly once, at its item's `currentPath` (pull `project.db`: `select id,currentPath,status,contentHash from item; select * from move_step where runId = (select max(id) from move_run);`). The Failed and Missing items are where they were; no `.tmp` is left in `.binning/moving`; no source folder was removed.
 - [ ] **Step 5: Pause and Stop** on a second run (add 5 more photos, sort, Bin Files): Pause, wait, Resume; then Stop. The file in progress always finishes.
 - [ ] **Step 6: Save on a binned item:** rename one item, re-categorize one, rename a category: files move at once (2b state 6); `sha256sum` again.
