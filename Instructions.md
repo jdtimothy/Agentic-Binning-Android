@@ -149,7 +149,7 @@ The VLM tokenizes incrementally. On each turn, pass only that turn's images to `
 
 One photo costs LFM3-VL-2B about 256 tokens and 0.6 s to the first word. The native side reads image files from an absolute path, so decode, resize and save each photo to app storage first.
 
-- **Picking:** use `ActivityResultContracts.PickMultipleVisualMedia` with `ImageAndVideo`. It needs no storage permission and returns content URIs. For a library app that scans the whole gallery, use `MediaStore` queries plus `READ_MEDIA_IMAGES` and `READ_MEDIA_VIDEO` instead.
+- **Picking:** use `ActivityResultContracts.PickMultipleVisualMedia` with `ImageAndVideo`. It needs no storage permission and returns content URIs. Their `_data` is a synthetic path and `_display_name` a number (`/sdcard/.transforms/synthetic/picker/…/58064.jpg`), so with all files access look the real file up by id (`MediaUris`) before storing a path that binning will move. For a library app that scans the whole gallery, use `MediaStore` queries plus `READ_MEDIA_IMAGES` and `READ_MEDIA_VIDEO` instead.
 - **Never pass a content URI** in `VlmContent("image", …)`. Copy or decode it to a file under `filesDir` and pass `file.absolutePath`.
 - **Decode safely:** `ImageDecoder` with `ALLOCATOR_SOFTWARE`, downsampled so the longest edge is at most 1,536 px. It applies EXIF rotation and avoids running out of memory on 200 MP photos.
 - **Vision geometry:** the demo's `GgufVisionReader` reads it from the mmproj: 512 px tiles, patch 16, merge 2, giving 256 tokens per image. Size preprocessing from those values, not a constant.

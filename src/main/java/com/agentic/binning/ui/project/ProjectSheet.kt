@@ -105,7 +105,7 @@ interface ProjectSheetActions {
     /** "Add a folder" on the main page, or the folder tile / "Change" on the New project page. */
     fun onPickFolder()
 
-    /** "Pick photos and clips" on the main page, or the photos tile / "Change" on the New project page. */
+    /** "Pick photos and videos" on the main page, or the photos tile / "Change" on the New project page. */
     fun onPickFiles()
 
     fun onSwitch(ref: ProjectRef)
@@ -304,7 +304,7 @@ private fun ColumnScope.MainPage(state: ProjectSheetState, actions: ProjectSheet
         Spacer(Modifier.height(16.dp))
         PillButton("Add a folder", ProjectIcons.FolderPlus, enabled = canAddMedia, primary = true, onClick = actions::onPickFolder)
         Spacer(Modifier.height(10.dp))
-        PillButton("Pick photos and clips", ProjectIcons.PhotoPlus, enabled = canAddMedia, onClick = actions::onPickFiles)
+        PillButton("Pick photos and videos", ProjectIcons.PhotoPlus, enabled = canAddMedia, onClick = actions::onPickFiles)
         state.registration?.let {
             Spacer(Modifier.height(10.dp))
             Text(registrationProgressText(it), color = tokens.text, fontSize = 14.sp)
@@ -443,7 +443,7 @@ private fun NewProjectPage(state: ProjectSheetState, actions: ProjectSheetAction
             onClick = actions::onPickFolder,
         )
         MediaTile(
-            "Photos and clips",
+            "Photos and videos",
             ProjectIcons.Photo,
             selected = state.selection is MediaChoice.Files,
             enabled = !state.creating,

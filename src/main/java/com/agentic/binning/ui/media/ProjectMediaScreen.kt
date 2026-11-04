@@ -585,7 +585,7 @@ private fun EmptyCard(onAddFolder: () -> Unit, onPickFiles: () -> Unit) {
                 textAlign = TextAlign.Center,
             )
             WideButton(MediaIcons.Folder, "Add a folder", primary = true, onClick = onAddFolder)
-            WideButton(MediaIcons.Plus, "Pick photos and clips", primary = false, onClick = onPickFiles)
+            WideButton(MediaIcons.Plus, "Pick photos and videos", primary = false, onClick = onPickFiles)
         }
     }
 }

@@ -88,6 +88,21 @@ class SettingsStoreTest {
         assertEquals(SortingModelChoice.Lfm3_1_7B, SettingsStore(ds).settings.first().sortingModel)
     }
 
+    @Test fun mediaPicker_defaultsToAndroidPhotoPicker() = runTest {
+        assertEquals(MediaPickerChoice.AndroidPhotoPicker, store.settings.first().mediaPicker)
+    }
+
+    @Test fun mediaPicker_roundTrips() = runTest {
+        store.setMediaPicker(MediaPickerChoice.SamsungGallery)
+        assertEquals(MediaPickerChoice.SamsungGallery, store.settings.first().mediaPicker)
+    }
+
+    @Test fun unknownStoredMediaPickerFallsBackToDefault() = runTest {
+        val ds = InMemoryPreferencesDataStore()
+        ds.edit { it[stringPreferencesKey("media_picker")] = "Removed" }
+        assertEquals(MediaPickerChoice.AndroidPhotoPicker, SettingsStore(ds).settings.first().mediaPicker)
+    }
+
     @Test fun sortingChoices_areClaudeAndLfmOnly() =
         assertEquals(listOf("Claude", "Lfm3_1_7B"), SortingModelChoice.entries.map { it.name })
 }

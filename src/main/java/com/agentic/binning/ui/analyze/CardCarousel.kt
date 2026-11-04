@@ -355,7 +355,7 @@ private fun EmptyCard(onAddMedia: () -> Unit) {
         ) {
             Icon(AnalyzeIcons.Folder, contentDescription = null, tint = tokens.accent, modifier = Modifier.size(36.dp))
             Text("Add media", color = tokens.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text("Pick a folder or photos and clips", color = tokens.sub, fontSize = 13.sp)
+            Text("Pick a folder or photos and videos", color = tokens.sub, fontSize = 13.sp)
         }
     }
 }
