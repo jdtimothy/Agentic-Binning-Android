@@ -437,6 +437,7 @@ IC.copy = '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2
 IC.disk = '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 14h.01M11 14h6"/>';
 IC.shield = '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>';
 IC.tag = '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>';
+var IC_PAUSE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
 IC.trash = '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>';
 
 /* ------------------------------------------------------------- sample data */
@@ -481,7 +482,8 @@ var FILES = [
   ["b1", "beach", "Empty Beach Morning", "jpg", "Download", "Beach Scenes"],
   ["b2", "beach", "Beach Umbrellas Row", "jpg", "Camera", "Beach Scenes"],
   ["e1", "wedding", "Beach Wedding Arch", "jpg", "Camera", "Wedding Events"],
-  ["t1", "turtle", "Sea Turtles Resting Sand", "jpg", "Camera", "Turtle Beach"]
+  ["t1", "turtle", "Sea Turtles Resting Sand", "jpg", "Camera", "Turtle Beach"],
+  ["w2", "wind", "Sail Jumping Wave", "mp4", "SD card", "Windsurfers on the Sea"]
 ];
 var TOTAL = 248, FOLDERS = 14;
 var LEFT = [
@@ -491,7 +493,7 @@ var LEFT = [
 ];
 function stepAt(i) {
   var f = FILES[i % FILES.length], n = Math.floor(i / FILES.length);
-  return { id: f[0] + n, p: f[1], name: f[2] + (n ? " " + (n + 1) : ""), ext: f[3], from: f[4], to: f[5] };
+  return { id: f[0] + n, p: f[1], name: f[2] + (n ? " " + (n + 1) : ""), ext: f[3], from: f[4], to: f[5], copy: f[4] === "SD card" };
 }
 
 /* ------------------------------------------------------------- the screen */
@@ -536,9 +538,9 @@ function leftList(extra) {
 /* State 1: confirm */
 function confirmSheet(P) {
   var body = '<div><p class="big">Bin ' + TOTAL + " files into " + FOLDERS + ' folders</p><p>Into <code>Agentic Binning/' + PROJECT + "/</code>, one folder per category.</p></div>";
-  body += '<div class="facts">' + fact("photos", "From Camera", "DCIM/Camera", 210) + fact("photos", "From Download", "Download", 38) + fact("folderCheck", "Already in their folders", "Stay as they are", 0, "ok") + "</div>";
-  body += '<div class="callout">' + ic("shield", 18) + "<span><b>No undo.</b> Each file is copied, checked, then the original is deleted. Nothing is overwritten: a name that's taken gets a number.</span></div>";
-  body += '<div class="callout">' + ic("info", 18) + "<span>In Gallery they leave the Camera album and show up in albums named after their categories. Gallery favourites on these files are lost.</span></div>";
+  body += '<div class="facts">' + fact("photos", "From Camera", "DCIM/Camera", 192) + fact("photos", "From Download", "Download", 38) + fact("disk", "From the SD card", "Copied, checked, then deleted from the card · needs 2.9 GB free, 41 GB free", 18) + fact("folderCheck", "Already in their folders", "Stay as they are", 0, "ok") + "</div>";
+  body += '<div class="callout">' + ic("shield", 18) + "<span><b>No undo.</b> Each file moves into its category folder and is checked. Nothing is overwritten: a name that's taken gets a number.</span></div>";
+  body += '<div class="callout">' + ic("info", 18) + "<span>In Gallery they leave the Camera album and show up in albums named after their categories.</span></div>";
   body += leftList();
   var foot = '<div class="row"><button class="btn s" data-a="close">Cancel</button><button class="btn p" data-a="start">' + ic("folderCheck") + "Bin " + TOTAL + " files</button></div>";
   return sheet("Bin Files", body, foot, true);
@@ -547,19 +549,26 @@ function confirmSheet(P) {
 /* State 2 / 6: progress */
 function jobCard(P) {
   var j = P.job, done = j.done, cur = stepAt(done), pct = Math.round(((done + (j.phase === 1 ? 0.3 : j.phase === 2 ? 0.6 : j.phase === 3 ? 0.85 : 0)) / TOTAL) * 100);
-  var o = '<section class="glass job bin" aria-label="Binning files"><div class="top"><b>' + (j.resumed ? "Finishing Bin Files" : "Binning files") + "</b><span>" + Math.min(done + 1, TOTAL) + " of " + TOTAL + "</span></div>";
+  var title = j.paused ? "Paused" : j.resumed ? "Finishing Bin Files" : "Binning files";
+  var o = '<section class="glass job bin" aria-label="Binning files"><div class="top"><b>' + title + "</b><span>" + (j.paused ? done : Math.min(done + 1, TOTAL)) + " of " + TOTAL + "</span></div>";
   if (j.resumed) o += '<p class="banner">' + ic("retry", 14) + "<span>Picked up where it stopped when the app closed. " + j.resumedAt + " files had moved; nothing was lost.</span></p>";
   o += '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><i style="width:' + pct + '%"></i></div>';
-  o += '<div class="cur"><b>' + esc(cur.name) + "." + cur.ext + "</b><small>" + cur.from + " → " + esc(cur.to) + "</small></div>";
-  var ph = ["Copying", "Checking", "Placing", "Deleting the original"];
-  o += '<div class="phases">' + ph.map(function (t, i) { return '<span class="' + (i < j.phase ? "done" : i === j.phase ? "on" : "") + '">' + t + "</span>"; }).join("") + "</div>";
+  if (j.paused) o += '<div class="cur"><b>Next: ' + esc(cur.name) + "." + cur.ext + "</b><small>The file in progress finished. Nothing is half moved.</small></div>";
+  else {
+    o += '<div class="cur"><b>' + esc(cur.name) + "." + cur.ext + "</b><small>" + cur.from + " → " + esc(cur.to) + (cur.copy ? " · copied: another storage" : "") + "</small></div>";
+    var ph = cur.copy ? ["Copying", "Checking", "Placing", "Deleting the original"] : ["Moving", "Checking"];
+    o += '<div class="phases">' + ph.map(function (t, i) { return '<span class="' + (i < j.phase ? "done" : i === j.phase ? "on" : "") + '">' + t + "</span>"; }).join("") + "</div>";
+  }
   o += '<ul class="steps">';
   for (var k = Math.max(0, done - 2); k < done; k++) {
     var s = stepAt(k);
     o += '<li class="done"><span class="ico">' + ic("check", 12, 3) + '</span><span class="lb"><b>' + esc(s.name) + "." + s.ext + "</b><small>" + esc(s.to) + '</small></span><span class="ph2">Done</span></li>';
   }
   o += "</ul>";
-  o += '<div class="row"><p class="wait">' + ic("clock", 14) + "<span>" + (j.stopping ? "Stopping after this file…" : "Other edits wait. You can leave this screen.") + '</span></p><button class="stopb" data-a="stop"' + (j.stopping ? ' aria-disabled="true"' : "") + ">" + ic("stop", 14) + "Stop after this file</button></div></section>";
+  var note = j.stopping ? "Stopping after this file…" : j.pausing ? "Pausing after this file…" : j.paused ? "Other edits wait until it ends." : "Other edits wait. You can leave this screen.";
+  o += '<div class="row"><p class="wait">' + ic("clock", 14) + "<span>" + note + "</span></p>";
+  o += j.paused ? '<button class="stopb" data-a="resume" style="color:var(--ink)">' + ic("play", 12) + "Resume</button>" : '<button class="stopb" data-a="pause" style="color:var(--ink)"' + (j.pausing || j.stopping ? ' aria-disabled="true"' : "") + ">" + IC_PAUSE + "Pause</button>";
+  o += '<button class="stopb" data-a="stop"' + (j.stopping ? ' aria-disabled="true"' : "") + ">" + ic("stop", 14) + "Stop</button></div></section>";
   return o;
 }
 
@@ -567,17 +576,17 @@ function jobCard(P) {
 function reportSheet(P) {
   var r = P.report, body = "", foot;
   if (r.kind === "done") {
-    body += '<div><p class="big">' + TOTAL + " files binned into " + FOLDERS + ' category folders</p><p>Checked ' + TOTAL + " files in " + FOLDERS + " folders. Nothing missing or extra.</p></div>";
-    body += '<div class="facts">' + fact("folderMove", "Moved now", null, TOTAL) + fact("tag", "Names that got a number", "Beach Sunset 2.jpg, Gecko Close Up 2.jpg, Pink Sky 2.mp4", 3) + fact("trash", "Empty folders removed", "Turtle Beach", 1) + fact("check", "Folder check", "Nothing missing or extra", "OK", "ok") + "</div>";
+    body += '<div><p class="big">' + (TOTAL - 1) + " files binned into " + FOLDERS + ' category folders</p><p>Checked ' + (TOTAL - 1) + " files in " + FOLDERS + " folders. Nothing missing or extra.</p></div>";
+    body += '<div class="facts">' + fact("folderMove", "Moved now", "230 moved, 17 copied from the SD card", TOTAL - 1) + fact("tag", "Names that got a number", "Beach Sunset 2.jpg, Gecko Close Up 2.jpg, Pink Sky 2.mp4", 3) + fact("trash", "Empty folders removed", "Turtle Beach", 1) + fact("check", "Folder check", "Nothing missing or extra", "OK", "ok") + "</div>";
+    body += '<div class="sect"><h5>Couldn\'t move · 1</h5><div class="left"><button data-a="left"><span class="th">' + art("w2x", "wind") + '</span><span class="lb"><b>Sail Jumping Wave 3.mp4</b><small>SD card · its copy didn\'t match the original twice. Nothing was lost; the next Bin Files tries again.</small></span><span class="why info">Skipped</span></button></div></div>';
     body += leftList();
-    foot = '<button class="btn p wide" data-a="close">Done</button>';
+    foot = '<div class="row"><button class="btn p" data-a="close">Done</button></div>';
   } else {
     var why = {
-      mismatch: ["Bin Files stopped at Fire Knife Spin.mp4", "Its copy didn't match the original, twice. The original wasn't touched. Nothing was lost.", "alert"],
-      full: ["Bin Files stopped: storage is full", "Free up 3.1 GB and press Bin Files again. The next file, Fire Knife Spin.mp4, needs 2.9 GB while it moves.", "disk"],
+      full: ["Bin Files stopped: storage is full", "Free up 3.1 GB and press Bin Files again. The next file, Sail Jumping Wave 4.mp4 on the SD card, needs 2.9 GB while it is copied.", "disk"],
       user: ["Bin Files stopped", "You stopped it after Fire Knife Spin.mp4. Press Bin Files to move the rest.", "stop"]
     }[r.why];
-    body += '<div class="seg" role="group" aria-label="Why it stopped">' + [["mismatch", "Copy didn't match"], ["full", "Storage full"], ["user", "Stopped by you"]].map(function (x) { return '<button data-a="why" data-v="' + x[0] + '" aria-pressed="' + (r.why === x[0]) + '">' + x[1] + "</button>"; }).join("") + "</div>";
+    body += '<div class="seg" role="group" aria-label="Why it stopped">' + [["user", "Stopped by you"], ["full", "Storage full"]].map(function (x) { return '<button data-a="why" data-v="' + x[0] + '" aria-pressed="' + (r.why === x[0]) + '">' + x[1] + "</button>"; }).join("") + "</div>";
     body += '<div class="callout warn">' + ic(why[2], 18) + "<span><b>" + why[0] + ".</b> " + why[1] + "</span></div>";
     body += '<div class="facts">' + fact("folderMove", "Moved", null, 37) + fact("clock", "Still where they were", "Moved by the next Bin Files", 211, "warn") + fact("check", "Folder check", "The 37 moved files are all in place", "OK", "ok") + "</div>";
     body += leftList();
@@ -622,7 +631,8 @@ function render(P) {
   var m = P.mode, o = base(P);
   if (m === "progress" || m === "resume") o += jobCard(P);
   var d;
-  if (m === "progress" || m === "resume") d = { tone: "run", text: "Binning · " + Math.min(P.job.done + 1, TOTAL) + " of " + TOTAL + " files", on: false };
+  if ((m === "progress" || m === "resume") && P.job.paused) d = { tone: "warn", text: "Bin Files paused · " + P.job.done + " of " + TOTAL + " files", on: false };
+  else if (m === "progress" || m === "resume") d = { tone: "run", text: "Binning · " + Math.min(P.job.done + 1, TOTAL) + " of " + TOTAL + " files", on: false };
   else if (m === "done" ) d = { tone: "", text: "All files binned · 1 failed, 2 missing", on: false };
   else if (m === "stopped") d = { tone: "ok", text: "211 files ready to bin · 1 failed, 2 missing", on: true, count: 211 };
   else if (m === "p8") d = { tone: "run", text: "Adding 12 files…", on: false };
@@ -641,14 +651,16 @@ function say(P, t) { P.toast = t; render(P); clearTimeout(P.tt); P.tt = setTimeo
 function run(P, from, resumed) {
   clearInterval(P.jt);
   P.mode = resumed ? "resume" : "progress"; P.moving = true;
-  P.job = { done: from, phase: 0, stopping: false, resumed: !!resumed, resumedAt: from };
+  P.job = { done: from, phase: 0, stopping: false, pausing: false, paused: false, resumed: !!resumed, resumedAt: from };
   render(P);
   if (P.frozen) return;
   P.jt = setInterval(function () {
     var j = P.job;
+    if (j.paused) return;
     j.phase++;
-    if (j.phase > 3) {
-      j.phase = 0; j.done += j.done < 20 || j.stopping ? 1 : 9; P.binned = j.done;
+    if (j.phase > (stepAt(j.done).copy ? 3 : 1)) {
+      j.phase = 0; j.done += j.done < 20 || j.stopping || j.pausing ? 1 : 9; P.binned = j.done;
+      if (j.pausing) { j.pausing = false; j.paused = true; render(P); return; }
       if (j.stopping) { clearInterval(P.jt); P.moving = false; P.mode = "report"; P.report = { kind: "stopped", why: "user" }; render(P); return; }
       if (j.done >= TOTAL) { j.done = TOTAL; clearInterval(P.jt); P.moving = false; P.mode = "report"; P.report = { kind: "done" }; render(P); return; }
     }
@@ -660,7 +672,13 @@ function act(P, a, v) {
   else if (a === "binoff") say(P, P.moving ? "Bin Files is running" : "All files are binned");
   else if (a === "close") { clearInterval(P.jt); var wasReport = P.mode === "report"; P.mode = wasReport && P.report.kind === "done" ? "done" : wasReport ? "stopped" : P.mode === "extra" ? "idle" : "idle"; P.moving = false; render(P); }
   else if (a === "start") { if (P.mode === "report" && P.report.kind !== "done") run(P, 37); else run(P, 0); }
-  else if (a === "stop") { if (P.job && !P.job.stopping) { P.job.stopping = true; render(P); } }
+  else if (a === "stop") {
+    if (!P.job || P.job.stopping) return;
+    if (P.job.paused) { clearInterval(P.jt); P.moving = false; P.mode = "report"; P.report = { kind: "stopped", why: "user" }; render(P); return; }
+    P.job.stopping = true; render(P);
+  }
+  else if (a === "pause") { if (P.job && !P.job.pausing && !P.job.stopping) { P.job.pausing = true; render(P); } }
+  else if (a === "resume") { if (P.job) { P.job.paused = false; render(P); } }
   else if (a === "why") { P.report.why = v; render(P); }
   else if (a === "left") say(P, "Opens the item's sheet (2b state 8)");
   else if (a === "leave") { say(P, "2 files left in Beach Scenes; the check skips them"); P.mode = "idle"; render(P); setTimeout(function () { run(P, 0); }, 900); }
@@ -679,7 +697,7 @@ function setup(P) {
   if (s === "confirm") P.mode = "confirm";
   else if (s === "progress") { P.frozen = false; run(P, 12); return; }
   else if (s === "report") { P.binned = TOTAL; P.mode = "report"; P.report = { kind: "done" }; }
-  else if (s === "stopped") { P.binned = 37; P.mode = "report"; P.report = { kind: "stopped", why: "mismatch" }; }
+  else if (s === "stopped") { P.binned = 37; P.mode = "report"; P.report = { kind: "stopped", why: "user" }; }
   else if (s === "extra") P.mode = "extra";
   else if (s === "resume") { P.binned = 13; run(P, 13, true); return; }
   else if (s === "p8") { P.mode = "p8"; P.p8 = { stage: "ask" }; }
@@ -699,11 +717,11 @@ function mount(el, state, theme) {
 /* ------------------------------------------------------------- page */
 var STATES = [
   { id: "confirm", no: "1", q: "B7", title: "Bin Files confirm", body: "Bin Files is on: 248 files are ready and nothing waits. The confirm sheet says how many files go into how many folders, where they come from, that there is no undo and what Gallery will show. The failed clip and the two missing photos are listed: they stay where they are and don't block.", tryit: ["Tap Bin 248 files to start (state 2).", "Tap a left-out item: it opens its sheet.", "Cancel, then tap Bin Files on the bottom bar to open it again."] },
-  { id: "progress", no: "2", q: "Q11, B2", title: "Progress", body: "The progress card from 2b state 6, for Bin Files: the current file, where it comes from and goes, and its four phases (copy, check, place, delete the original). Re-sort, Edit and Select are greyed out: other edits wait. The user may leave the screen; the move runs in the foreground service, and the notification (below) shows the same count with a Stop action.", tryit: ["Tap Stop after this file: the current file finishes and the stopped report opens.", "Let it run to the end for the report (state 3)."], notif: true },
-  { id: "report", no: "3", q: "B8", title: "Report", body: "The run finished. The headline, then what moved, names that got a number, the empty folder removed (Turtle Beach, emptied by an earlier merge) and the folder check. Below, every item left where it is, with why. The status line says All files binned.", tryit: ["Tap a left-out item.", "Done closes it; the status line and Bin Files update."] },
-  { id: "stopped", no: "4", q: "B4, B6, B2", title: "Stopped: a copy didn't match, storage full, or Stop", body: "A run that stopped early says why, how many moved and how many are still where they were, and that nothing was lost. The toggle at the top switches between the three reasons. Try again plans the rest afresh.", tryit: ["Switch between Copy didn't match, Storage full and Stopped by you.", "Tap Try again: the run carries on from file 38."] },
+  { id: "progress", no: "2", q: "Q11, B1, B2", title: "Progress, Pause and Stop", body: "The progress card from 2b state 6, for Bin Files: the current file, where it comes from and goes, and its phases. A file on internal storage is renamed into place, then checked (two phases). A file on the SD card is copied, checked, placed, then the original deleted (four). Re-sort, Edit and Select are greyed out: other edits wait. The user may leave the screen; the move runs in the foreground service, and the notification (below) has Pause and Stop too. Both finish the file in progress first (owner, Nov 4).", tryit: ["Tap Pause: the file in progress finishes, then the card says Paused with Resume and Stop.", "Tap Stop: the current file finishes and the stopped report opens.", "Let it run to the end for the report (state 3)."], notif: true },
+  { id: "report", no: "3", q: "B8, B4", title: "Report", body: "The run finished. The headline, then what moved, names that got a number, the empty folder removed (Turtle Beach, emptied by an earlier merge) and the folder check. One SD card clip couldn't be copied cleanly twice, so it was skipped and stays where it was (B4, owner's answer). Below, every item left where it is, with why.", tryit: ["Tap a left-out item.", "Done closes it; the status line and Bin Files update."] },
+  { id: "stopped", no: "4", q: "B2, B6", title: "Stopped: by the user, or storage full", body: "A run that stopped early says why, how many moved and how many are still where they were, and that nothing was lost. The toggle at the top switches between the two reasons. Storage full only happens while copying from another storage (B6). Bin Files or Try again plans the rest afresh.", tryit: ["Switch between Stopped by you and Storage full.", "Tap Bin 211 files: the run carries on from file 38."] },
   { id: "extra", no: "5", q: "B5, Q2", title: "Folder check: files Bin Files doesn't know", body: "Before moving anything, Bin Files checks the category folders. Two photos copied into Beach Scenes with a file manager belong to no item, so nothing moves until the user chooses. A binned photo deleted in Gallery is only marked Missing: it never blocks.", tryit: ["Leave them: they are recorded like removed files and Bin Files starts.", "Add to project: they are registered and analyzed; Bin Files waits for them."] },
-  { id: "resume", no: "6", q: "B3", title: "Resuming after a crash", body: "The app was force-stopped while file 14 was being copied. When the project opens again, the run picks up on its own: the half-written copy is thrown away and file 14 starts again. The card says what happened. A file interrupted twice stops the run as in state 4.", tryit: ["Watch it finish into the report."] },
+  { id: "resume", no: "6", q: "B3", title: "Resuming after a crash", body: "The app was force-stopped while file 14 was moving. When the project opens again, the run picks up on its own (owner, Nov 4): a file already renamed into place is checked and recorded; a half-written copy is thrown away and that file starts again. The card says what happened. A file interrupted twice is skipped, as in state 3.", tryit: ["Watch it finish into the report."] },
   { id: "p8", no: "7", q: "P8", title: "Media already in another project", body: "The owner's design (Nov 4). Of 12 picked files, 2 are in Maui and 1 is in Sort Test, a project taken off Current projects (found by its folder's database). One notice names the projects and counts. Cancel adds the other 9 only. Copy media files copies the 3 into Copied from <project> folders, checking each copy, then adds them; Bin Files later moves them into their category folders. The same notice appears for Add a folder.", tryit: ["Copy media files: watch the copy progress, then OK.", "Reset, then Cancel."] }
 ];
 (function build() {
@@ -712,7 +730,7 @@ var STATES = [
   STATES.forEach(function (st) {
     html += '<section class="state" id="' + st.id + '"><div class="notes"><p class="no">STATE ' + st.no + " · " + st.q + "</p><h2>" + st.title + "</h2><p>" + st.body + "</p>";
     if (st.tryit.length) html += '<p class="tag">Try</p><ul>' + st.tryit.map(function (t) { return "<li>" + t + "</li>"; }).join("") + "</ul>";
-    if (st.notif) html += '<p class="tag">Notification</p><div class="notif"><span class="t">' + ic("folderCheck", 14) + "Agentic Binning · now</span><b>Binning " + PROJECT + " · 13 of 248</b><span>Copying Bamboo Forest Trail 2.mp4</span><div class=\"nb\"><i></i></div><div class=\"na\"><span>Stop after this file</span></div></div>";
+    if (st.notif) html += '<p class="tag">Notification</p><div class="notif"><span class="t">' + ic("folderCheck", 14) + "Agentic Binning · now</span><b>Binning " + PROJECT + " · 13 of 248</b><span>Moving Bamboo Forest Trail 2.mp4</span><div class=\"nb\"><i></i></div><div class=\"na\"><span>Pause</span><span>Stop</span></div></div>";
     html += '<button class="reset" data-reset="' + st.id + '">Reset this state</button></div><div class="pair">';
     ["dark", "light"].forEach(function (th) { html += '<figure><div class="wrap"><div data-state="' + st.id + '" data-theme-name="' + th + '"></div></div><figcaption>' + (th === "dark" ? "Dark" : "Light") + "</figcaption></figure>"; });
     html += "</div></section>";

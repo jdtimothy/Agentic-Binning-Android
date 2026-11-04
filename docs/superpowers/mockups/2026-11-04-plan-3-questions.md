@@ -2,7 +2,7 @@
 
 Nov 4, 2026 · goes with `2026-11-04-plan-3-binning.html`
 
-Answered on Nov 4 by the owner: B3, B5, B10 and P8. Everything else is open.
+Answered on Nov 4 by the owner: B1, B2, B3, B4, B5, B10, Q11 and P8. Everything else is open.
 
 These are the decisions the spec leaves open, the two carried from Plan 2b
 (Q11 and P8), and the ones the move engine had to make before it could be
@@ -18,13 +18,13 @@ B2 and so on, so they never clash with 2b's Q1–Q19.
 
 | # | Question | Status |
 | --- | --- | --- |
-| B1 | Copy, check, then delete; never a plain rename | Open (recommend: copy, as the brief says) |
-| Q11 | The user may leave the screen while files move | Open (recommend: yes; B3's answer assumes it) |
-| B2 | Stop during Bin Files finishes the current file; no Pause | Open (recommend: Stop after this file) |
+| B1 | Rename on the same storage; copy, check, delete across storage | **Decided Nov 4**: rename (b), the owner's choice over the brief's copy rule |
+| Q11 | The user may leave the screen while files move | **Approved Nov 4** (yes) |
+| B2 | Pause and Stop during Bin Files, each after the current file | **Decided Nov 4**: both Pause and Stop (owner) |
 | B3 | A crashed run resumes on its own when the project opens | **Approved Nov 4** (as recommended) |
-| B4 | A copy that doesn't match its original stops the run | Open (recommend: retry once, then stop) |
+| B4 | A copy that doesn't match its original | **Decided Nov 4**: retry once, then skip that file and carry on |
 | B5 | Folder check before and after; extra files block until added or ignored | **Approved Nov 4** (as recommended) |
-| B6 | Storage full: check before each file, stop cleanly | Open (recommend: as described) |
+| B6 | Storage full: check before each copy, stop cleanly | Open (recommend: as described; only copies need space now) |
 | B7 | A confirm sheet before Bin Files | Open (recommend: yes) |
 | B8 | What the report lists, and where it stays | Open (recommend: as described) |
 | B9 | Bin Files when nothing needs to move | Open (recommend: off; in-place items just count as binned) |
@@ -34,77 +34,87 @@ B2 and so on, so they never clash with 2b's Q1–Q19.
 | B11 | MediaStore after a move, and what Gallery and both pickers show | Open (recommend: scan both paths; keep the file's date) |
 | B12 | Source folders are never removed; only category folders the app made | Open (recommend: yes) |
 
-## B1. Copy, check, then delete, or rename when the file stays on the same storage?
+## B1. How a file moves: rename on the same storage, copy across
 
-The brief's binding rule: "Copy, verify size and SHA-256, update `currentPath`
-in the database, then delete the original." The spec's "Left to the builder"
-allows an atomic rename, checked afterwards, for moves within one storage
-volume (internal storage to internal storage, which is almost every move).
+**Status: decided Nov 4, 2026: (b), rename within one storage volume.** The
+owner chose this over the brief's "copy, verify, update, delete" rule, which
+it replaces for moves within a volume. Copy, check, delete stays for moves
+between volumes.
 
-- a. **Always copy, check, then delete.** Every file is read twice and written
-  once. A 4 GB clip needs 4 GB free while it moves. About 1–2 minutes per
-  10 GB on the S26 (to measure on the phone).
-- b. Rename within a volume, copy across volumes (SD card). Instant, needs no
-  free space, and the file never exists twice. The check after a rename hashes
-  the destination against the hash taken when the item was added, which is
-  stale if the file was edited in Gallery since.
+Asked: "does the rename also change its file location to the new location?"
+**Yes.** On Android (Linux), renaming a file to a path in another folder on the
+same storage moves it there in one step: the folder and the name change
+together. The file's data isn't read or rewritten; only its directory entry
+changes. Because it is a single atomic step, the file is always at its old
+path or its new one, never both and never neither, and no free space is
+needed.
 
-**Recommend (a) for Plan 3**, because it is the brief's rule and the one the
-owner asked for. If moving a large video library turns out slow on the phone,
-(b) can come later behind the same `FileMover` interface without changing
-the plan or resume logic.
+- a. *(not chosen)* Always copy, check, then delete.
+- b. **Rename within a volume, copy across volumes** (internal storage to an SD
+  card or the other way).
 
-**How the copy works** (so the owner can check it):
+**How a rename move works:**
+
+1. Before: the source exists; note its size. The target name is free (a name
+   taken since planning gets the next " 2", " 3"). Never overwrite.
+2. Rename the source to `<project>/<Category>/<name>.<ext>`.
+3. Check: the file is at the target with the same size, and gone from the
+   source. Hash it and store the hash on the item (it changes if the file was
+   edited in Gallery since it was added; that is not an error).
+4. In one database transaction: the item's `currentPath` and status Binned,
+   and the step `done`. Tell MediaStore (B11).
+
+A crash between 2 and 4 is safe: on resume the file is found at the target,
+with the right size, and the database is brought up to date.
+
+**How a copy move works** (across volumes):
 
 1. Copy the source to `<project>/.binning/moving/<step id>.<ext>`, hashing
    the source as it is read. `.binning` holds `.nomedia`, so Gallery never
    sees the half-written file. The file's last-modified time is copied too.
 2. Check: the copy's size equals the source's, and the copy, read back from
    storage, has the same SHA-256 as the source.
-3. Rename the checked copy into `<project>/<Category>/<name>.<ext>`. That is a
-   rename inside one folder tree on one volume, so it is atomic. If the name
-   was taken since planning, the next free " 2", " 3" is used instead. Never
-   overwrite.
+3. Rename the checked copy into `<project>/<Category>/<name>.<ext>` (same
+   volume, so atomic). Never overwrite.
 4. In one database transaction: the item's `currentPath` and status Binned,
    and the step `verified`.
 5. Delete the original; the step is `done`. Tell MediaStore (B11).
 
-At every moment the file exists at its source, or checked at its destination,
-or both.
+At every moment the file exists at its source, at its destination, or both.
 
 ## Q11. Can the user leave the screen while files move? *(deferred from 2b)*
 
-Spec: Bin Files and Save "also run in the foreground service". 2b state 6
-says "Other edits wait until this finishes. You can still browse and search."
+**Status: approved Nov 4, 2026** (recommended answer (a) accepted).
 
 - a. **Yes.** The move runs in the foreground service, like analysis. Leaving
   Project Media, going back to Analyze or leaving the app doesn't stop it.
   The notification shows "Binning Hawaii Photos · 12 of 248" (or "Saving ·
-  2 of 3 files"). Coming back shows the progress card. While files move,
-  these are off, each with its reason: Add media, switching or removing the
-  open project (Current projects), Resume analysis, Re-sort, Categorize now,
-  and every Save.
-- b. No. Project Media holds the user on the progress card until the move
-  ends; Back asks "Files are still moving".
+  2 of 3 files") with Pause and Stop (B2). Coming back shows the progress
+  card. While files move, these are off, each with its reason: Add media,
+  switching or removing the open project (Current projects), Resume analysis,
+  Re-sort, Categorize now, and every Save.
+- b. *(not chosen)* Project Media holds the user on the progress card.
 
-**Recommend (a).** The engine is resumable either way, a 248-file move can
-take minutes, and holding the screen gains no safety. State 2 shows the
-notification.
+## B2. Pause and Stop during Bin Files
 
-## B2. Stop and Pause during Bin Files
+**Status: decided Nov 4, 2026, by the owner:** "just like when copying on any
+other system or OS, a stop and pause should be available. To avoid corrupting
+anything it should finish the file it is on, and then stop or pause before it
+moves the next file." This replaces the spec's "Pause, Stop and analysis
+controls are disabled while it runs" for Bin Files and Save moves.
 
-The spec: "Pause, Stop and analysis controls are disabled while it runs."
-
-- a. **"Stop after this file"** on the progress card and in the notification.
-  The current file finishes (or, if it hasn't been copied yet, isn't
-  started), the run ends as stopped, and the report says how many moved and
-  how many are still waiting. Pressing Bin Files again plans the rest. No
-  Pause: Stop and Bin Files again is the same thing.
-- b. No Stop at all, as the spec says. A long move can only end or crash.
-
-**Recommend (a).** The engine has to stop cleanly between files anyway (the
-system can end the service), so a button costs little. Analysis Pause and
-Stop on the Analyze screen stay off while files move, as the spec says.
+- **Pause** (progress card and notification): the current file finishes, then
+  the run holds before the next one. The card says "Paused · 37 of 248" with
+  **Resume** and **Stop**. While paused the run still owns the project: other
+  jobs and edits stay off (Q11), so nothing can change the plan under it. The
+  wake lock is released while paused, as for analysis.
+- **Stop**: the current file finishes, the run ends as stopped, and the report
+  (state 4) says how many moved and how many are still where they were.
+  Pressing Bin Files again plans the rest.
+- A paused run survives the app being closed like any run: it resumes on its
+  own when the project opens (B3), paused again if it was paused.
+- Analysis Pause and Stop on the Analyze screen don't apply to moves; the
+  Analyze screen's bottom bar shows the move's state instead.
 
 ## B3. Resuming after a crash, force-stop or reboot
 
@@ -116,11 +126,10 @@ the process didn't finish is found the next time the project opens.
 - a. **Resume on its own** when the project opens (app launch, or opening the
   project): a card says "Picking up where Bin Files stopped · 13 of 248" and
   the run continues in the service. The step that was in flight is finished
-  first (state 5). A step interrupted twice is marked failed and the run
-  stops on it (B4), so a file that crashes the app can't loop.
+  first (state 6). A step interrupted twice is skipped (B4), so a file that
+  crashes the app can't loop.
 - b. Ask: "Bin Files didn't finish. Continue / Later". Later leaves the
-  interrupted file existing twice (source and checked copy) until the user
-  continues, and every other job waits.
+  run half done until the user continues, and every other job waits.
 
 **Recommend (a).** Finishing is the safe direction, and the user already
 pressed Bin Files. No boot receiver: after a reboot nothing happens until the
@@ -128,18 +137,22 @@ app opens.
 
 ## B4. A copy that doesn't match its original
 
-The per-file check (B1 step 2) fails: sizes differ, or the hashes do.
+**Status: decided Nov 4, 2026: (b), retry once, then skip that file.**
 
-- a. **Delete the bad copy and copy once more.** If the second copy fails too,
-  stop the run: the item stays where it was, untouched. The report (state 4)
-  says "Bin Files stopped at <name>: its copy didn't match the original.
-  Nothing was lost. 37 files moved, 211 still where they were." with
-  **Try again** and **Close**. Try again plans afresh.
-- b. Skip that file and carry on with the rest.
+Only copies across volumes (B1) can have a bad copy. The per-file check fails:
+sizes differ, or the hashes do.
 
-**Recommend (a).** Two bad copies in a row mean the storage is failing or
-full, and every later copy would be at risk too. The item is not marked
-failed: nothing is wrong with it.
+- a. *(not chosen)* Retry once, then stop the run.
+- b. **Delete the bad copy and copy once more. If the second copy fails too,
+  skip that file:** delete the copy, leave the item where it was, untouched
+  and still ready to bin, and carry on with the next file. The report lists
+  it under "Couldn't move" with "its copy didn't match the original twice;
+  nothing was lost". The next Bin Files tries it again. The item is not
+  marked failed: nothing is wrong with it.
+
+A rename whose check fails (the file isn't at the target with the same size)
+can't be undone by skipping; the file is wherever the system put it. The run
+stops and the report says where the file is. This should never happen.
 
 A source that has vanished since planning (deleted in Gallery mid-run) is
 different: that item becomes Missing, the run carries on, and the report
@@ -180,29 +193,32 @@ would block Bin Files on every file the user deletes in Gallery.
 
 ## B6. Storage full mid-move
 
-With B1 (a), each file needs its own size free while it moves (the original
-is deleted before the next one starts).
+Renames (B1) need no space. Only copies across volumes do: each file needs its
+own size free on the project's storage while it moves (the original is
+deleted before the next one starts).
 
-- **Before each file:** if free space is less than the file's size plus
+- **Before each copy:** if free space is less than the file's size plus
   200 MB, the run stops before copying it: "Storage is full. 37 files moved;
-  211 still where they were. Free up 3.1 GB and press Bin Files again." The
-  file's size is the figure shown.
+  211 still where they were. Free up 3.1 GB and press Bin Files again."
 - **During a copy** (another app filled the storage): the half copy is
   deleted, the step goes back to planned, and the run stops with the same
   message.
-- Before the run starts, the confirm sheet (B7) warns if free space is less
-  than the largest file plus 200 MB.
+- Before the run starts, the confirm sheet (B7) warns if a copy will need more
+  than the free space.
+- Every run also stops if free space falls under 50 MB, so the database
+  journal always has room.
 
-**Recommend as described.** The margin keeps room for the database journal
-and for the phone itself.
+**Recommend as described.**
 
 ## B7. Confirm before Bin Files?
 
 - a. **A confirm sheet** (state 1): "Bin 248 files", into how many folders,
   where they come from ("from Camera 210 · Download 38"), where they go
   (`Agentic Binning/Hawaii Photos`), what stays (1 failed, 2 missing), and one
-  line: "No undo. Each file is copied, checked, then the original is
-  deleted. In Gallery they move to albums named after their categories."
+  line: "No undo. Each file moves into its category folder and is checked;
+  nothing is overwritten. In Gallery they move to albums named after their
+  categories." Files on an SD card add "copied, checked, then deleted from
+  the card", and the free space a copy needs (B6).
   Buttons: Cancel, **Bin 248 files**.
 - b. No confirm: Bin Files starts at once.
 
@@ -221,9 +237,11 @@ left (Q11), until they close it.
 - **Left where they are**, each with its name and why: Failed (with its
   reason), Missing, In another project (P8). Tapping one opens its sheet (the
   2b Failed sheet).
+- **Couldn't move** (B4): files whose copy didn't match twice; still where
+  they were, tried again by the next Bin Files.
 - Empty category folders removed.
 - The check: "Checked 248 files in 14 folders. Nothing missing or extra."
-- Stopped runs (B2, B4, B6) say why and how many are still to move.
+- Stopped runs (B2, B6) say why and how many are still to move.
 
 The last run's counts and message are kept in `move_run`, so a report can be
 shown after a restart. Steps are kept as history (B12 needs them).
@@ -330,9 +348,10 @@ and leave items shared with another listed project out of Bin Files.
 
 Spec: "After a move, notify MediaStore (scan the new path, remove the old
 one)." Proposed: after each step, `MediaScannerConnection.scanFile` on both
-paths (scanning a path that no longer exists removes its row). Writes through
-the FUSE filesystem already update MediaStore on Android 11 and later; the
-scan makes sure. The copy keeps the original's last-modified time.
+paths (scanning a path that no longer exists removes its row). Renames and
+writes through the FUSE filesystem already update MediaStore on Android 11 and
+later; the scan makes sure. A rename keeps the file's last-modified time by
+itself; a copy sets it from the original.
 
 What the owner will see after a file moves out of a folder like DCIM/Camera
 (to confirm on the phone; the plan's phone end-to-end task checks each):
@@ -343,10 +362,13 @@ What the owner will see after a file moves out of a folder like DCIM/Camera
 - **Samsung Gallery, Albums tab:** it leaves the Camera album. Each category
   folder becomes an album named after the category ("Beach Scenes"). Two
   projects with a category of the same name show two albums with that name.
-- **Lost in Gallery:** the moved file is a new MediaStore entry, so anything
-  Gallery keeps against the old entry is lost: Favourites, Gallery's own albums
-  and stories, and "Revert" to the original for photos edited in Gallery.
-  The original is deleted outright, not sent to Gallery's Recycle bin.
+- **Favourites and Gallery's own data:** a rename through FUSE (B1, almost
+  every move) should update the file's existing MediaStore entry in place, so
+  its id stays and Gallery may keep Favourites, its own albums and stories,
+  and "Revert" for photos edited in Gallery. To confirm on the phone; it is
+  the most likely difference the owner will notice. A copy (SD card) is a new
+  entry, so those are lost for copied files; the original is deleted
+  outright, not sent to Gallery's Recycle bin.
 - **Android photo picker** (the default "Pick photos and videos"): the photo
   is still under Photos at the same date. It leaves the picker's Camera album.
   Which other albums list category folders differs by Android version; to
