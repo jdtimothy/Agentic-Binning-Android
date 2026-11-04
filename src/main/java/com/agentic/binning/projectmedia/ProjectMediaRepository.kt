@@ -23,6 +23,9 @@ import kotlinx.serialization.json.Json
 class ProjectMediaRepository(
     private val db: ProjectDatabase,
     private val onRetryFailed: suspend () -> Unit = {},
+    /** The project's folder: a removed item whose file is inside it is remembered (Q2); null knows only Binned. */
+    private val projectDir: String? = null,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
     fun observeRows(filter: MediaFilter, ftsQuery: String?): Flow<List<MediaRow>> = flow {
         db.media().observeGrid().collect { grid ->
@@ -185,10 +188,27 @@ class ProjectMediaRepository(
         return EditResult.Ok
     }
 
+    /**
+     * Remove from project (Q1): the rows go, the files stay. A file left in the project's folders (a
+     * binned item's, or one a Re-sort moved out of binned) is remembered in `removed_file`, so the
+     * folder check never stops on it (Q2). One transaction.
+     */
     suspend fun removeItems(ids: List<Long>) {
         if (ids.isEmpty()) return
-        db.media().deleteFtsRows(ids)
-        db.media().deleteItems(ids)
+        db.useWriterConnection { connection ->
+            connection.immediateTransaction {
+                val kept = db.media().removalRows(ids).filter { keepsAFileInTheProject(it.status, it.currentPath) }.map { it.currentPath }
+                if (kept.isNotEmpty()) db.moves().addRemoved(kept, REMOVED, clock())
+                db.media().deleteFtsRows(ids)
+                db.media().deleteItems(ids)
+            }
+        }
+    }
+
+    private fun keepsAFileInTheProject(status: ItemStatus, path: String): Boolean {
+        if (status == ItemStatus.Binned) return true
+        val root = projectDir?.trimEnd('/') ?: return false
+        return path.startsWith("$root/") && !path.startsWith("$root/.binning/")
     }
 
     suspend fun renameCategory(id: Long, name: String): EditResult {
@@ -353,3 +373,5 @@ class ProjectMediaRepository(
 
 private val DetailJson = Json { ignoreUnknownKeys = true }
 
+/** `removed_file.reason` for an item removed from the project (Q2); B5's Leave them writes `left`. */
+const val REMOVED = "removed"

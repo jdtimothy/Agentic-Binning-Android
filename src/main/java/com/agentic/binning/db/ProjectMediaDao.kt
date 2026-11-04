@@ -94,6 +94,9 @@ abstract class ProjectMediaDao {
         status: ItemStatus,
     )
 
+    @Query("SELECT id, status, currentPath FROM item WHERE id IN (:ids)")
+    abstract suspend fun removalRows(ids: List<Long>): List<RemovalRow>
+
     @Query("DELETE FROM item WHERE id IN (:ids)")
     abstract suspend fun deleteItems(ids: List<Long>)
 
@@ -122,3 +125,6 @@ abstract class ProjectMediaDao {
         rebuildFtsRowLeft(itemId)
     }
 }
+
+/** What Remove from project needs to know before it deletes an item (Q2). */
+data class RemovalRow(val id: Long, val status: ItemStatus, val currentPath: String)

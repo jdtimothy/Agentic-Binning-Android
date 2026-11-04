@@ -128,6 +128,28 @@ class ProjectMediaRepositoryTest {
         assertEquals(emptyList<String>(), db.analyses().tagsFor(id))
     }
 
+    /** Plan 3 Q2: a removed binned item's file stays, and its path is remembered for the folder check. Not yet run on the phone. */
+    @Test fun remove_binnedItem_recordsItsPath() = runTest {
+        val id = photo("hb")
+        db.items().setStatus(id, ItemStatus.Binned)
+        repo.removeItems(listOf(id))
+        assertEquals(listOf("/x/hb.jpg"), db.moves().removedPaths())
+    }
+
+    /** Plan 3 Q2: an item outside the project folder leaves no record. Not yet run on the phone. */
+    @Test fun remove_unbinnedItem_recordsNothing() = runTest {
+        val id = photo("hu")
+        ProjectMediaRepository(db, projectDir = "/p").removeItems(listOf(id))
+        assertEquals(emptyList<String>(), db.moves().removedPaths())
+    }
+
+    /** Plan 3 Q2/B10: an item inside the project folder but no longer binned (a Re-sort moved it) is recorded too. Not yet run on the phone. */
+    @Test fun remove_itemInsideTheProjectFolder_recordsItsPath() = runTest {
+        val id = photo("hi")
+        ProjectMediaRepository(db, projectDir = "/x").removeItems(listOf(id))
+        assertEquals(listOf("/x/hi.jpg"), db.moves().removedPaths())
+    }
+
     @Test fun moveItems_setsCategoryLock() = runTest {
         val id = photo("h3")
         val created = repo.ensureCategory("Beach")

@@ -32,6 +32,7 @@ import com.agentic.binning.media.MediaScanner
 import com.agentic.binning.media.MediaUris
 import com.agentic.binning.media.ProjectItemLookup
 import com.agentic.binning.media.Registrar
+import com.agentic.binning.media.RegistrationOutcome
 import com.agentic.binning.media.RegistrationProgress
 import com.agentic.binning.media.RegistrationSummary
 import com.agentic.binning.model.ClaudeTextModel
@@ -867,10 +868,14 @@ class AppGraph(val context: Context) {
                 clock = System::currentTimeMillis,
             )
             var summary = RegistrationSummary(skipped = skipped)
+            val added = mutableListOf<String>()
             registrar.register(candidates).flowOn(Dispatchers.IO).collect { progress ->
                 summary += progress.last
+                (progress.last as? RegistrationOutcome.Added)?.let { added += it.path }
                 onProgress(progress)
             }
+            // A removed (or left) file added again is an item once more; the folder check needn't skip it (Q2).
+            if (added.isNotEmpty()) withContext(Dispatchers.IO) { added.chunked(500).forEach { project.db.moves().dropRemoved(it) } }
             try {
                 onRegistered(project)
             } catch (e: CancellationException) {
