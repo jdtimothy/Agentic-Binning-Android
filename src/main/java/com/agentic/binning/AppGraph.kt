@@ -708,7 +708,7 @@ class AppGraph(val context: Context) {
     }
 
     /**
-     * Registers the files behind [uris] (from the system document picker) with the current project.
+     * Registers the files behind [uris] (from the photos and videos picker) with the current project.
      * Items that cannot be resolved to a supported media file count as unreadable in the summary.
      *
      * @throws IllegalStateException if no project is open.
@@ -720,7 +720,7 @@ class AppGraph(val context: Context) {
     ): RegistrationSummary {
         val project = checkNotNull(_currentProject.value) { "No project is open" }
         val (candidates, skipped) = withContext(Dispatchers.IO) {
-            val files = uris.map { MediaUris.documentUriToFile(context, it) }
+            val files = uris.map { MediaUris.pickedUriToFile(context, it) }
             val found = files.filterNotNull().distinct().mapNotNull { file ->
                 if (!file.isFile) null else MediaScanner.kindOf(file)?.let { Candidate(file, it) }
             }

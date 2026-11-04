@@ -65,7 +65,7 @@ fun createButtonLabel(choice: MediaChoice?): String = if (choice == null) "Creat
 fun selectionLabel(choice: MediaChoice, locale: Locale = Locale.getDefault()): String = when (choice) {
     is MediaChoice.Folder -> choice.path
     is MediaChoice.Files ->
-        if (choice.count == 1) "1 photo or clip" else "${NumberFormat.getIntegerInstance(locale).format(choice.count)} photos and clips"
+        if (choice.count == 1) "1 photo or video" else "${NumberFormat.getIntegerInstance(locale).format(choice.count)} photos and videos"
 }
 
 private const val INTERNAL_STORAGE = "/storage/emulated/0"

@@ -96,13 +96,15 @@ Analyzed with `stopReason` `eos`.
   (`AnalysisPrompt.MAX_TOKENS_*`).
 - Drive the add-media flow with `uiautomator dump` + `input tap`: the project
   chip opens the sheet: "Current project" with "Add a folder" / "Pick photos
-  and clips", then "Current projects" with "Open project" / "New project",
+  and videos", then "Current projects" with "Open project" / "New project",
   "Edit" (× on each row, "Done" to leave), and the list (the open project
   first; without a project only the Current projects section shows). "Add a
   folder" and "Open project" open the system folder picker (breadcrumbs work),
-  then "USE THIS FOLDER" and "ALLOW". "New project" opens the New project
-  page: name, optional "A folder" / "Photos and clips" tile (held until
-  "Create and analyze"), back arrow or system Back to return. × only takes a
+  then "USE THIS FOLDER" and "ALLOW". "Pick photos and videos" opens Samsung
+  Gallery's picker (tap each item's circle, then "Done"; 500 at most); without
+  that app it falls back to the system document picker. "New project" opens the
+  New project page: name, optional "A folder" / "Photos and videos" tile (held
+  until "Create and analyze"), back arrow or system Back to return. × only takes a
   project off the list; its files and database stay. Don't swipe on the sheet
   while the keyboard is up: the swipe types into the name field.
 - Registration matches files across projects by content hash: media already in

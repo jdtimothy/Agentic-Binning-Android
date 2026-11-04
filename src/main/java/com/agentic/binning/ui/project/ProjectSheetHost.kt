@@ -1,5 +1,8 @@
 package com.agentic.binning.ui.project
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -171,7 +174,7 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
         }
     }
 
-    /** Photos and clips from the system picker, for the [target] recorded when the picker was launched. */
+    /** Photos and videos from the picker, for the [target] recorded when the picker was launched. */
     internal fun onFilesPicked(uris: List<Uri>, target: PickFor?) {
         when (routePick(target, hasResult = uris.isNotEmpty())) {
             PickRoute.Ignore -> Unit
@@ -326,7 +329,7 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
 
     /**
      * Creates and opens the project, then adds the held media the same way Add a folder / Pick photos
-     * and clips do (so analysis starts). Errors keep the New project page and its selection.
+     * and videos do (so analysis starts). Errors keep the New project page and its selection.
      */
     override fun onCreate() {
         switchError = null
@@ -412,7 +415,18 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
 fun rememberProjectSheetController(graph: AppGraph, scope: CoroutineScope): ProjectSheetController =
     remember(graph, scope) { ProjectSheetController(graph, scope) }
 
-/** Owns the system pickers and shows [controller]'s sheet while it is open. */
+private const val SAMSUNG_GALLERY = "com.sec.android.gallery3d"
+private val PICKED_MIME_TYPES = arrayOf("image/*", "video/*")
+
+/** Samsung Gallery's own picker, which shows video thumbnails; launching throws if the app is not there. */
+private class PickFromGallery : ActivityResultContracts.GetMultipleContents() {
+    override fun createIntent(context: Context, input: String): Intent =
+        super.createIntent(context, input)
+            .setPackage(SAMSUNG_GALLERY)
+            .putExtra(Intent.EXTRA_MIME_TYPES, PICKED_MIME_TYPES)
+}
+
+/** Owns the pickers and shows [controller]'s sheet while it is open. */
 @Composable
 fun ProjectSheetHost(controller: ProjectSheetController) {
     // Saved with the activity: a picker result can reach a recreated activity and a fresh controller,
@@ -423,11 +437,13 @@ fun ProjectSheetHost(controller: ProjectSheetController) {
         pickFor = null
         controller.onFolderPicked(uri, target)
     }
-    val filesPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+    val onFiles = { uris: List<Uri> ->
         val target = pickFor
         pickFor = null
         controller.onFilesPicked(uris, target)
     }
+    val galleryPicker = rememberLauncherForActivityResult(PickFromGallery(), onFiles)
+    val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments(), onFiles)
     SideEffect {
         controller.launchFolderPicker = { target ->
             pickFor = target
@@ -435,7 +451,11 @@ fun ProjectSheetHost(controller: ProjectSheetController) {
         }
         controller.launchFilesPicker = { target ->
             pickFor = target
-            filesPicker.launch(arrayOf("image/*", "video/*"))
+            try {
+                galleryPicker.launch("*/*")
+            } catch (_: ActivityNotFoundException) {
+                documentPicker.launch(PICKED_MIME_TYPES)
+            }
         }
     }
     if (!controller.visible) return
