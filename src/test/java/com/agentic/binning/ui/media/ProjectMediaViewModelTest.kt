@@ -19,6 +19,7 @@ import java.io.File
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -116,6 +117,7 @@ class ProjectMediaViewModelTest {
         }
 
         override suspend fun save(request: SaveRequest): EditResult {
+            gate?.await()
             saved += request
             return saveResult
         }
@@ -141,7 +143,11 @@ class ProjectMediaViewModelTest {
 
         val retried = mutableListOf<Long>()
 
+        /** While set, Retry, Set by hand and Save wait for it: a slow write. */
+        var gate: CompletableDeferred<Unit>? = null
+
         override suspend fun retry(id: Long): EditResult {
+            gate?.await()
             retried += id
             return saveResult
         }
@@ -149,6 +155,7 @@ class ProjectMediaViewModelTest {
         val byHand = mutableListOf<SetByHandRequest>()
 
         override suspend fun setByHand(request: SetByHandRequest): EditResult {
+            gate?.await()
             byHand += request
             return saveResult
         }
@@ -1078,5 +1085,128 @@ class ProjectMediaViewModelTest {
         vm.onResortKeepEdits()
         advanceUntilIdle()
         assertEquals("Re-sort 5 items", vm.state.value.resort!!.ui.buttonLabel)
+    }
+
+    /** Review minor: a slow Retry must not close another item's sheet opened meanwhile. */
+    @Test
+    fun lateRetry_leavesAnotherItemsSheetOpen() = runTest {
+        val gate = CompletableDeferred<Unit>().also { source.gate = it }
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+        vm.onRetryFailed()
+        advanceUntilIdle()
+        vm.onCloseDetail()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+        vm.onDetailName("Typed meanwhile")
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf(4L), source.retried)
+        assertEquals(1L, vm.state.value.sheet!!.ui.id)
+        assertEquals("Typed meanwhile", vm.state.value.sheet!!.ui.name)
+    }
+
+    @Test
+    fun lateClash_doesNotPutItsErrorOnAnotherSheet() = runTest {
+        source.saveResult = EditResult.Clash("Beach")
+        val gate = CompletableDeferred<Unit>().also { source.gate = it }
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(3)
+        advanceUntilIdle()
+        vm.onDetailName("Rename")
+        vm.onSaveDetail()
+        advanceUntilIdle()
+        vm.onCloseDetail()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(1L, vm.state.value.sheet!!.ui.id)
+        assertNull(vm.state.value.sheet!!.error)
+        assertFalse(vm.state.value.sheet!!.saving)
+    }
+
+    @Test
+    fun lateSetByHand_leavesAnotherItemsSheetOpen() = runTest {
+        val gate = CompletableDeferred<Unit>().also { source.gate = it }
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+        vm.onSetByHand()
+        vm.onDetailName("Harbor Clip")
+        vm.onOpenPicker()
+        advanceUntilIdle()
+        vm.onPickCategory(1)
+        vm.onSaveByHand()
+        advanceUntilIdle()
+        vm.onCloseDetail()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(1, source.byHand.size)
+        assertEquals(1L, vm.state.value.sheet!!.ui.id)
+    }
+
+    /** Review minor: while a Retry is in flight, Set by hand and Remove do nothing. */
+    @Test
+    fun duringRetry_setByHandAndRemoveWait() = runTest {
+        val gate = CompletableDeferred<Unit>().also { source.gate = it }
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+        vm.onRetryFailed()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.failed!!.saving)
+
+        vm.onSetByHand()
+        vm.onRemoveDetail()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.failed!!.ui.manual)
+        assertNull(vm.state.value.failed!!.remove)
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(source.removed.isEmpty())
+    }
+
+    /** Review minor: a Retry while the run is paused waits for Resume, and says so. */
+    @Test
+    fun retryWhilePaused_saysItWaitsForResume() = runTest {
+        phase.value = PipelinePhase.Paused
+        val messages = mutableListOf<String>()
+        val vm = vm()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.messages.toList(messages) }
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+        vm.onRetryFailed()
+        advanceUntilIdle()
+        assertEquals("4.jpg will be analyzed again when you resume", messages.last())
+    }
+
+    /** Review minor: picking a model checks again whether it can run (a download may have finished). */
+    @Test
+    fun resort_pickingAModelChecksItAgain() = runTest {
+        unavailable[SortingModelChoice.Claude] = "Add your API key to use Claude"
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onResort()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.resort!!.ui.rows.first { it.choice == SortingModelChoice.Claude }.unavailable)
+
+        unavailable.clear()
+        vm.onResortModel(SortingModelChoice.Claude)
+        advanceUntilIdle()
+        val ui = vm.state.value.resort!!.ui
+        assertFalse(ui.rows.first { it.choice == SortingModelChoice.Claude }.unavailable)
+        assertTrue(ui.enabled)
     }
 }

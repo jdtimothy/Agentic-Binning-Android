@@ -381,6 +381,7 @@ class ProjectMediaViewModel(
 ) : ViewModel() {
     private val scope = scope ?: viewModelScope
     private val picks = MutableStateFlow(Picks())
+    private val phaseNow = phase.distinctUntilChanged().stateIn(this.scope, SharingStarted.Eagerly, null)
     private val session = MutableStateFlow<DetailSession?>(null)
     private val categorySession = MutableStateFlow<CategoryEditSession?>(null)
     private val resortSession = MutableStateFlow<ResortSession?>(null)
@@ -432,7 +433,7 @@ class ProjectMediaViewModel(
     }
 
     val state: StateFlow<MediaUiState> =
-        combine(loaded, picks, phase.distinctUntilChanged(), combine(session, categorySession, resortSession, ::Sheets)) { l, p, ph, s ->
+        combine(loaded, picks, phaseNow, combine(session, categorySession, resortSession, ::Sheets)) { l, p, ph, s ->
             build(l, p, ph, s)
         }
         .stateIn(this.scope, SharingStarted.Eagerly, MediaUiState.None)
@@ -492,6 +493,24 @@ class ProjectMediaViewModel(
 
     private fun updateSession(block: (DetailSession) -> DetailSession) = session.update { it?.let(block) }
 
+    /**
+     * Applies a write's result to the sheet that asked for it, only while that sheet is still open:
+     * a slow write never closes or marks another item's sheet opened meanwhile. Null closes it.
+     */
+    private fun settle(detail: ItemDetail, block: (DetailSession) -> DetailSession?) =
+        session.update { s -> if (s != null && s.detail === detail) block(s) else s }
+
+    /** A detail or by-hand Save's result, for the sheet of [detail]. */
+    private fun settleSave(detail: ItemDetail, result: EditResult) = when (result) {
+        EditResult.Ok, is EditResult.Created -> settle(detail) { null }
+        is EditResult.Clash -> settle(detail) { it.copy(saving = false, error = "A category named “${result.existing}” already exists.") }
+        EditResult.InvalidName -> settle(detail) { it.copy(saving = false, error = "That category name can't be used.") }
+        EditResult.NotFound -> {
+            settle(detail) { null }
+            _messages.tryEmit("This item is no longer in the project")
+        }
+    }
+
     private fun updateDraft(block: (DetailDraft) -> DetailDraft) = updateSession { it.copy(draft = block(it.draft), error = null) }
 
     fun onDetailName(text: String) = updateDraft { it.copy(name = text) }
@@ -541,15 +560,7 @@ class ProjectMediaViewModel(
         scope.launch {
             val result = withContext(io) { src.save(request) }
             if (current !== src) return@launch
-            when (result) {
-                EditResult.Ok, is EditResult.Created -> session.value = null
-                is EditResult.Clash -> updateSession { it.copy(saving = false, error = "A category named “${result.existing}” already exists.") }
-                EditResult.InvalidName -> updateSession { it.copy(saving = false, error = "That category name can't be used.") }
-                EditResult.NotFound -> {
-                    session.value = null
-                    _messages.tryEmit("This item is no longer in the project")
-                }
-            }
+            settleSave(s.detail, result)
         }
     }
 
@@ -564,7 +575,10 @@ class ProjectMediaViewModel(
         override fun onSave() = Unit
     }
 
-    /** The failed item sheet's Retry analysis (Q19): the sheet closes and the tile shows the new run. */
+    /**
+     * The failed item sheet's Retry analysis (Q19): the sheet closes and the tile shows the new run.
+     * A paused run picks the item up only after Resume, and the toast says so.
+     */
     fun onRetryFailed() {
         val s = session.value ?: return
         val src = current ?: return
@@ -573,15 +587,22 @@ class ProjectMediaViewModel(
         scope.launch {
             val result = withContext(io) { src.retry(s.detail.item.id) }
             if (current !== src) return@launch
-            session.value = null
+            settle(s.detail) { null }
+            val file = s.detail.item.originalName
             _messages.tryEmit(
-                if (result == EditResult.Ok) "Analyzing ${s.detail.item.originalName} again" else "This item is no longer in the project",
+                when {
+                    result != EditResult.Ok -> "This item is no longer in the project"
+                    phaseNow.value == PipelinePhase.Paused -> "$file will be analyzed again when you resume"
+                    else -> "Analyzing $file again"
+                },
             )
         }
     }
 
-    /** Opens the by-hand form, starting from the item as loaded. */
-    fun onSetByHand() = updateSession { it.copy(manual = true, draft = DetailDraft.of(it.detail), picker = null, error = null) }
+    /** Opens the by-hand form, starting from the item as loaded; not while a Retry is being sent. */
+    fun onSetByHand() = updateSession {
+        if (it.saving) it else it.copy(manual = true, draft = DetailDraft.of(it.detail), picker = null, error = null)
+    }
 
     /** Back from the by-hand form drops what was typed. */
     fun onSetByHandBack() = updateSession { it.copy(manual = false, draft = DetailDraft.of(it.detail), picker = null, error = null) }
@@ -595,19 +616,12 @@ class ProjectMediaViewModel(
         scope.launch {
             val result = withContext(io) { src.setByHand(request) }
             if (current !== src) return@launch
-            when (result) {
-                EditResult.Ok, is EditResult.Created -> session.value = null
-                is EditResult.Clash -> updateSession { it.copy(saving = false, error = "A category named “${result.existing}” already exists.") }
-                EditResult.InvalidName -> updateSession { it.copy(saving = false, error = "That category name can't be used.") }
-                EditResult.NotFound -> {
-                    session.value = null
-                    _messages.tryEmit("This item is no longer in the project")
-                }
-            }
+            settleSave(s.detail, result)
         }
     }
 
-    fun onRemoveDetail() = updateSession { it.copy(confirmRemove = true) }
+    /** Asks before removing; not while the sheet is sending a Save or Retry. */
+    fun onRemoveDetail() = updateSession { if (it.saving) it else it.copy(confirmRemove = true) }
 
     fun onCancelRemove() = updateSession { it.copy(confirmRemove = false) }
 
@@ -792,7 +806,17 @@ class ProjectMediaViewModel(
         }
     }
 
-    fun onResortModel(choice: SortingModelChoice) = resortSession.update { it?.copy(chosen = choice, error = null) }
+    /** Picks the model for this run and checks again whether it can run (a download may have finished). */
+    fun onResortModel(choice: SortingModelChoice) {
+        resortSession.update { it?.copy(chosen = choice, error = null) }
+        val actions = resort ?: return
+        val src = current ?: return
+        scope.launch {
+            val reason = actions.unavailable(choice)
+            if (current !== src) return@launch
+            resortSession.update { r -> r?.copy(unavailable = if (reason == null) r.unavailable - choice else r.unavailable + (choice to reason)) }
+        }
+    }
 
     fun onResortKeepEdits() = resortSession.update { it?.copy(keepEdits = !it.keepEdits, error = null) }
 
