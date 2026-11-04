@@ -11,16 +11,12 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -29,14 +25,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,13 +53,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.video.VideoFrameDecoder
-import com.agentic.binning.ui.glass.GlassSurface
-import com.agentic.binning.ui.glass.LocalHazeState
 import com.agentic.binning.ui.theme.LocalGlassTokens
 import java.io.File
 
@@ -89,37 +78,6 @@ fun DetailSheetHost(sheet: DetailSheetState, vm: ProjectMediaViewModel) {
 }
 
 /** A bottom sheet in its own window: an opaque theme base under strong glass, as the project sheet does. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun GlassSheet(onDismiss: () -> Unit, tall: Boolean, content: @Composable ColumnScope.() -> Unit) {
-    val tokens = LocalGlassTokens.current
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = SheetShape,
-        containerColor = Color.Transparent,
-        scrimColor = Color.Black.copy(alpha = 0.4f),
-        tonalElevation = 0.dp,
-        dragHandle = null,
-    ) {
-        CompositionLocalProvider(LocalHazeState provides null) {
-            Box(Modifier.statusBarsPadding().padding(top = 8.dp).background(tokens.bg, SheetShape)) {
-                GlassSurface(Modifier.fillMaxWidth(), shape = SheetShape, strong = true) {
-                    Column(
-                        Modifier
-                            .then(if (tall) Modifier.fillMaxHeight(0.92f) else Modifier)
-                            .navigationBarsPadding()
-                            .imePadding(),
-                    ) {
-                        Box(Modifier.padding(top = 10.dp, bottom = 8.dp).align(Alignment.CenterHorizontally).size(40.dp, 5.dp).background(tokens.track, CircleShape))
-                        content()
-                    }
-                }
-            }
-        }
-    }
-}
-
 @Composable
 internal fun SheetHead(title: String, onClose: () -> Unit) {
     val tokens = LocalGlassTokens.current
@@ -337,7 +295,7 @@ internal fun FieldBox(modifier: Modifier = Modifier, height: Int = 48, content: 
 internal fun CalloutBox(callout: Callout) {
     val tokens = LocalGlassTokens.current
     Row(
-        Modifier.fillMaxWidth().background(if (callout.warn) tokens.warnSoft else tokens.chip, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().background(if (callout.warn) tokens.wellWarn else tokens.well, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(
@@ -423,7 +381,7 @@ private fun ColumnScope.PickerContent(picker: PickerUi, actions: PickerActions) 
             .verticalScroll(rememberScrollState())
             .padding(start = 20.dp, end = 20.dp, bottom = 20.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(tokens.chip),
+            .background(tokens.well),
     ) {
         if (!picker.newOpen) {
             PickerRow(
@@ -551,19 +509,13 @@ private fun NewCategoryField(picker: PickerUi, actions: PickerActions) {
 @Composable
 internal fun RemoveDialog(dialog: RemoveDialogUi, onCancel: () -> Unit, onRemove: () -> Unit) {
     val tokens = LocalGlassTokens.current
-    Dialog(onDismissRequest = onCancel) {
-        CompositionLocalProvider(LocalHazeState provides null) {
-            Box(Modifier.background(tokens.bg, RoundedCornerShape(28.dp))) {
-                GlassSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp), strong = true) {
-                    Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(dialog.title, Modifier.semantics { heading() }, color = tokens.text, fontSize = 19.sp, fontWeight = FontWeight.Bold, lineHeight = 24.sp)
-                        Text(dialog.body, color = tokens.sub, fontSize = 14.sp, lineHeight = 20.sp)
-                        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                            Button("Cancel", null, ButtonStyle.Secondary, onClick = onCancel)
-                            Button(dialog.removeLabel, MediaIcons.Remove, ButtonStyle.Danger, onClick = onRemove)
-                        }
-                    }
-                }
+    GlassDialog(onDismiss = onCancel) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(dialog.title, Modifier.semantics { heading() }, color = tokens.text, fontSize = 19.sp, fontWeight = FontWeight.Bold, lineHeight = 24.sp)
+            Text(dialog.body, color = tokens.sub, fontSize = 14.sp, lineHeight = 20.sp)
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                Button("Cancel", null, ButtonStyle.Secondary, onClick = onCancel)
+                Button(dialog.removeLabel, MediaIcons.Remove, ButtonStyle.Danger, onClick = onRemove)
             }
         }
     }

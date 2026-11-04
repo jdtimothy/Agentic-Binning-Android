@@ -1,35 +1,18 @@
 package com.agentic.binning.ui.media
 
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,17 +21,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -59,101 +37,45 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agentic.binning.move.MovedFile
 import com.agentic.binning.ui.glass.GlassSurface
-import com.agentic.binning.ui.theme.GlassTokens
 import com.agentic.binning.ui.theme.LocalGlassTokens
-import kotlinx.coroutines.launch
-
-// The owner's glass for Bin Files (mockup review, Nov 3): in dark mode a sheet is the lighter glass and
-// the cards inside it the darker. Light mode keeps the regular glass and chips.
-internal val GlassTokens.sheetGlass: Color get() = if (isDark) Color(0x8C484E60) else glass
-internal val GlassTokens.well: Color get() = if (isDark) Color(0x750A0C12) else chip
-internal val GlassTokens.wellWarn: Color get() = if (isDark) Color(0x9E34240C) else warnSoft
-internal val GlassTokens.binScrim: Color get() = if (isDark) Color(0x80000000) else Color(0x57141A28)
-
-private val SheetTop = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
-
-/** How far a sheet is dragged by its handle before letting go closes it. */
-private val DismissDrag = 120.dp
 
 /**
- * The Bin Files sheets (mockup states 1, 3, 4 and 5). Unlike Plan 2b's sheets they are drawn in the
- * screen's own window, not a dialog's, so the glass really blurs the screen behind them. Call inside
- * the screen's root [Box], after the content they cover.
+ * The Bin Files sheets (mockup states 1, 3, 4 and 5), on the app's shared [GlassSheet]. Call them after the
+ * content they cover.
  */
 @Composable
-internal fun BoxScope.BinSheetHost(sheet: BinSheetUi?, vm: BinFilesViewModel, onOpenItem: (Long) -> Unit) {
-    val tokens = LocalGlassTokens.current
-    var shown by remember { mutableStateOf(sheet) }
-    if (sheet != null) shown = sheet
-    val visible = sheet != null
-    BackHandler(visible) { vm.onCloseSheet() }
-
-    AnimatedVisibility(visible, Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(tokens.binScrim)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = vm::onCloseSheet),
-        )
-    }
-    AnimatedVisibility(
-        visible,
-        Modifier.align(Alignment.BottomCenter),
-        enter = slideInVertically { it / 2 } + fadeIn(),
-        exit = slideOutVertically { it / 2 } + fadeOut(),
-    ) {
-        when (val s = shown) {
-            is BinSheetUi.Confirm -> ConfirmSheet(s.ui, vm, onOpenItem)
-            is BinSheetUi.Report -> ReportSheet(s.ui, vm, onOpenItem)
-            is BinSheetUi.Unknown -> UnknownSheet(s.ui, vm)
-            null -> Unit
-        }
+internal fun BinSheetHost(sheet: BinSheetUi?, vm: BinFilesViewModel, onOpenItem: (Long) -> Unit) {
+    when (sheet) {
+        is BinSheetUi.Confirm -> ConfirmSheet(sheet.ui, vm, onOpenItem)
+        is BinSheetUi.Report -> ReportSheet(sheet.ui, vm, onOpenItem)
+        is BinSheetUi.Unknown -> UnknownSheet(sheet.ui, vm)
+        null -> Unit
     }
 }
 
 @Composable
 private fun BinSheet(title: String, onClose: () -> Unit, footer: @Composable ColumnScope.() -> Unit, body: @Composable ColumnScope.() -> Unit) {
     val tokens = LocalGlassTokens.current
-    val scope = rememberCoroutineScope()
-    val drag = remember { Animatable(0f) }
-    val dismissAt = with(LocalDensity.current) { DismissDrag.toPx() }
-    Box(Modifier.offset { IntOffset(0, drag.value.toInt()) }.fillMaxHeight(0.92f).statusBarsPadding()) {
-        GlassSurface(Modifier.fillMaxSize(), shape = SheetTop, fill = tokens.sheetGlass) {
-            Column(Modifier.fillMaxSize()) {
-                Column(
-                    Modifier.draggable(
-                        rememberDraggableState { delta -> scope.launch { drag.snapTo((drag.value + delta).coerceAtLeast(0f)) } },
-                        Orientation.Vertical,
-                        onDragStopped = {
-                            if (drag.value > dismissAt) onClose()
-                            scope.launch { drag.animateTo(0f) }
-                        },
-                    ),
-                ) {
-                    Box(Modifier.padding(top = 10.dp, bottom = 8.dp).align(Alignment.CenterHorizontally).size(40.dp, 5.dp).background(tokens.track, CircleShape))
-                    SheetHead(title, onClose)
-                }
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    content = body,
-                )
-                Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.line))
-                Column(
-                    Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    content = footer,
-                )
-            }
-        }
+    GlassSheet(onDismiss = onClose, tall = true) {
+        SheetHead(title, onClose)
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            content = body,
+        )
+        Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.line))
+        Column(
+            Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = footer,
+        )
     }
 }
 

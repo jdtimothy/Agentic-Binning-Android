@@ -1,29 +1,21 @@
 package com.agentic.binning.ui.project
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.heading
@@ -34,13 +26,10 @@ import androidx.compose.ui.unit.sp
 import com.agentic.binning.media.HeldFile
 import com.agentic.binning.media.SharedCopyResult
 import com.agentic.binning.move.formatBytes
-import com.agentic.binning.ui.glass.GlassSurface
 import com.agentic.binning.ui.media.Button
 import com.agentic.binning.ui.media.ButtonStyle
+import com.agentic.binning.ui.media.GlassDialog
 import com.agentic.binning.ui.media.MediaIcons
-import com.agentic.binning.ui.media.binScrim
-import com.agentic.binning.ui.media.isDark
-import com.agentic.binning.ui.media.well
 import com.agentic.binning.ui.theme.LocalGlassTokens
 
 /** What the notice for media another project holds says (mockup state 7, P8). */
@@ -118,38 +107,19 @@ internal interface SharedNoticeActions {
 }
 
 /**
- * Mockup state 7, drawn in the screen's own window so the glass really blurs what is behind it: this phone
- * has no cross-window blur, and a dialog's window couldn't show any. The project sheet closes when it
- * opens. Nothing here redraws while files copy: only the bar's width changes. Call inside the screen's
- * root [Box], after everything it covers.
+ * Mockup state 7, on the shared [GlassDialog]; the project sheet closes when it opens. Nothing here redraws
+ * while files copy: only the bar's width changes. Answered with its buttons: a tap outside does nothing.
  */
 @Composable
-internal fun BoxScope.SharedNoticeOverlay(state: SharedNoticeState, actions: SharedNoticeActions) {
+internal fun SharedNoticeOverlay(state: SharedNoticeState, actions: SharedNoticeActions) {
     val tokens = LocalGlassTokens.current
-    BackHandler {
-        when (state) {
-            is SharedNoticeState.Asking -> actions.onCancelHeld()
-            is SharedNoticeState.Done -> actions.onNoticeOk()
-            is SharedNoticeState.Copying -> Unit
-        }
+    val dismiss: (() -> Unit)? = when (state) {
+        is SharedNoticeState.Asking -> actions::onCancelHeld
+        is SharedNoticeState.Done -> actions::onNoticeOk
+        is SharedNoticeState.Copying -> null
     }
-    // Answered with its buttons: a tap outside does nothing, as the mockup's scrim.
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(tokens.binScrim)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
-    )
-    GlassSurface(
-        Modifier.align(Alignment.Center).padding(horizontal = 28.dp).fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        // The owner's glass: with no cards inside it, a dialog is the darker glass in dark mode.
-        fill = if (tokens.isDark) tokens.well else tokens.glass,
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+    GlassDialog(onDismiss = dismiss, outsideDismisses = false) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (state) {
                 is SharedNoticeState.Asking -> {
                     Body(state.ui)

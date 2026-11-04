@@ -81,8 +81,8 @@ scripting taps. Native crashes: `adb logcat -d -b crash`, then grep for
 ## Moving files on the phone
 
 - This phone has no cross-window blur (`ro.surface_flinger.supports_background_blur=0`):
-  a sheet or dialog in its own window can't show glass. Bin Files' sheets and the
-  P8 notice draw in the screen's window (`BinSheetHost`, `ProjectSheetNotice`).
+  a sheet or dialog in its own window can't show glass. Every sheet and dialog but
+  Settings' one confirm draws in the screen's window (`GlassSheet`, `GlassDialog`).
 - Test moves with files you made: a Bin Files moves files out of their folders.
   Check `select currentPath from item` before starting, and compare `sha256sum`
   of every file before and after. Moves take about 50 ms each, so pause a run from

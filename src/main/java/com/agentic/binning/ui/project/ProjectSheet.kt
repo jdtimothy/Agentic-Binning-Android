@@ -19,11 +19,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -31,17 +28,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -63,8 +55,9 @@ import com.agentic.binning.db.ItemTotals
 import com.agentic.binning.media.RegistrationProgress
 import com.agentic.binning.media.registrationProgressText
 import com.agentic.binning.project.ProjectRef
-import com.agentic.binning.ui.glass.GlassSurface
-import com.agentic.binning.ui.glass.LocalHazeState
+import com.agentic.binning.ui.media.GlassDialog
+import com.agentic.binning.ui.media.GlassSheet
+import com.agentic.binning.ui.media.well
 import com.agentic.binning.ui.theme.LocalGlassTokens
 import kotlinx.coroutines.delay
 
@@ -147,12 +140,9 @@ private const val PAGE_FADE_MS = 200
  * Glass bottom sheet with two pages: the main page adds media to the current project and switches
  * projects; the New project page creates one, optionally with media to analyze straight away.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProjectSheet(state: ProjectSheetState, actions: ProjectSheetActions) {
     val tokens = LocalGlassTokens.current
-    val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val onNewProjectPage = state.page == SheetPage.NewProject
 
     /**
@@ -164,72 +154,51 @@ fun ProjectSheet(state: ProjectSheetState, actions: ProjectSheetActions) {
         actions.onBack()
     }
 
-    ModalBottomSheet(
-        onDismissRequest = actions::onDismiss,
-        sheetState = sheetState,
-        shape = shape,
-        containerColor = Color.Transparent,
-        scrimColor = Color.Black.copy(alpha = 0.4f),
-        tonalElevation = 0.dp,
-        dragHandle = null,
-    ) {
-        // On the New project page, Back goes to the main page instead of closing: this handler takes
-        // it before the sheet does. (ModalBottomSheetProperties is read only when the sheet window is
-        // created, so switching shouldDismissOnBackPress per page left Back dead on the main page.)
+    GlassSheet(onDismiss = actions::onDismiss, tall = false) {
+        // On the New project page, Back goes to the main page instead of closing: this handler takes it
+        // before the sheet's, being composed later.
         BackHandler(enabled = onNewProjectPage, onBack = back)
-        // The sheet lives in its own window, so the screen's backdrop blur cannot reach it:
-        // an opaque base under a strong glass fill instead.
-        CompositionLocalProvider(LocalHazeState provides null) {
-            // A full-height sheet would otherwise run under the status bar.
-            Box(Modifier.statusBarsPadding().padding(top = 8.dp).background(tokens.bg, shape)) {
-                GlassSurface(Modifier.fillMaxWidth(), shape = shape, strong = true) {
-                    AnimatedContent(
-                        targetState = state.page,
-                        transitionSpec = { fadeIn(tween(PAGE_FADE_MS)) togetherWith fadeOut(tween(PAGE_FADE_MS)) },
-                        label = "sheet page",
-                    ) { page ->
-                        val undoInset = sheetBottomInsetForUndo(
-                            showingUndo = state.undoText != null && page == SheetPage.Main,
-                        )
-                        Column(
-                            Modifier
-                                // Inset outside the scroll so the last × cannot sit under the toast.
-                                .padding(bottom = undoInset.dp)
-                                .verticalScroll(rememberScrollState())
-                                .navigationBarsPadding()
-                                .imePadding()
-                                .padding(horizontal = 20.dp, vertical = 20.dp),
-                        ) {
-                            when (page) {
-                                SheetPage.Main -> MainPage(state, actions)
-                                SheetPage.NewProject -> NewProjectPage(state, actions, back)
-                            }
-                        }
+        Box {
+            AnimatedContent(
+                targetState = state.page,
+                transitionSpec = { fadeIn(tween(PAGE_FADE_MS)) togetherWith fadeOut(tween(PAGE_FADE_MS)) },
+                label = "sheet page",
+            ) { page ->
+                val undoInset = sheetBottomInsetForUndo(
+                    showingUndo = state.undoText != null && page == SheetPage.Main,
+                )
+                Column(
+                    Modifier
+                        // Inset outside the scroll so the last × cannot sit under the toast.
+                        .padding(bottom = undoInset.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 20.dp),
+                ) {
+                    when (page) {
+                        SheetPage.Main -> MainPage(state, actions)
+                        SheetPage.NewProject -> NewProjectPage(state, actions, back)
                     }
                 }
-                state.undoText?.let { text ->
-                    UndoToast(text, Modifier.align(Alignment.BottomCenter).navigationBarsPadding(), actions::onUndo)
-                    LaunchedEffect(state.undoId) {
-                        delay(UNDO_MILLIS)
-                        actions.onUndoExpired(state.undoId)
-                    }
+            }
+            state.undoText?.let { text ->
+                UndoToast(text, Modifier.align(Alignment.BottomCenter), actions::onUndo)
+                LaunchedEffect(state.undoId) {
+                    delay(UNDO_MILLIS)
+                    actions.onUndoExpired(state.undoId)
                 }
             }
         }
     }
     state.confirmRemove?.let { ref ->
-        val tokens2 = LocalGlassTokens.current
-        AlertDialog(
-            onDismissRequest = actions::onCancelRemove,
-            title = { Text(removeConfirmTitle(ref.name), color = tokens2.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
-            confirmButton = {
-                DialogButton("Remove", tokens2.warn, actions::onConfirmRemove)
-            },
-            dismissButton = {
-                DialogButton("Cancel", tokens2.accent, actions::onCancelRemove)
-            },
-            containerColor = tokens2.bg,
-        )
+        GlassDialog(onDismiss = actions::onCancelRemove) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(removeConfirmTitle(ref.name), color = tokens.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                    DialogButton("Cancel", tokens.accent, actions::onCancelRemove)
+                    DialogButton("Remove", tokens.warn, actions::onConfirmRemove)
+                }
+            }
+        }
     }
 }
 
@@ -538,7 +507,7 @@ private fun ProjectRow(row: ProjectRowUi, onSwitch: () -> Unit, onRemove: () -> 
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .clip(shape)
-            .background(tokens.chip)
+            .background(tokens.well)
             .border(1.dp, if (row.isOpen) tokens.accent else Color.Transparent, shape)
             .clickable(enabled = row.switches, role = Role.Button, onClick = onSwitch)
             .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
@@ -597,7 +566,7 @@ private fun MediaTile(
             .heightIn(min = 88.dp)
             .alpha(if (enabled) 1f else 0.4f)
             .clip(shape)
-            .background(if (selected) tokens.tagBg else tokens.chip)
+            .background(if (selected) tokens.tagBg else tokens.well)
             .border(if (selected) 1.5.dp else 1.dp, if (selected) tokens.accent else sheetOutline(tokens), shape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(12.dp),

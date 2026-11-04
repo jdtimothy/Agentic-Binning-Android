@@ -12,7 +12,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -38,12 +37,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -116,7 +112,7 @@ fun ProjectMediaScreen(
     onAddFolder: () -> Unit,
     onPickFiles: () -> Unit,
     /** Drawn over the screen in its own window, so glass can blur it. */
-    overlay: @Composable BoxScope.() -> Unit = {},
+    overlay: @Composable () -> Unit = {},
 ) {
     val state by vm.state.collectAsState()
     val binState by bin.state.collectAsState()
@@ -165,7 +161,6 @@ fun ProjectMediaScreen(
                     }
                 }
                 BinSheetHost(binState.sheet, bin, vm::onOpenItem)
-                overlay()
             }
             state.filtersSheet?.let { FiltersSheetView(it, vm) }
             state.sheet?.let { DetailSheetHost(it, vm) }
@@ -174,6 +169,7 @@ fun ProjectMediaScreen(
             state.categoryEdit?.let { CategoryEditSheet(it, vm.categoryEdit) }
             state.resort?.let { ResortSheetHost(it, vm) }
             state.removeSelected?.let { RemoveDialog(it, onCancel = vm::onCancelBulkRemove, onRemove = vm::onConfirmBulkRemove) }
+            overlay()
         }
     }
 }
@@ -625,50 +621,32 @@ private fun WideButton(icon: ImageVector, label: String, primary: Boolean, onCli
 }
 
 /** The Filters sheet (Q3, option C): Shot type and Date, each choice with its count, then Show. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FiltersSheetView(sheet: FiltersSheet, vm: ProjectMediaViewModel) {
     val tokens = LocalGlassTokens.current
-    val shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
-    ModalBottomSheet(
-        onDismissRequest = vm::closeFilters,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = shape,
-        containerColor = Color.Transparent,
-        scrimColor = Color.Black.copy(alpha = 0.4f),
-        tonalElevation = 0.dp,
-        dragHandle = null,
-    ) {
-        // The sheet has its own window, out of the backdrop's reach: an opaque base under strong glass.
-        CompositionLocalProvider(LocalHazeState provides null) {
-            Box(Modifier.statusBarsPadding().padding(top = 8.dp).background(tokens.bg, shape)) {
-                GlassSurface(Modifier.fillMaxWidth(), shape = shape, strong = true) {
-                    Column(
-                        Modifier
-                            .verticalScroll(rememberScrollState())
-                            .navigationBarsPadding()
-                            .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
-                    ) {
-                        Box(Modifier.padding(top = 10.dp, bottom = 8.dp).align(Alignment.CenterHorizontally).size(40.dp, 5.dp).background(tokens.track, CircleShape))
-                        Text("Filters", Modifier.semantics { heading() }, color = tokens.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        GroupLabel("Shot type")
-                        sheet.shots.forEach { o -> OptionRow(o.label, o.count, o.selected) { vm.onDraftShot(o.value) } }
-                        GroupLabel("Date")
-                        sheet.days.forEach { o -> OptionRow(o.label, o.count, o.selected) { vm.onDraftDay(o.value) } }
-                        Spacer(Modifier.height(12.dp))
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .clip(CircleShape)
-                                .background(tokens.accent)
-                                .clickable(role = Role.Button, onClick = vm::applyFilters),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text("Show ${items(sheet.showCount)}", color = tokens.onAccent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
+    GlassSheet(onDismiss = vm::closeFilters, tall = false) {
+        Column(
+            Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+        ) {
+            Text("Filters", Modifier.semantics { heading() }, color = tokens.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            GroupLabel("Shot type")
+            sheet.shots.forEach { o -> OptionRow(o.label, o.count, o.selected) { vm.onDraftShot(o.value) } }
+            GroupLabel("Date")
+            sheet.days.forEach { o -> OptionRow(o.label, o.count, o.selected) { vm.onDraftDay(o.value) } }
+            Spacer(Modifier.height(12.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(CircleShape)
+                    .background(tokens.accent)
+                    .clickable(role = Role.Button, onClick = vm::applyFilters),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("Show ${items(sheet.showCount)}", color = tokens.onAccent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -695,7 +673,7 @@ private fun OptionRow(label: String, count: Int, selected: Boolean, onClick: () 
             .fillMaxWidth()
             .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) tokens.chip else Color.Transparent)
+            .background(if (selected) tokens.well else Color.Transparent)
             .semantics { this.selected = selected }
             .clickable(role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 12.dp),

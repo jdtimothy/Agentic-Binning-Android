@@ -1041,9 +1041,9 @@ class ProjectMediaViewModel(
                 CategoryEditState(categoryEditUi(l.categories, counts, it.draft, binned), it.error, it.saving)
             },
             resort = sheets.resort?.let { r ->
-                // What Task 9's prepareResort hands the sorter: analyzed items waiting or sorted, less
+                // What prepareResort hands the sorter: analyzed items waiting, sorted or binned (B10), less
                 // those whose category the user set when Keep my edits is ticked.
-                val resortable = l.all.filter { it.hasAnalysis && (it.status == ItemStatus.Analyzed || it.status == ItemStatus.Sorted) }
+                val resortable = l.all.filter { it.hasAnalysis && (it.status == ItemStatus.Analyzed || it.status == ItemStatus.Sorted || it.status == ItemStatus.Binned) }
                 val resortCounts = ResortCounts(
                     withEditsKept = resortable.count { !it.categorySetByUser },
                     withoutEdits = resortable.size,

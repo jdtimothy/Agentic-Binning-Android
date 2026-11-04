@@ -71,7 +71,7 @@ fun CategoryEditSheet(state: CategoryEditState, actions: CategoryEditActions) {
                 lineHeight = 18.sp,
             )
             ui.mergeBox?.let { MergeBoxView(it, actions) }
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.chip)) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.well)) {
                 ui.rows.forEachIndexed { i, row ->
                     if (i > 0) HorizontalDivider(color = tokens.line)
                     CategoryRow(row, actions)

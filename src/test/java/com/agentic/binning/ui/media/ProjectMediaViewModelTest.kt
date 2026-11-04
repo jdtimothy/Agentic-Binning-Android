@@ -1296,6 +1296,21 @@ class ProjectMediaViewModelTest {
         assertFalse(vm.state.value.sheet!!.saving)
     }
 
+    /** B10: Re-sort reaches binned items, so a fully binned project still has something to re-sort. */
+    @Test
+    fun resort_countsBinnedItems() = runTest {
+        rows.value = listOf(row(1, status = ItemStatus.Binned), row(2, status = ItemStatus.Binned, categorySet = true))
+        val vm = vm()
+        advanceUntilIdle()
+
+        vm.onResort()
+        advanceUntilIdle()
+
+        val ui = vm.state.value.resort!!.ui
+        assertTrue("was: ${ui.intro}", ui.intro.startsWith("Sorts 1 analyzed item again"))
+        assertTrue(ui.enabled)
+    }
+
     /** State 2: Select is greyed while files move, like Re-sort and Edit; analysis doesn't hold it. */
     @Test
     fun movingFiles_holdSelect() = runTest {

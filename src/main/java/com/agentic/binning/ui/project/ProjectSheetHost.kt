@@ -20,10 +20,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.agentic.binning.AppGraph
 import com.agentic.binning.db.ItemTotals
+import com.agentic.binning.media.HeldFile
 import com.agentic.binning.media.MediaUris
 import com.agentic.binning.media.RegistrationProgress
-import androidx.compose.foundation.layout.BoxScope
-import com.agentic.binning.media.HeldFile
 import com.agentic.binning.media.RegistrationSummary
 import com.agentic.binning.project.OpenRefusal
 import com.agentic.binning.project.ProjectExistsException
@@ -478,9 +477,10 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
     }
 }
 
-/** The notice for media another project holds; call inside the screen's root [BoxScope]. */
+/** The project sheet and the notice for media another project holds, drawn over the screen. */
 @Composable
-fun BoxScope.ProjectSheetNotice(controller: ProjectSheetController) {
+fun ProjectSheetOverlay(controller: ProjectSheetController) {
+    ProjectSheetContent(controller)
     controller.notice?.let { SharedNoticeOverlay(it, controller) }
 }
 
@@ -537,6 +537,14 @@ fun ProjectSheetHost(controller: ProjectSheetController) {
             }
         }
     }
+}
+
+/**
+ * The project sheet, drawn in the screen's window so its glass really blurs the screen. Call it from the
+ * screen's overlay, inside its haze; [ProjectSheetHost] keeps the pickers, which must outlive the sheet.
+ */
+@Composable
+private fun ProjectSheetContent(controller: ProjectSheetController) {
     if (!controller.visible) return
 
     val open by controller.currentProject.collectAsState()

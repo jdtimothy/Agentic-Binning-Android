@@ -2,7 +2,6 @@ package com.agentic.binning.ui.analyze
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,7 +43,7 @@ fun AnalyzeScreen(
     onOpenProjectSheet: () -> Unit,
     onOpenMedia: () -> Unit,
     /** Drawn over the screen in its own window, so glass can blur it. */
-    overlay: @Composable BoxScope.() -> Unit = {},
+    overlay: @Composable () -> Unit = {},
 ) {
     val header by vm.header.collectAsState()
     val carousel by vm.carousel.collectAsState()
@@ -90,8 +89,8 @@ fun AnalyzeScreen(
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                 }
-                overlay()
             }
+            overlay()
         }
     }
 }

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: built, and checked on the phone, on branch `plan-3-phone`; not yet merged.** Tasks 1-13 were built in a cloud session (`docs/superpowers/notes/plan-3-cloud-handoff.md`), the rest on the PC with the phone attached. 834 JVM tests and 92 device tests pass on SM-S948U1. Left: B11's Gallery Revert and the Android photo picker (owner's look), and whether the Plan 2b sheets get the same glass.
+**Status: built, and checked on the phone, on branch `plan-3-phone`; not yet merged.** Tasks 1-13 were built in a cloud session (`docs/superpowers/notes/plan-3-cloud-handoff.md`), the rest on the PC with the phone attached. 834 JVM tests and 92 device tests pass on SM-S948U1. Left: B11's Gallery Revert and the Android photo picker (owner's look).
 
 **Goal:** **Bin Files** moves every sorted item's file to `<project>/<Category>/<friendly name>.<original extension>`, and a **Save** that renames, re-categorizes or merges something already binned moves its files the same way, right away. No file is ever lost or overwritten, every run is resumable after a crash, and the category folders are checked before and after.
 
@@ -97,9 +97,10 @@ Full text, choices and reasons: `docs/superpowers/mockups/2026-11-04-plan-3-ques
 
 - **B11. MediaStore after a move:** one row at the new path and none at the old, with `_id` and `date_modified` kept. The Camera album's count drops and the category folder appears as an album. A Gallery Favourite survives the move. Re-picking a binned file says "already in this project". Not checked: Gallery's Revert on a photo edited before the move, and the Android photo picker (the phone is set to Samsung Gallery's).
 
-### Open
+### Decided after the build (owner)
 
-- **Plan 2b's sheets:** they stay near-opaque until the owner chooses. Real glass there means drawing them in the screen's window, as Bin Files' are: this phone has no cross-window blur (`ro.surface_flinger.supports_background_blur=0`).
+- **Every sheet gets the same glass:** the Plan 2b sheets, Filters and the project sheet now share `GlassSheet` and `GlassDialog` (`ui/media/GlassSheet.kt`), drawn in the screen's window, on branch `glass-sheets`. Settings' one confirm dialog is still its own window.
+- **The report keeps its Failed, Missing and Skipped pills.**
 
 ### Rulings made on the PC
 
