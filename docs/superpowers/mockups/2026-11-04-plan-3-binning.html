@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bin Files Mockups</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+/* Copied from 2026-10-31-plan-2b-project-media.html so the two files share one look. */
+/* Layout: a review sheet. Each state is a row: notes on the left, the same live phone in dark and light on the right; it stacks at phone width and the phones scale to fit. */
+:root {
+  --pg-bg: #EDF0F5;
+  --pg-fg: #11151C;
+  --pg-sub: #4D5666;
+  --pg-line: rgba(17, 21, 28, 0.12);
+  --pg-card: #FFFFFF;
+  --pg-accent: #0A63D1;
+  --pg-bezel: #0C0E12;
+  --font-ui: "Inter", "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pg-bg: #0B0D12; --pg-fg: #EDF0F5; --pg-sub: #A3ACBB; --pg-line: rgba(255, 255, 255, 0.10);
+    --pg-card: #141820; --pg-accent: #6CB6FF; --pg-bezel: #000000; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --pg-bg: #0B0D12; --pg-fg: #EDF0F5; --pg-sub: #A3ACBB; --pg-line: rgba(255, 255, 255, 0.10);
+  --pg-card: #141820; --pg-accent: #6CB6FF; --pg-bezel: #000000; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--pg-bg); color: var(--pg-fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 80px;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--pg-accent); }
+.page { width: 100%; max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+.intro { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pg-sub); margin: 0; }
+h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+.intro p { margin: 0; color: var(--pg-sub); max-width: 68ch; }
+.intro code, .notes code { font-family: var(--font-mono); font-size: 0.86em; }
+.index { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 4px 0 0; list-style: none; }
+.index a { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--pg-line); background: var(--pg-card); color: var(--pg-fg); text-decoration: none; font-size: 13px; }
+.index a span { font-family: var(--font-mono); font-size: 11px; color: var(--pg-sub); }
+.index a:hover, .index a:focus-visible { border-color: var(--pg-accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 13px; color: var(--pg-sub); margin: 0; padding: 0; list-style: none; }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.legend svg { color: var(--pg-fg); }
+
+.state { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; content-visibility: auto; contain-intrinsic-size: auto 1000px; scroll-margin-top: 24px; }
+@media (min-width: 1240px) { .state { grid-template-columns: 330px minmax(0, 1fr); gap: 36px; } }
+.notes { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 68ch; }
+.notes .no { font-family: var(--font-mono); font-size: 12px; color: var(--pg-accent); margin: 0; letter-spacing: 0.04em; }
+.notes h2 { margin: 0; font-size: 22px; line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
+.notes p { margin: 0; color: var(--pg-sub); }
+.notes ul { margin: 0; padding-left: 18px; color: var(--pg-sub); display: flex; flex-direction: column; gap: 4px; }
+.notes .tag { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pg-fg); margin-top: 6px; }
+.reset { align-self: flex-start; margin-top: 6px; font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--pg-line); background: var(--pg-card); color: var(--pg-fg); cursor: pointer; }
+.reset:hover, .reset:focus-visible { border-color: var(--pg-accent); }
+.pair { display: flex; flex-wrap: wrap; gap: 40px 36px; align-items: flex-start; min-width: 0; }
+.pair figure { margin: 0; display: flex; flex-direction: column; gap: 12px; align-items: center; width: min(412px, 100%); }
+.pair figcaption { font-family: var(--font-mono); font-size: 12px; color: var(--pg-sub); text-transform: uppercase; letter-spacing: 0.08em; }
+.wrap { position: relative; width: 100%; aspect-ratio: 412 / 915; max-width: 100%; }
+.wrap::before { content: ""; position: absolute; inset: -9px; border-radius: 54px; background: var(--pg-bezel); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22); }
+
+.docks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 18px; min-width: 0; }
+.dockcard { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.dockcard p { margin: 0; font-size: 13px; color: var(--pg-sub); }
+.dockcard .dk { border-radius: 26px; overflow: hidden; padding: 14px 12px; position: relative; }
+
+.footer { color: var(--pg-sub); font-size: 13px; border-top: 1px solid var(--pg-line); padding-top: 20px; }
+
+/* ---------- The phone ---------- */
+.ph {
+  --bg: #06070B; --bgfade: rgba(6, 7, 11, 0.88); --glass: rgba(24, 27, 36, 0.55); --glass2: rgba(30, 34, 45, 0.80);
+  --sheet: rgba(20, 23, 31, 0.90); --border: rgba(255, 255, 255, 0.13); --hi: rgba(255, 255, 255, 0.20);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.45); --tshadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  --text: #F4F6FA; --sub: rgba(226, 232, 244, 0.72); --chip: rgba(255, 255, 255, 0.08); --chip2: rgba(255, 255, 255, 0.12);
+  --accent: #6CB6FF; --on-accent: #04121F; --ink: #8CC6FF; --asoft: rgba(108, 182, 255, 0.18);
+  --ok: #4CD787; --warn: #FFB547; --wsoft: rgba(255, 181, 71, 0.16); --tagbg: rgba(108, 182, 255, 0.14); --tagtx: #D3E8FF;
+  --track: rgba(255, 255, 255, 0.14); --blob: 0.5; --scrim: rgba(0, 0, 0, 0.5); --danger: #FFB4A8;
+  --field: rgba(255, 255, 255, 0.06); --line: rgba(255, 255, 255, 0.12);
+  position: absolute; left: 0; top: 0; width: 412px; height: 915px; transform-origin: 0 0; transform: scale(var(--k, 1));
+  border-radius: 46px; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: var(--font-ui); font-size: 14px; line-height: 1.35; -webkit-font-smoothing: antialiased; isolation: isolate;
+  color-scheme: dark;
+}
+.ph.light {
+  --bg: #E8ECF2; --bgfade: rgba(232, 236, 242, 0.88); --glass: rgba(255, 255, 255, 0.58); --glass2: rgba(255, 255, 255, 0.82);
+  --sheet: rgba(245, 247, 251, 0.92); --border: rgba(255, 255, 255, 0.85); --hi: rgba(255, 255, 255, 1);
+  --shadow: 0 12px 32px rgba(40, 52, 80, 0.16); --tshadow: 0 6px 18px rgba(40, 52, 80, 0.18);
+  --text: #0E1116; --sub: #4A5263; --chip: rgba(20, 28, 45, 0.06); --chip2: rgba(255, 255, 255, 0.78);
+  --accent: #0A63D1; --on-accent: #FFFFFF; --ink: #0A55B5; --asoft: rgba(10, 99, 209, 0.12);
+  --ok: #1E8E4E; --warn: #9A5A00; --wsoft: rgba(163, 95, 0, 0.12); --tagbg: rgba(10, 99, 209, 0.09); --tagtx: #0A4A9C;
+  --track: rgba(20, 28, 45, 0.10); --blob: 0.45; --scrim: rgba(20, 26, 40, 0.34); --danger: #B3261E;
+  --field: rgba(255, 255, 255, 0.72); --line: rgba(20, 28, 45, 0.12);
+  color-scheme: light;
+}
+:where(.ph) button, :where(.ph) input { font: inherit; color: inherit; }
+.ph button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ph button:focus-visible, .ph input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ph input:focus { outline: none; }
+.ph input::placeholder { color: var(--sub); opacity: 1; }
+.ph svg { flex: none; }
+.glass { backdrop-filter: blur(24px) saturate(170%); -webkit-backdrop-filter: blur(24px) saturate(170%); background: var(--glass); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--hi), var(--shadow); }
+.blobs { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.blobs i { position: absolute; border-radius: 50%; opacity: var(--blob); }
+.blobs i:nth-child(1) { width: 340px; height: 340px; left: -120px; top: 40px; background: #2F6E8F; filter: blur(80px); }
+.blobs i:nth-child(2) { width: 300px; height: 300px; right: -120px; top: 320px; background: #F2A65A; filter: blur(80px); }
+.blobs i:nth-child(3) { width: 320px; height: 320px; left: 20px; top: 640px; background: #3E8F6E; filter: blur(90px); }
+.noscroll { scrollbar-width: none; }
+.noscroll::-webkit-scrollbar { display: none; }
+
+.gridscroll { position: absolute; inset: 0; overflow-y: auto; padding: 326px 16px 190px; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; }
+.topfade { position: absolute; left: 0; right: 0; top: 0; height: 330px; background: linear-gradient(var(--bgfade) 0, var(--bgfade) 86%, transparent); pointer-events: none; }
+.tile { padding: 0; border: 0; background: transparent; text-align: left; min-width: 0; display: flex; flex-direction: column; gap: 5px; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.art { position: relative; display: block; width: 100%; aspect-ratio: 1 / 1; border-radius: 18px; overflow: hidden; box-shadow: var(--tshadow); transition: transform 140ms ease; }
+.art svg.pic { display: block; width: 100%; height: 100%; }
+.tile.on .art { transform: scale(0.9); box-shadow: 0 0 0 3px var(--accent), var(--tshadow); }
+.tile.dimmed .art { opacity: 0.55; }
+.tname { display: block; padding: 0 2px; font-size: 11px; font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tsub { display: block; padding: 0 2px; margin-top: -3px; font-size: 10px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bdg { position: absolute; display: flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 8px; background: rgba(0, 0, 0, 0.55); color: #FFFFFF; font-size: 10.5px; font-weight: 600; line-height: 1.3; }
+.bdg.dur { right: 6px; bottom: 6px; }
+.bdg.st { left: 6px; bottom: 6px; }
+.bdg.st.warn { background: #FFB547; color: #2A1A00; }
+.bdg.bin { right: 6px; top: 6px; padding: 3px; border-radius: 9px; }
+.tick { position: absolute; left: 7px; top: 7px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #FFFFFF; background: rgba(0, 0, 0, 0.25); display: grid; place-items: center; color: transparent; }
+.tile.on .tick { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+.hdr { position: absolute; left: 16px; right: 16px; top: 44px; height: 56px; padding: 6px; border-radius: 28px; display: flex; align-items: center; gap: 8px; }
+.ib { width: 44px; height: 44px; flex: none; border-radius: 22px; border: 0; background: var(--chip); display: grid; place-items: center; }
+.ht { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.ht h3 { margin: 0; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ht span { font-size: 12px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.txtbtn { height: 36px; padding: 0 14px; border-radius: 18px; border: 0; background: var(--chip); color: var(--ink); font-weight: 600; font-size: 13px; flex: none; }
+
+.search { position: absolute; left: 16px; right: 16px; top: 112px; height: 48px; padding: 0 4px 0 16px; border-radius: 24px; display: flex; align-items: center; gap: 10px; color: var(--sub); }
+.search label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.search input { flex: 1; min-width: 0; height: 44px; border: 0; background: transparent; color: var(--text); font-size: 15px; }
+.search input::-webkit-search-cancel-button { display: none; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.cathead { position: absolute; left: 24px; right: 16px; top: 170px; height: 30px; display: flex; align-items: center; gap: 6px; }
+.cathead h4 { margin: 0; flex: 1; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sub); font-weight: 600; }
+.mini { height: 30px; padding: 0 12px; border-radius: 15px; border: 0; background: var(--chip); color: var(--ink); font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.mini.busy, .txtbtn.busy { opacity: 0.5; }
+.chips { position: absolute; left: 0; right: 0; top: 204px; height: 40px; overflow-x: auto; display: flex; gap: 6px; padding: 0 16px; align-items: center; }
+.chip { flex: none; height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid var(--border); background: var(--glass); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.chip .n { font-size: 11px; font-weight: 600; opacity: 0.8; font-variant-numeric: tabular-nums; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chip.attn { border-color: var(--warn); color: var(--warn); }
+.chip.attn[aria-pressed="true"] { background: var(--warn); border-color: var(--warn); color: #1E1300; }
+.filters { position: absolute; left: 0; right: 0; top: 248px; height: 34px; overflow-x: auto; display: flex; gap: 6px; padding: 0 16px; align-items: center; }
+.fchip { flex: none; height: 30px; padding: 0 8px 0 12px; border-radius: 15px; border: 1px solid var(--line); background: transparent; font-size: 12.5px; font-weight: 500; color: var(--sub); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.fchip.set { border-color: var(--accent); background: var(--asoft); color: var(--ink); }
+.result { position: absolute; left: 24px; right: 16px; top: 288px; height: 30px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--sub); }
+.result span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.result .mini { height: 28px; }
+.nomatch { margin: 48px 12px 0; text-align: center; color: var(--sub); font-size: 14px; }
+
+.dock { position: absolute; left: 16px; right: 16px; bottom: 22px; border-radius: 30px; padding: 10px 8px 8px; display: flex; flex-direction: column; gap: 8px; }
+.dock.static { position: relative; left: auto; right: auto; bottom: auto; }
+.status { display: flex; align-items: center; gap: 8px; padding: 0 10px; min-height: 22px; font-size: 12.5px; }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--sub); }
+.status .dot.ok { background: var(--ok); }
+.status .dot.warn { background: var(--warn); }
+.status .dot.run { background: var(--accent); animation: pulse 1.1s ease-in-out infinite; }
+.status .stxt { flex: 1; min-width: 0; }
+.status .act { border: 0; background: transparent; color: var(--ink); font-weight: 600; font-size: 12.5px; padding: 4px 2px; flex: none; }
+.dbtns { display: flex; gap: 8px; }
+.anz { height: 46px; padding: 0 16px; flex: none; border-radius: 23px; border: 0; background: var(--chip2); display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+.anz i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.binbtn { flex: 1; min-width: 0; height: 46px; border-radius: 23px; border: 0; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.binbtn .cnt { font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 10px; background: rgba(0, 0, 0, 0.16); font-variant-numeric: tabular-nums; }
+.binbtn.off { background: var(--chip); color: var(--sub); }
+.bulk { position: absolute; left: 16px; right: 16px; bottom: 22px; border-radius: 30px; padding: 8px; display: flex; gap: 8px; }
+.bulk button { flex: 1; min-width: 0; height: 50px; border-radius: 25px; border: 0; font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.bulk .p { background: var(--accent); color: var(--on-accent); }
+.bulk .s { background: var(--chip2); color: var(--danger); }
+.bulk button[aria-disabled="true"] { opacity: 0.45; }
+
+.job { position: absolute; left: 16px; right: 16px; bottom: 150px; border-radius: 26px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; background: var(--glass2); }
+.job .top { display: flex; align-items: baseline; gap: 8px; }
+.job .top b { flex: 1; font-size: 15px; }
+.job .top span { font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; }
+.bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 300ms ease; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; }
+.steps li { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 12.5px; }
+.steps li .lb { min-width: 0; }
+.steps li .lb b { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.steps li .lb small { display: block; font-size: 11px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.steps li .ph2 { font-size: 11px; color: var(--sub); }
+.steps li.cur .ph2 { color: var(--ink); font-weight: 600; }
+.steps .ico { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--line); color: var(--sub); }
+.steps li.done .ico { background: var(--ok); border-color: var(--ok); color: var(--bg); }
+.steps li.cur .ico { border-color: var(--accent); border-top-color: transparent; animation: spin 0.9s linear infinite; }
+.job .wait { font-size: 12px; color: var(--sub); display: flex; gap: 6px; align-items: flex-start; }
+
+.scrim { position: absolute; inset: 0; background: var(--scrim); border: 0; padding: 0; margin: 0; width: 100%; cursor: default; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 90%; border-radius: 30px 30px 0 0; background: var(--sheet); backdrop-filter: blur(30px) saturate(170%); -webkit-backdrop-filter: blur(30px) saturate(170%); border: 1px solid var(--border); border-bottom: 0; box-shadow: inset 0 1px 0 var(--hi), 0 -12px 40px rgba(0, 0, 0, 0.3); display: flex; flex-direction: column; }
+.sheet.tall { height: 90%; }
+.sheet.anim { animation: up 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.handle { width: 40px; height: 5px; border-radius: 3px; background: var(--track); margin: 10px auto 2px; flex: none; }
+.shead { display: flex; align-items: center; gap: 10px; padding: 6px 16px 10px 20px; flex: none; }
+.shead h3 { margin: 0; flex: 1; font-size: 18px; font-weight: 700; min-width: 0; }
+.shead .ib { width: 38px; height: 38px; }
+.sbody { flex: 1; min-height: 0; overflow-y: auto; padding: 0 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+.sbody > * { flex-shrink: 0; }
+.sfoot { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 26px; border-top: 1px solid var(--line); }
+.sfoot .row { display: flex; gap: 8px; }
+.sfoot .note { font-size: 12px; color: var(--sub); padding: 0 4px; display: flex; gap: 6px; align-items: flex-start; }
+.btn { height: 48px; border-radius: 24px; border: 0; padding: 0 18px; font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn.p { background: var(--accent); color: var(--on-accent); flex: 1; }
+.btn.s { background: var(--chip); }
+.btn.d { background: var(--chip); color: var(--danger); }
+.btn.wide { width: 100%; }
+.btn[disabled] { background: var(--chip); color: var(--sub); cursor: default; }
+.media { position: relative; border-radius: 20px; overflow: hidden; height: 214px; flex: none; box-shadow: var(--tshadow); }
+.media svg.pic { width: 100%; height: 100%; display: block; }
+.media .play { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(0, 0, 0, 0.45); color: #FFFFFF; display: grid; place-items: center; border: 1px solid rgba(255, 255, 255, 0.4); }
+.media .bdg { font-size: 12px; padding: 3px 8px; }
+.media .bdg.dur { right: 10px; bottom: 10px; }
+.media .bdg.st { left: 10px; top: 10px; bottom: auto; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.flabel { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--sub); text-transform: uppercase; letter-spacing: 0.06em; }
+.flabel .sp { flex: 1; }
+.lockpill { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px; background: var(--asoft); color: var(--ink); font-size: 11.5px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.lockpill.pending { background: transparent; border: 1px dashed var(--accent); }
+.lockpill.model { background: var(--chip); color: var(--sub); }
+.lockpill.warn { background: var(--wsoft); color: var(--warn); }
+.linkbtn { border: 0; background: transparent; color: var(--ink); font-size: 12px; font-weight: 600; padding: 2px; text-transform: none; letter-spacing: 0; }
+.input { height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--field); padding: 0 14px; font-size: 16px; color: var(--text); width: 100%; }
+.input:focus { border-color: var(--accent); }
+.picker { height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--field); padding: 0 12px 0 14px; font-size: 16px; display: flex; align-items: center; gap: 8px; text-align: left; width: 100%; }
+.picker span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker .ph3 { color: var(--sub); }
+.hint { font-size: 12px; color: var(--sub); padding: 0 2px; }
+.err { font-size: 12px; color: var(--danger); padding: 0 2px; }
+.callout { border-radius: 16px; padding: 12px 14px; background: var(--chip); font-size: 13px; display: flex; gap: 10px; align-items: flex-start; }
+.callout.warn { background: var(--wsoft); }
+.callout.warn svg { color: var(--warn); }
+.callout svg { margin-top: 1px; color: var(--ink); }
+.callout b { font-weight: 600; }
+.sect h5 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--sub); text-transform: uppercase; letter-spacing: 0.06em; }
+.sect p { margin: 0; font-size: 14px; line-height: 1.45; }
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.timeline li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; font-size: 13.5px; }
+.timeline time { font-family: var(--font-mono); font-size: 12px; color: var(--ink); padding-top: 1px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tags span { padding: 4px 10px; border-radius: 12px; background: var(--tagbg); color: var(--tagtx); font-size: 12.5px; }
+.kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 4px 10px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--sub); }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.list { display: flex; flex-direction: column; border-radius: 18px; background: var(--chip); overflow: hidden; }
+.opt { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 14px; border: 0; background: transparent; text-align: left; width: 100%; border-top: 1px solid var(--line); }
+.opt:first-child { border-top: 0; }
+.opt .lb { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.opt .lb b { font-weight: 500; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opt .lb small { font-size: 12px; color: var(--sub); }
+.opt .rt { display: flex; align-items: center; gap: 6px; color: var(--sub); font-size: 12px; font-variant-numeric: tabular-nums; }
+.opt.new b { color: var(--ink); font-weight: 600; }
+.radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--sub); flex: none; display: grid; place-items: center; }
+.radio.on { border-color: var(--accent); }
+.radio.on::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.cbox { width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--sub); flex: none; display: grid; place-items: center; color: transparent; background: transparent; padding: 0; }
+.cbox.on { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.cbox[aria-disabled="true"] { opacity: 0.35; }
+.cerow { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 8px 8px 14px; border-top: 1px solid var(--line); }
+.cerow:first-child { border-top: 0; }
+.cerow .lb { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cerow .lb b { font-weight: 500; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cerow .lb small { font-size: 12px; color: var(--sub); display: block; line-height: 1.4; }
+.cerow .lb small svg { display: inline; vertical-align: -2px; margin-right: 3px; }
+.cerow .lb small.chg { color: var(--ink); font-weight: 500; }
+.cerow .ib { width: 40px; height: 40px; background: transparent; color: var(--sub); }
+.cerow .input { height: 42px; font-size: 15px; }
+.cerow.ticked { background: var(--asoft); }
+.mergebox { border-radius: 18px; border: 1px solid var(--accent); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: var(--asoft); }
+.mergebox h5 { margin: 0; font-size: 14px; font-weight: 600; }
+.mergebox .opt { padding: 6px 0; min-height: 44px; border-top: 0; }
+.mergebox .opt small { line-height: 1.35; }
+.modelcard { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 0; border-top: 1px solid var(--line); background: transparent; width: 100%; text-align: left; }
+.modelcard:first-child { border-top: 0; }
+.modelcard .lb { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.modelcard .lb b { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.modelcard .lb small { font-size: 12.5px; color: var(--sub); }
+.modelcard .radio { margin-top: 2px; }
+.pill { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: var(--asoft); color: var(--ink); text-transform: uppercase; letter-spacing: 0.04em; }
+.pill.mute { background: var(--chip); color: var(--sub); }
+.checkrow { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 18px; background: var(--chip); border: 0; text-align: left; width: 100%; }
+.checkrow .lb { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.checkrow .lb b { font-size: 15px; font-weight: 600; }
+.checkrow .lb small { font-size: 12.5px; color: var(--sub); }
+.chg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.chg2 > div { border-radius: 16px; background: var(--chip); padding: 12px; font-size: 12.5px; display: flex; flex-direction: column; gap: 6px; }
+.chg2 h6 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sub); display: flex; gap: 5px; align-items: center; }
+.chg2 ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
+.dlg { position: absolute; left: 28px; right: 28px; top: 50%; transform: translateY(-50%); border-radius: 28px; padding: 22px 20px 16px; background: var(--sheet); backdrop-filter: blur(30px) saturate(170%); -webkit-backdrop-filter: blur(30px) saturate(170%); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--hi), 0 20px 60px rgba(0, 0, 0, 0.35); display: flex; flex-direction: column; gap: 12px; animation: pop 200ms ease; }
+.dlg h3 { margin: 0; font-size: 19px; line-height: 1.25; }
+.dlg p { margin: 0; font-size: 14px; color: var(--sub); line-height: 1.45; }
+.dlg .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.toast { position: absolute; left: 50%; bottom: 168px; transform: translateX(-50%); width: max-content; max-width: 360px; padding: 10px 16px; border-radius: 18px; background: rgba(16, 18, 24, 0.92); color: #F4F6FA; font-size: 13px; line-height: 1.4; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); text-align: center; animation: pop 180ms ease; z-index: 5; }
+.ph.light .toast { background: rgba(20, 26, 40, 0.92); }
+.emptyc { position: absolute; left: 24px; right: 24px; top: 220px; border-radius: 30px; padding: 28px 22px 22px; display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; }
+.emptyc .ico { width: 64px; height: 64px; border-radius: 22px; background: var(--asoft); color: var(--ink); display: grid; place-items: center; }
+.emptyc h3 { margin: 6px 0 0; font-size: 20px; }
+.emptyc p { margin: 0; color: var(--sub); font-size: 14px; line-height: 1.45; }
+.emptyc .btn { width: 100%; }
+.emptyc .btn.s { background: var(--chip2); }
+@keyframes up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes pop { from { opacity: 0; transform: translateX(-50%) scale(0.96); } to { opacity: 1; } }
+.dlg { animation-name: pop2; }
+@keyframes pop2 { from { opacity: 0; transform: translateY(-50%) scale(0.96); } to { opacity: 1; transform: translateY(-50%); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .sheet.anim, .toast, .dlg { animation: none; }
+  .steps li.cur .ico, .status .dot.run { animation: none; }
+  .art, .bar i { transition: none; }
+}
+
+/* ---------- Plan 3 additions ---------- */
+.job.bin { bottom: 150px; }
+.job .cur { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
+.job .cur b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job .cur small { color: var(--sub); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job .row { display: flex; gap: 8px; align-items: center; }
+.job .row .wait { flex: 1; margin: 0; }
+.job .stopb { height: 34px; padding: 0 14px; border-radius: 17px; border: 0; background: var(--chip); color: var(--danger); font-weight: 600; font-size: 13px; flex: none; display: flex; align-items: center; gap: 6px; }
+.job .stopb[aria-disabled="true"] { color: var(--sub); }
+.job .banner { font-size: 12.5px; padding: 8px 10px; border-radius: 12px; background: var(--asoft); color: var(--ink); display: flex; gap: 8px; align-items: flex-start; }
+.phases { display: flex; gap: 4px; font-size: 10.5px; color: var(--sub); }
+.phases span { padding: 2px 7px; border-radius: 8px; background: var(--chip); }
+.phases span.on { background: var(--asoft); color: var(--ink); font-weight: 600; }
+.phases span.done { color: var(--ok); }
+.facts { display: flex; flex-direction: column; border-radius: 18px; background: var(--chip); overflow: hidden; }
+.fact { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13.5px; }
+.fact:first-child { border-top: 0; }
+.fact svg { color: var(--ink); }
+.fact.warn svg { color: var(--warn); }
+.fact.ok svg { color: var(--ok); }
+.fact small { display: block; color: var(--sub); font-size: 12px; }
+.fact .n { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--sub); }
+.big { font-size: 22px; font-weight: 700; line-height: 1.2; margin: 0; letter-spacing: -0.01em; }
+.big + p { margin: 4px 0 0; color: var(--sub); font-size: 13.5px; }
+.left { display: flex; flex-direction: column; border-radius: 18px; background: var(--chip); overflow: hidden; }
+.left button { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border: 0; border-top: 1px solid var(--line); background: transparent; text-align: left; width: 100%; }
+.left button:first-child { border-top: 0; }
+.left .th { width: 40px; height: 40px; border-radius: 10px; overflow: hidden; flex: none; }
+.left .th svg { width: 100%; height: 100%; display: block; }
+.left .lb { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.left .lb b { font-weight: 500; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.left .lb small { font-size: 12px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.left .why { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 8px; background: var(--wsoft); color: var(--warn); flex: none; }
+.left .why.info { background: var(--asoft); color: var(--ink); }
+.paths { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-radius: 18px; background: var(--chip); overflow: hidden; }
+.paths li { padding: 9px 14px; border-top: 1px solid var(--line); font-size: 12.5px; display: flex; flex-direction: column; gap: 1px; }
+.paths li:first-child { border-top: 0; }
+.paths code { font-family: var(--font-mono); font-size: 11.5px; overflow-wrap: anywhere; }
+.paths small { color: var(--sub); font-size: 11.5px; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg button { height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid var(--line); background: transparent; font-size: 12.5px; font-weight: 500; color: var(--sub); }
+.seg button[aria-pressed="true"] { border-color: var(--accent); background: var(--asoft); color: var(--ink); }
+.notif { width: min(412px, 100%); border-radius: 22px; padding: 12px 14px; background: var(--pg-card); border: 1px solid var(--pg-line); display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.notif .t { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--pg-sub); }
+.notif b { font-size: 14px; }
+.notif .nb { height: 4px; border-radius: 2px; background: var(--pg-line); overflow: hidden; }
+.notif .nb i { display: block; height: 100%; width: 5%; background: var(--pg-accent); }
+.notif .na { display: flex; gap: 18px; font-weight: 600; color: var(--pg-accent); font-size: 13px; }
+.dlg .bar { margin-top: 2px; }
+.dlg .meta { font-size: 12.5px; color: var(--sub); font-variant-numeric: tabular-nums; }
+.dlg ul { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--sub); display: flex; flex-direction: column; gap: 3px; }
+.dlg .row.col { flex-direction: column; align-items: stretch; }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="intro">
+    <p class="eyebrow">Agentic Binning · Plan 3 · mockups for review · Nov 4, 2026</p>
+    <h1 class="pg">Bin Files</h1>
+    <p>Clickable mockups of Bin Files on the Hawaii Photos sample project from the Plan 2b mockups, grown to 251 sorted items: 248 files to bin into 14 category folders, 1 failed clip and 2 missing photos. Each state is the same live phone in dark and light, in the look of <code>2026-10-31-plan-2b-project-media.html</code>; the progress card reuses 2b state 6 (Save in progress). Taps work inside every phone. Media are colored placeholders.</p>
+    <p>The decisions behind them are in <code>2026-11-04-plan-3-questions.md</code> next to this file. Each state names the question it shows. The mockups show the recommended answer to every open question, and the owner's answer where there is one (B3, B5, P8).</p>
+    <nav aria-label="States"><ul class="index" id="index"></ul></nav>
+  </header>
+  <div id="states" class="page" style="gap:72px"></div>
+  <p class="footer">Agentic Binning (Android) · Plan 3 design review. Mockup data is invented; the rules follow the design spec of Oct 28, 2026 and the Plan 3 questions of Nov 4, 2026.</p>
+</main>
+<script>
+"use strict";
+var IC = {
+  back: '<path d="M15 18l-6-6 6-6"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  check: '<path d="M5 12l5 5 9-10"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  folderCheck: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 13l2 2 4-4"/>',
+  folderMove: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 13h6M13 11l2 2-2 2"/>',
+  clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+  alert: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.5v.01"/>',
+  play: '<path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none"/>',
+  chev: '<path d="M6 9l6 6 6-6"/>',
+  chevR: '<path d="M9 6l6 6-6 6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
+  merge: '<path d="M6 4l6 7 6-7"/><path d="M12 11v9"/>',
+  remove: '<circle cx="12" cy="12" r="8"/><path d="M8 12h8"/>',
+  shuffle: '<path d="M4 7h3l10 10h3M4 17h3l3-3M14 10l3-3h3"/><path d="M18 5l2 2-2 2M18 15l2 2-2 2"/>',
+  cloud: '<path d="M7 18h10a4 4 0 0 0 0-8 6 6 0 0 0-11.5 1.5A3.5 3.5 0 0 0 7 18z"/>',
+  phone: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
+  retry: '<path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v4h4"/>',
+  info: '<circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8v.01"/>',
+  imageOff: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M4 19L20 5"/>',
+  select: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8 12l3 3 5-6"/>',
+  photos: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/>'
+};
+function ic(n, s, w) { return '<svg width="' + (s || 18) + '" height="' + (s || 18) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (w || 2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>'; }
+function esc(t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+IC.stop = '<rect x="6" y="6" width="12" height="12" rx="2"/>';
+IC.copy = '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>';
+IC.disk = '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 14h.01M11 14h6"/>';
+IC.shield = '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>';
+IC.tag = '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>';
+IC.trash = '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>';
+
+/* ------------------------------------------------------------- sample data */
+var PROJECT = "Hawaii Photos";
+var PAL = {
+  forest: ["#9FC9A8", "#F3F7E4", "#3E7A52", "#2E5E45", "#1F3B2C"],
+  aerial: ["#A9CDEB", "#FFFFFF", "#E9F1F8", "#2F7FB8", "#7DB5D6"],
+  sunset: ["#F2A65A", "#FFE3A3", "#7A4E6B", "#3E5C8A", "#2B2E45"],
+  fire: ["#1A1022", "#FF8A3D", "#3A1C2A", "#2A1420", "#120A12"],
+  lizard: ["#B9D98C", "#E9F7C8", "#6E9A3E", "#8C6A48", "#4F3A28"],
+  wind: ["#BFE3F0", "#FFFFFF", "#7FB2C4", "#1F7FA6", "#E8D9B0"],
+  turtle: ["#CFE6EE", "#FFF8E0", "#9BC3C9", "#3B8FA8", "#E3CFA2"],
+  beach: ["#A9D3F0", "#FFF8E0", "#C9B48A", "#2E7FB0", "#EAD9B4"],
+  wedding: ["#F6DCE3", "#FFFFFF", "#EAC4CF", "#9CC9DA", "#F4E6D2"],
+  none: ["#C7CCD3", "#EEF0F2", "#8D949C", "#6C8797", "#CBB89A"]
+};
+function hash(s) { var h = 7; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 9973; return h; }
+function art(id, p) {
+  var h = hash(id), o = '<svg class="pic" viewBox="0 0 120 120" preserveAspectRatio="xMidYMid slice" aria-hidden="true">';
+  if (p === "fail") {
+    o += '<rect width="120" height="120" fill="#5B606B"/>';
+    for (var i = -120; i < 120; i += 16) o += '<path d="M' + i + ' 120 L' + (i + 120) + ' 0" stroke="#666C78" stroke-width="7"/>';
+    o += '<g transform="translate(46 44)" fill="none" stroke="#E9ECF1" stroke-width="2.4" stroke-linecap="round"><rect x="0" y="4" width="28" height="22" rx="4"/><path d="M2 26L26 4"/></g>';
+    return o + "</svg>";
+  }
+  var P = PAL[p] || PAL.none, sx = 20 + (h % 76), sy = 20 + (h % 30);
+  o += '<rect width="120" height="120" fill="' + P[0] + '"/><circle cx="' + sx + '" cy="' + sy + '" r="13" fill="' + P[1] + '"/>';
+  o += '<path d="M0 ' + (68 + h % 10) + ' Q 26 ' + (48 + h % 14) + ' 54 66 T 120 60 V120 H0 Z" fill="' + P[2] + '"/>';
+  o += '<rect x="0" y="82" width="120" height="38" fill="' + P[3] + '"/><path d="M0 102 Q 30 ' + (88 + h % 8) + ' 64 104 T 120 98 V120 H0 Z" fill="' + P[4] + '"/>';
+  return o + "</svg>";
+}
+/* [id, palette, name, kind, from folder, category folder] */
+var FILES = [
+  ["f1", "forest", "Bamboo Forest Trail", "mp4", "Camera", "Forest Nature"],
+  ["f2", "forest", "Banyan Tree Roots", "jpg", "Camera", "Forest Nature"],
+  ["a1", "aerial", "Coastline From Above", "jpg", "Camera", "Aerial View"],
+  ["s1", "sunset", "Serene Bay Sunset", "jpg", "Camera", "Sunset Over Sea"],
+  ["s2", "sunset", "Sun Dipping Below Horizon", "jpg", "Download", "Sunset Over Sea"],
+  ["x1", "fire", "Fire Dancers Night", "mp4", "Camera", "Fire Performance"],
+  ["g1", "lizard", "Gecko on Wooden Wall", "jpg", "Camera", "Green Lizard"],
+  ["w1", "wind", "Windsurfers at Hookipa", "jpg", "Camera", "Windsurfers on the Sea"],
+  ["b1", "beach", "Empty Beach Morning", "jpg", "Download", "Beach Scenes"],
+  ["b2", "beach", "Beach Umbrellas Row", "jpg", "Camera", "Beach Scenes"],
+  ["e1", "wedding", "Beach Wedding Arch", "jpg", "Camera", "Wedding Events"],
+  ["t1", "turtle", "Sea Turtles Resting Sand", "jpg", "Camera", "Turtle Beach"]
+];
+var TOTAL = 248, FOLDERS = 14;
+var LEFT = [
+  { id: "z1", p: "fail", name: "VID_20260718_175109.mp4", sub: "Camera · couldn't be decoded", why: "Failed" },
+  { id: "m1", p: "none", name: "IMG_20260715_101203.jpg", sub: "Was in Camera · not found", why: "Missing" },
+  { id: "m2", p: "none", name: "IMG_20260716_091544.jpg", sub: "Was in Download · not found", why: "Missing" }
+];
+function stepAt(i) {
+  var f = FILES[i % FILES.length], n = Math.floor(i / FILES.length);
+  return { id: f[0] + n, p: f[1], name: f[2] + (n ? " " + (n + 1) : ""), ext: f[3], from: f[4], to: f[5] };
+}
+
+/* ------------------------------------------------------------- the screen */
+function base(P) {
+  var o = '<div class="blobs" aria-hidden="true"><i></i><i></i><i></i></div>';
+  o += '<div class="gridscroll noscroll"><div class="grid">';
+  for (var i = 0; i < 18; i++) {
+    var f = FILES[i % FILES.length], id = f[0] + i, binned = P.binned > i * 14;
+    o += '<button class="tile" tabindex="-1"><span class="art">' + art(id, f[1]) + (f[3] === "mp4" ? '<span class="bdg dur">0:' + (10 + hash(id) % 40) + "</span>" : "") +
+      (binned ? '<span class="bdg bin">' + ic("folderCheck", 13) + "</span>" : "") + '</span><span class="tname">' + esc(f[2]) + "</span></button>";
+  }
+  o += '</div></div><div class="topfade"></div>';
+  o += '<header class="glass hdr"><button class="ib" aria-label="Back">' + ic("back") + '</button><div class="ht"><h3>' + PROJECT + "</h3><span>251 items · " + FOLDERS + ' categories</span></div><button class="ib" aria-label="Settings">' + ic("gear") + "</button></header>";
+  o += '<div class="glass search">' + ic("search") + '<span style="color:var(--sub)">Search names, tags, descriptions</span></div>';
+  o += '<div class="cathead"><h4>Categories</h4><button class="mini' + (P.moving ? " busy" : "") + '">' + ic("shuffle", 14) + 'Re-sort</button><button class="mini' + (P.moving ? " busy" : "") + '">' + ic("pencil", 14) + "Edit</button></div>";
+  o += '<div class="chips noscroll"><button class="chip" aria-pressed="true">All <span class="n">251</span></button><button class="chip attn">' + ic("alert", 14) + 'Failed <span class="n">3</span></button><button class="chip">Forest Nature <span class="n">31</span></button><button class="chip">Beach Scenes <span class="n">27</span></button><button class="chip">Sunset Over Sea <span class="n">22</span></button></div>';
+  o += '<div class="filters noscroll"><button class="fchip set">All</button><button class="fchip">Photos</button><button class="fchip">Videos</button><button class="fchip">Filters' + ic("chev", 14) + "</button></div>";
+  o += '<div class="result"><span>251 items</span><button class="mini' + (P.moving ? " busy" : "") + '">' + ic("select", 14) + "Select</button></div>";
+  return o;
+}
+function dock(d) {
+  var o = '<nav class="glass dock" aria-label="Project actions"><div class="status" aria-live="polite"><span class="dot ' + d.tone + '"></span><span class="stxt">' + d.text + "</span>";
+  if (d.action) o += '<button class="act" data-a="' + d.action[0] + '">' + d.action[1] + "</button>";
+  o += '</div><div class="dbtns"><button class="anz"><i></i>Analyze</button>';
+  o += '<button class="binbtn' + (d.on ? "" : " off") + '" data-a="' + (d.on ? "bin" : "binoff") + '"' + (d.on ? "" : ' aria-disabled="true"') + ">" + ic("folderCheck") + "Bin Files" + (d.on ? '<span class="cnt">' + d.count + "</span>" : "") + "</button></div></nav>";
+  return o;
+}
+function head(title) { return '<div class="shead"><h3>' + title + '</h3><button class="ib" data-a="close" aria-label="Close">' + ic("x", 18) + "</button></div>"; }
+function sheet(title, body, foot, tall) {
+  return '<button class="scrim" data-a="close" aria-label="Close" tabindex="-1"></button><section class="sheet' + (tall ? " tall" : "") + '" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><div class="handle" aria-hidden="true"></div>' + head(title) + '<div class="sbody noscroll">' + body + '</div><div class="sfoot">' + foot + "</div></section>";
+}
+function fact(icon, text, sub, n, cls) {
+  return '<div class="fact ' + (cls || "") + '">' + ic(icon, 18) + "<span>" + text + (sub ? "<small>" + sub + "</small>" : "") + '</span><span class="n">' + (n == null ? "" : n) + "</span></div>";
+}
+function leftList(extra) {
+  var rows = LEFT.concat(extra || []);
+  return '<div class="sect"><h5>Left where they are · ' + rows.length + '</h5><div class="left">' + rows.map(function (r) {
+    return '<button data-a="left" data-v="' + esc(r.name) + '"><span class="th">' + art(r.id, r.p) + '</span><span class="lb"><b>' + esc(r.name) + "</b><small>" + esc(r.sub) + '</small></span><span class="why' + (r.info ? " info" : "") + '">' + r.why + "</span></button>";
+  }).join("") + "</div></div>";
+}
+
+/* State 1: confirm */
+function confirmSheet(P) {
+  var body = '<div><p class="big">Bin ' + TOTAL + " files into " + FOLDERS + ' folders</p><p>Into <code>Agentic Binning/' + PROJECT + "/</code>, one folder per category.</p></div>";
+  body += '<div class="facts">' + fact("photos", "From Camera", "DCIM/Camera", 210) + fact("photos", "From Download", "Download", 38) + fact("folderCheck", "Already in their folders", "Stay as they are", 0, "ok") + "</div>";
+  body += '<div class="callout">' + ic("shield", 18) + "<span><b>No undo.</b> Each file is copied, checked, then the original is deleted. Nothing is overwritten: a name that's taken gets a number.</span></div>";
+  body += '<div class="callout">' + ic("info", 18) + "<span>In Gallery they leave the Camera album and show up in albums named after their categories. Gallery favourites on these files are lost.</span></div>";
+  body += leftList();
+  var foot = '<div class="row"><button class="btn s" data-a="close">Cancel</button><button class="btn p" data-a="start">' + ic("folderCheck") + "Bin " + TOTAL + " files</button></div>";
+  return sheet("Bin Files", body, foot, true);
+}
+
+/* State 2 / 6: progress */
+function jobCard(P) {
+  var j = P.job, done = j.done, cur = stepAt(done), pct = Math.round(((done + (j.phase === 1 ? 0.3 : j.phase === 2 ? 0.6 : j.phase === 3 ? 0.85 : 0)) / TOTAL) * 100);
+  var o = '<section class="glass job bin" aria-label="Binning files"><div class="top"><b>' + (j.resumed ? "Finishing Bin Files" : "Binning files") + "</b><span>" + Math.min(done + 1, TOTAL) + " of " + TOTAL + "</span></div>";
+  if (j.resumed) o += '<p class="banner">' + ic("retry", 14) + "<span>Picked up where it stopped when the app closed. " + j.resumedAt + " files had moved; nothing was lost.</span></p>";
+  o += '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><i style="width:' + pct + '%"></i></div>';
+  o += '<div class="cur"><b>' + esc(cur.name) + "." + cur.ext + "</b><small>" + cur.from + " → " + esc(cur.to) + "</small></div>";
+  var ph = ["Copying", "Checking", "Placing", "Deleting the original"];
+  o += '<div class="phases">' + ph.map(function (t, i) { return '<span class="' + (i < j.phase ? "done" : i === j.phase ? "on" : "") + '">' + t + "</span>"; }).join("") + "</div>";
+  o += '<ul class="steps">';
+  for (var k = Math.max(0, done - 2); k < done; k++) {
+    var s = stepAt(k);
+    o += '<li class="done"><span class="ico">' + ic("check", 12, 3) + '</span><span class="lb"><b>' + esc(s.name) + "." + s.ext + "</b><small>" + esc(s.to) + '</small></span><span class="ph2">Done</span></li>';
+  }
+  o += "</ul>";
+  o += '<div class="row"><p class="wait">' + ic("clock", 14) + "<span>" + (j.stopping ? "Stopping after this file…" : "Other edits wait. You can leave this screen.") + '</span></p><button class="stopb" data-a="stop"' + (j.stopping ? ' aria-disabled="true"' : "") + ">" + ic("stop", 14) + "Stop after this file</button></div></section>";
+  return o;
+}
+
+/* State 3 / 4: report */
+function reportSheet(P) {
+  var r = P.report, body = "", foot;
+  if (r.kind === "done") {
+    body += '<div><p class="big">' + TOTAL + " files binned into " + FOLDERS + ' category folders</p><p>Checked ' + TOTAL + " files in " + FOLDERS + " folders. Nothing missing or extra.</p></div>";
+    body += '<div class="facts">' + fact("folderMove", "Moved now", null, TOTAL) + fact("tag", "Names that got a number", "Beach Sunset 2.jpg, Gecko Close Up 2.jpg, Pink Sky 2.mp4", 3) + fact("trash", "Empty folders removed", "Turtle Beach", 1) + fact("check", "Folder check", "Nothing missing or extra", "OK", "ok") + "</div>";
+    body += leftList();
+    foot = '<button class="btn p wide" data-a="close">Done</button>';
+  } else {
+    var why = {
+      mismatch: ["Bin Files stopped at Fire Knife Spin.mp4", "Its copy didn't match the original, twice. The original wasn't touched. Nothing was lost.", "alert"],
+      full: ["Bin Files stopped: storage is full", "Free up 3.1 GB and press Bin Files again. The next file, Fire Knife Spin.mp4, needs 2.9 GB while it moves.", "disk"],
+      user: ["Bin Files stopped", "You stopped it after Fire Knife Spin.mp4. Press Bin Files to move the rest.", "stop"]
+    }[r.why];
+    body += '<div class="seg" role="group" aria-label="Why it stopped">' + [["mismatch", "Copy didn't match"], ["full", "Storage full"], ["user", "Stopped by you"]].map(function (x) { return '<button data-a="why" data-v="' + x[0] + '" aria-pressed="' + (r.why === x[0]) + '">' + x[1] + "</button>"; }).join("") + "</div>";
+    body += '<div class="callout warn">' + ic(why[2], 18) + "<span><b>" + why[0] + ".</b> " + why[1] + "</span></div>";
+    body += '<div class="facts">' + fact("folderMove", "Moved", null, 37) + fact("clock", "Still where they were", "Moved by the next Bin Files", 211, "warn") + fact("check", "Folder check", "The 37 moved files are all in place", "OK", "ok") + "</div>";
+    body += leftList();
+    foot = '<div class="row"><button class="btn s" data-a="close">Close</button>' + (r.why === "user" ? '<button class="btn p" data-a="start">' + ic("folderCheck") + "Bin 211 files</button>" : '<button class="btn p" data-a="start">' + ic("retry") + "Try again</button>") + "</div>";
+  }
+  return sheet(r.kind === "done" ? "Files binned" : "Bin Files stopped", body, foot, true);
+}
+
+/* State 5: folder check found extra files */
+function extraSheet(P) {
+  var body = '<div class="callout warn">' + ic("alert", 18) + "<span><b>Nothing was moved.</b> These files are in category folders, but they aren't in " + PROJECT + ". Bin Files checks the folders before it moves anything.</span></div>";
+  body += '<div class="sect"><h5>Not in the project · 2</h5><ul class="paths"><li><code>Beach Scenes/IMG_4410.jpg</code><small>Added Nov 2 · 3.4 MB</small></li><li><code>Beach Scenes/IMG_4411.jpg</code><small>Added Nov 2 · 3.1 MB</small></li></ul></div>';
+  body += '<div class="sect"><h5>Marked missing · 1</h5><ul class="paths"><li><code>Forest Nature/Red Ginger Flowers.jpg</code><small>Binned, but no longer there. It is listed as Missing and doesn\'t block Bin Files.</small></li></ul></div>';
+  body += '<div class="callout">' + ic("info", 18) + "<span><b>Add to project</b> analyzes and sorts them, then the next Bin Files moves them into their own category. <b>Leave them</b> keeps them where they are and the check skips them from now on.</span></div>";
+  var foot = '<div class="row"><button class="btn s" data-a="leave">Leave them</button><button class="btn p" data-a="addextra">' + ic("plus") + "Add to project</button></div>";
+  return sheet("Files Bin Files doesn't know", body, foot, true);
+}
+
+/* State 7: media already in another project (P8) */
+function p8Dialog(P) {
+  var d = P.p8, o = '<button class="scrim" tabindex="-1" aria-label="Wait"></button><div class="dlg" role="alertdialog" aria-modal="true" aria-label="Already in another project">';
+  if (d.stage === "ask") {
+    o += "<h3>3 files are already in another project</h3><p>In <b>Maui</b>: 2 files. In <b>Sort Test</b> (not on your list): 1 file. The other 9 files you picked are being added.</p>";
+    o += "<p>Copy media files puts a copy of each in <code>" + PROJECT + "/Copied from Maui/</code> and <code>Copied from Sort Test/</code>. The other projects' files stay exactly where they are.</p>";
+    o += '<div class="row"><button class="btn s" data-a="p8cancel">Cancel</button><button class="btn p" data-a="p8copy" style="flex:none">' + ic("copy") + "Copy media files</button></div>";
+  } else if (d.stage === "copy") {
+    var pct = Math.round((d.done / 3) * 100);
+    o += "<h3>Copying 3 files</h3><p>Each copy is checked against its original before it's added.</p>";
+    o += '<div class="bar"><i style="width:' + pct + '%"></i></div><p class="meta">' + Math.min(d.done + 1, 3) + " of 3 · " + ["Maui Sunrise Crater.jpg", "Road to Hana Falls.mp4", "Test Card Red.jpg"][Math.min(d.done, 2)] + "</p>";
+    o += '<div class="row"><button class="btn s" aria-disabled="true" style="opacity:.5">Copying…</button></div>';
+  } else {
+    o += "<h3>" + (d.copied ? "12 added" : "9 added, 3 left out") + "</h3>";
+    o += d.copied ? "<ul><li>9 added from where they are</li><li>3 copied into Copied from Maui and Copied from Sort Test</li></ul><p>They're analyzed and sorted like any other item, and Bin Files moves them into their category folders.</p>" : "<p>The 3 files in Maui and Sort Test weren't added. Pick them again to copy them.</p>";
+    o += '<div class="row"><button class="btn p" data-a="p8ok" style="flex:none">OK</button></div>';
+  }
+  return o + "</div>";
+}
+
+/* ------------------------------------------------------------- phones */
+var PHONES = [];
+function render(P) {
+  var m = P.mode, o = base(P);
+  if (m === "progress" || m === "resume") o += jobCard(P);
+  var d;
+  if (m === "progress" || m === "resume") d = { tone: "run", text: "Binning · " + Math.min(P.job.done + 1, TOTAL) + " of " + TOTAL + " files", on: false };
+  else if (m === "done" ) d = { tone: "", text: "All files binned · 1 failed, 2 missing", on: false };
+  else if (m === "stopped") d = { tone: "ok", text: "211 files ready to bin · 1 failed, 2 missing", on: true, count: 211 };
+  else if (m === "p8") d = { tone: "run", text: "Adding 12 files…", on: false };
+  else if (m === "p8after") d = { tone: "run", text: "Analyzing " + (P.p8.copied ? 12 : 9) + " left", on: false };
+  else d = { tone: "ok", text: TOTAL + " files ready to bin · 1 failed, 2 missing", on: true, count: TOTAL };
+  o += dock(d);
+  if (m === "confirm") o += confirmSheet(P);
+  if (m === "report") o += reportSheet(P);
+  if (m === "extra") o += extraSheet(P);
+  if (m === "p8") o += p8Dialog(P);
+  if (P.toast) o += '<div class="toast" role="status">' + P.toast + "</div>";
+  P.el.innerHTML = o;
+  P.el.className = "ph" + (P.theme === "light" ? " light" : "");
+}
+function say(P, t) { P.toast = t; render(P); clearTimeout(P.tt); P.tt = setTimeout(function () { P.toast = null; render(P); }, 2600); }
+function run(P, from, resumed) {
+  clearInterval(P.jt);
+  P.mode = resumed ? "resume" : "progress"; P.moving = true;
+  P.job = { done: from, phase: 0, stopping: false, resumed: !!resumed, resumedAt: from };
+  render(P);
+  if (P.frozen) return;
+  P.jt = setInterval(function () {
+    var j = P.job;
+    j.phase++;
+    if (j.phase > 3) {
+      j.phase = 0; j.done += j.done < 20 || j.stopping ? 1 : 9; P.binned = j.done;
+      if (j.stopping) { clearInterval(P.jt); P.moving = false; P.mode = "report"; P.report = { kind: "stopped", why: "user" }; render(P); return; }
+      if (j.done >= TOTAL) { j.done = TOTAL; clearInterval(P.jt); P.moving = false; P.mode = "report"; P.report = { kind: "done" }; render(P); return; }
+    }
+    render(P);
+  }, 120);
+}
+function act(P, a, v) {
+  if (a === "bin") { P.mode = "confirm"; render(P); }
+  else if (a === "binoff") say(P, P.moving ? "Bin Files is running" : "All files are binned");
+  else if (a === "close") { clearInterval(P.jt); var wasReport = P.mode === "report"; P.mode = wasReport && P.report.kind === "done" ? "done" : wasReport ? "stopped" : P.mode === "extra" ? "idle" : "idle"; P.moving = false; render(P); }
+  else if (a === "start") { if (P.mode === "report" && P.report.kind !== "done") run(P, 37); else run(P, 0); }
+  else if (a === "stop") { if (P.job && !P.job.stopping) { P.job.stopping = true; render(P); } }
+  else if (a === "why") { P.report.why = v; render(P); }
+  else if (a === "left") say(P, "Opens the item's sheet (2b state 8)");
+  else if (a === "leave") { say(P, "2 files left in Beach Scenes; the check skips them"); P.mode = "idle"; render(P); setTimeout(function () { run(P, 0); }, 900); }
+  else if (a === "addextra") { P.mode = "idle"; say(P, "2 added · they're analyzed and sorted, then binned"); }
+  else if (a === "p8copy") {
+    P.p8.stage = "copy"; P.p8.done = 0; render(P);
+    clearInterval(P.jt); P.jt = setInterval(function () { P.p8.done++; if (P.p8.done >= 3) { clearInterval(P.jt); P.p8.stage = "done"; P.p8.copied = true; } render(P); }, 900);
+  }
+  else if (a === "p8cancel") { P.p8.stage = "done"; P.p8.copied = false; render(P); }
+  else if (a === "p8ok") { P.mode = "p8after"; render(P); }
+}
+function setup(P) {
+  clearInterval(P.jt); clearTimeout(P.tt);
+  P.toast = null; P.binned = 0; P.moving = false; P.job = null; P.report = null; P.p8 = null;
+  var s = P.state;
+  if (s === "confirm") P.mode = "confirm";
+  else if (s === "progress") { P.frozen = false; run(P, 12); return; }
+  else if (s === "report") { P.binned = TOTAL; P.mode = "report"; P.report = { kind: "done" }; }
+  else if (s === "stopped") { P.binned = 37; P.mode = "report"; P.report = { kind: "stopped", why: "mismatch" }; }
+  else if (s === "extra") P.mode = "extra";
+  else if (s === "resume") { P.binned = 13; run(P, 13, true); return; }
+  else if (s === "p8") { P.mode = "p8"; P.p8 = { stage: "ask" }; }
+  render(P);
+}
+function mount(el, state, theme) {
+  var P = { el: el, state: state, theme: theme };
+  PHONES.push(P);
+  el.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-a]"); if (!b || !el.contains(b)) return;
+    if (b.getAttribute("aria-disabled") === "true" && b.dataset.a !== "binoff") return;
+    act(P, b.dataset.a, b.dataset.v);
+  });
+  setup(P);
+}
+
+/* ------------------------------------------------------------- page */
+var STATES = [
+  { id: "confirm", no: "1", q: "B7", title: "Bin Files confirm", body: "Bin Files is on: 248 files are ready and nothing waits. The confirm sheet says how many files go into how many folders, where they come from, that there is no undo and what Gallery will show. The failed clip and the two missing photos are listed: they stay where they are and don't block.", tryit: ["Tap Bin 248 files to start (state 2).", "Tap a left-out item: it opens its sheet.", "Cancel, then tap Bin Files on the bottom bar to open it again."] },
+  { id: "progress", no: "2", q: "Q11, B2", title: "Progress", body: "The progress card from 2b state 6, for Bin Files: the current file, where it comes from and goes, and its four phases (copy, check, place, delete the original). Re-sort, Edit and Select are greyed out: other edits wait. The user may leave the screen; the move runs in the foreground service, and the notification (below) shows the same count with a Stop action.", tryit: ["Tap Stop after this file: the current file finishes and the stopped report opens.", "Let it run to the end for the report (state 3)."], notif: true },
+  { id: "report", no: "3", q: "B8", title: "Report", body: "The run finished. The headline, then what moved, names that got a number, the empty folder removed (Turtle Beach, emptied by an earlier merge) and the folder check. Below, every item left where it is, with why. The status line says All files binned.", tryit: ["Tap a left-out item.", "Done closes it; the status line and Bin Files update."] },
+  { id: "stopped", no: "4", q: "B4, B6, B2", title: "Stopped: a copy didn't match, storage full, or Stop", body: "A run that stopped early says why, how many moved and how many are still where they were, and that nothing was lost. The toggle at the top switches between the three reasons. Try again plans the rest afresh.", tryit: ["Switch between Copy didn't match, Storage full and Stopped by you.", "Tap Try again: the run carries on from file 38."] },
+  { id: "extra", no: "5", q: "B5, Q2", title: "Folder check: files Bin Files doesn't know", body: "Before moving anything, Bin Files checks the category folders. Two photos copied into Beach Scenes with a file manager belong to no item, so nothing moves until the user chooses. A binned photo deleted in Gallery is only marked Missing: it never blocks.", tryit: ["Leave them: they are recorded like removed files and Bin Files starts.", "Add to project: they are registered and analyzed; Bin Files waits for them."] },
+  { id: "resume", no: "6", q: "B3", title: "Resuming after a crash", body: "The app was force-stopped while file 14 was being copied. When the project opens again, the run picks up on its own: the half-written copy is thrown away and file 14 starts again. The card says what happened. A file interrupted twice stops the run as in state 4.", tryit: ["Watch it finish into the report."] },
+  { id: "p8", no: "7", q: "P8", title: "Media already in another project", body: "The owner's design (Nov 4). Of 12 picked files, 2 are in Maui and 1 is in Sort Test, a project taken off Current projects (found by its folder's database). One notice names the projects and counts. Cancel adds the other 9 only. Copy media files copies the 3 into Copied from <project> folders, checking each copy, then adds them; Bin Files later moves them into their category folders. The same notice appears for Add a folder.", tryit: ["Copy media files: watch the copy progress, then OK.", "Reset, then Cancel."] }
+];
+(function build() {
+  document.getElementById("index").innerHTML = STATES.map(function (s) { return '<li><a href="#' + s.id + '"><span>' + s.no + "</span>" + s.title + "</a></li>"; }).join("");
+  var html = "";
+  STATES.forEach(function (st) {
+    html += '<section class="state" id="' + st.id + '"><div class="notes"><p class="no">STATE ' + st.no + " · " + st.q + "</p><h2>" + st.title + "</h2><p>" + st.body + "</p>";
+    if (st.tryit.length) html += '<p class="tag">Try</p><ul>' + st.tryit.map(function (t) { return "<li>" + t + "</li>"; }).join("") + "</ul>";
+    if (st.notif) html += '<p class="tag">Notification</p><div class="notif"><span class="t">' + ic("folderCheck", 14) + "Agentic Binning · now</span><b>Binning " + PROJECT + " · 13 of 248</b><span>Copying Bamboo Forest Trail 2.mp4</span><div class=\"nb\"><i></i></div><div class=\"na\"><span>Stop after this file</span></div></div>";
+    html += '<button class="reset" data-reset="' + st.id + '">Reset this state</button></div><div class="pair">';
+    ["dark", "light"].forEach(function (th) { html += '<figure><div class="wrap"><div data-state="' + st.id + '" data-theme-name="' + th + '"></div></div><figcaption>' + (th === "dark" ? "Dark" : "Light") + "</figcaption></figure>"; });
+    html += "</div></section>";
+  });
+  var host = document.getElementById("states");
+  host.innerHTML = html;
+  host.querySelectorAll("[data-state]").forEach(function (el) { mount(el, el.dataset.state, el.dataset.themeName); });
+  host.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-reset]"); if (!b) return;
+    PHONES.forEach(function (P) { if (P.state === b.dataset.reset) setup(P); });
+  });
+  function fit() { document.querySelectorAll(".wrap").forEach(function (w) { var ph = w.firstElementChild; if (ph && w.clientWidth) ph.style.setProperty("--k", (w.clientWidth / 412).toFixed(4)); }); }
+  fit();
+  if (window.ResizeObserver) { var ro = new ResizeObserver(fit); document.querySelectorAll(".wrap").forEach(function (w) { ro.observe(w); }); }
+  window.addEventListener("resize", fit);
+})();
+</script>
+</body>
+</html>
