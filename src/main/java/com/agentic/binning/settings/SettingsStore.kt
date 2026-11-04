@@ -20,6 +20,9 @@ import kotlin.math.abs
  */
 enum class SortingModelChoice { Claude, Lfm3_1_7B }
 
+/** Which picker "Pick photos and videos" opens. */
+enum class MediaPickerChoice { AndroidPhotoPicker, SamsungGallery }
+
 /** The frame counts a clip may be capped at; [SettingsStore.setMaxFramesPerClip] snaps to these. */
 val FRAME_CAP_OPTIONS: List<Int> = listOf(16, 24, 32, 48, 64)
 
@@ -31,6 +34,7 @@ data class AppSettings(
     val maxFramesPerClip: Int = FRAME_CAP_OPTIONS.first(),
     /** True once the user picked a sorting model themselves; saving a key then no longer changes it. */
     val sortingModelChosenByUser: Boolean = false,
+    val mediaPicker: MediaPickerChoice = MediaPickerChoice.AndroidPhotoPicker,
 )
 
 /** Persists [AppSettings] in a Preferences DataStore. */
@@ -50,6 +54,9 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
                 ?: SortingModelChoice.Lfm3_1_7B,
             maxFramesPerClip = prefs[MAX_FRAMES]?.let(::snapFrameCap) ?: FRAME_CAP_OPTIONS.first(),
             sortingModelChosenByUser = prefs[SORTING_MODEL_CHOSEN] ?: false,
+            mediaPicker = prefs[MEDIA_PICKER]
+                ?.let { name -> MediaPickerChoice.entries.firstOrNull { it.name == name } }
+                ?: MediaPickerChoice.AndroidPhotoPicker,
         )
     }
 
@@ -74,6 +81,10 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[MAX_FRAMES] = snapFrameCap(n) }
     }
 
+    suspend fun setMediaPicker(choice: MediaPickerChoice) {
+        dataStore.edit { it[MEDIA_PICKER] = choice.name }
+    }
+
     /** Call after an API key was saved: switches to Claude unless the user already chose a model. */
     suspend fun onApiKeySaved() {
         dataStore.edit {
@@ -87,6 +98,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         val SORTING_MODEL = stringPreferencesKey("sorting_model")
         val MAX_FRAMES = intPreferencesKey("max_frames_per_clip")
         val SORTING_MODEL_CHOSEN = booleanPreferencesKey("sorting_model_chosen_by_user")
+        val MEDIA_PICKER = stringPreferencesKey("media_picker")
     }
 }
 

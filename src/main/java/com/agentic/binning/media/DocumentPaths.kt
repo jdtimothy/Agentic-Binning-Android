@@ -32,4 +32,13 @@ object DocumentPaths {
         val id = docId.substring(colon + 1).toLongOrNull() ?: return null
         return kind to id
     }
+
+    /**
+     * The MediaStore row id behind a photo picker URI's path segments (`picker/<user>/<provider>/media/<id>`),
+     * or null if the provider is not the local one: cloud items have no file on the phone.
+     */
+    fun pickerMediaId(segments: List<String>): Long? {
+        if (segments.getOrNull(2)?.endsWith("media.photopicker") != true) return null
+        return segments.last().toLongOrNull()
+    }
 }

@@ -25,11 +25,23 @@ object MediaUris {
     }
 
     /**
-     * The file behind a picked URI, or null if it cannot be resolved: a MediaStore URI from Samsung
-     * Gallery's picker, or a document URI from `OpenMultipleDocuments`.
+     * The file behind a picked URI, or null if it cannot be resolved: a URI from the Android photo
+     * picker, a MediaStore URI from Samsung Gallery's picker, or a document URI from `OpenMultipleDocuments`.
      */
-    fun pickedUriToFile(context: Context, uri: Uri): File? =
-        if (uri.authority == MediaStore.AUTHORITY) mediaStorePath(context, uri)?.let(::File) else documentUriToFile(context, uri)
+    fun pickedUriToFile(context: Context, uri: Uri): File? = when {
+        uri.authority != MediaStore.AUTHORITY -> documentUriToFile(context, uri)
+        uri.pathSegments.firstOrNull()?.startsWith("picker") == true -> photoPickerPath(context, uri)?.let(::File)
+        else -> mediaStorePath(context, uri)?.let(::File)
+    }
+
+    /**
+     * `content://media/picker/<user>/<provider>/media/<id>`: its own `_data` is a synthetic path that
+     * hides the real name and location, so a local item is looked up by id. Cloud items have no file.
+     */
+    private fun photoPickerPath(context: Context, uri: Uri): String? {
+        val id = DocumentPaths.pickerMediaId(uri.pathSegments) ?: return null
+        return mediaStorePath(context, ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id))
+    }
 
     private fun documentUriToFile(context: Context, uri: Uri): File? {
         val docId = try {

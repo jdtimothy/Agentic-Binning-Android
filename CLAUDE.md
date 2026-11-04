@@ -100,9 +100,11 @@ Analyzed with `stopReason` `eos`.
   "Edit" (× on each row, "Done" to leave), and the list (the open project
   first; without a project only the Current projects section shows). "Add a
   folder" and "Open project" open the system folder picker (breadcrumbs work),
-  then "USE THIS FOLDER" and "ALLOW". "Pick photos and videos" opens Samsung
-  Gallery's picker (tap each item's circle, then "Done"; 500 at most); without
-  that app it falls back to the system document picker. "New project" opens the
+  then "USE THIS FOLDER" and "ALLOW". "Pick photos and videos" opens the picker
+  chosen in Settings: the Android photo picker by default (tap items, then
+  "Done"; 100 at most) or Samsung Gallery's (tap each item's circle, then
+  "Done"; 500 at most), which falls back to the system document picker without
+  that app. "New project" opens the
   New project page: name, optional "A folder" / "Photos and videos" tile (held
   until "Create and analyze"), back arrow or system Back to return. × only takes a
   project off the list; its files and database stay. Don't swipe on the sheet
