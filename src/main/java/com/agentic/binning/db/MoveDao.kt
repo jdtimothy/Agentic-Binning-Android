@@ -97,6 +97,15 @@ abstract class MoveDao : MoveStore {
         setStepState(stepId, "Missing", null)
     }
 
+    @Query("UPDATE item SET currentPath = :source, status = 'Sorted' WHERE id = :itemId")
+    protected abstract suspend fun revertItem(itemId: Long, source: String)
+
+    @Transaction
+    override suspend fun recordReverted(stepId: Long, itemId: Long, source: String, error: String) {
+        revertItem(itemId, source)
+        setStepState(stepId, "Failed", error)
+    }
+
     @Query("UPDATE move_run SET state = :state, message = :message WHERE id = :runId")
     abstract override suspend fun setRunState(runId: Long, state: String, message: String?)
 

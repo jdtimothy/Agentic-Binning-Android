@@ -23,5 +23,11 @@ interface MoveStore {
     /** In one transaction: the item is Missing and so is the step. */
     suspend fun recordMissing(stepId: Long, itemId: Long)
 
+    /**
+     * In one transaction: the item is back at [source] and Sorted, and the step Failed with [error].
+     * For a recorded file whose destination vanished while its source is still there.
+     */
+    suspend fun recordReverted(stepId: Long, itemId: Long, source: String, error: String)
+
     suspend fun setRunState(runId: Long, state: String, message: String?)
 }
