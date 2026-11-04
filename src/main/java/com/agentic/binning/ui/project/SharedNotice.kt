@@ -1,17 +1,18 @@
 package com.agentic.binning.ui.project
 
-import android.graphics.drawable.GradientDrawable
-import android.view.View
-import android.view.ViewParent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -20,28 +21,24 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.DialogWindowProvider
 import com.agentic.binning.media.HeldFile
 import com.agentic.binning.media.SharedCopyResult
 import com.agentic.binning.move.formatBytes
+import com.agentic.binning.ui.glass.GlassSurface
 import com.agentic.binning.ui.media.Button
 import com.agentic.binning.ui.media.ButtonStyle
 import com.agentic.binning.ui.media.MediaIcons
+import com.agentic.binning.ui.media.binScrim
 import com.agentic.binning.ui.media.isDark
 import com.agentic.binning.ui.media.well
 import com.agentic.binning.ui.theme.LocalGlassTokens
@@ -120,54 +117,37 @@ internal interface SharedNoticeActions {
     fun onNoticeOk()
 }
 
-private fun findWindowProvider(view: View): DialogWindowProvider? {
-    var p: ViewParent? = view.parent
-    if (view is DialogWindowProvider) return view
-    while (p != null) {
-        if (p is DialogWindowProvider) return p
-        p = p.parent
-    }
-    return null
-}
-
 /**
- * Mockup state 7. It sits over the project sheet, which has its own window, so unlike the Bin Files sheets
- * its glass is Android's window blur over whatever is behind. With cross-window blur off (battery saver,
- * for one) the same tint sits over the theme's base so the text stays readable. Nothing here redraws while
- * files copy: only the bar's width changes.
+ * Mockup state 7, drawn in the screen's own window so the glass really blurs what is behind it: this phone
+ * has no cross-window blur, and a dialog's window couldn't show any. The project sheet closes when it
+ * opens. Nothing here redraws while files copy: only the bar's width changes. Call inside the screen's
+ * root [Box], after everything it covers.
  */
 @Composable
-internal fun SharedNoticeDialog(state: SharedNoticeState, actions: SharedNoticeActions) {
+internal fun BoxScope.SharedNoticeOverlay(state: SharedNoticeState, actions: SharedNoticeActions) {
     val tokens = LocalGlassTokens.current
-    val shape = RoundedCornerShape(28.dp)
-    Dialog(
-        onDismissRequest = {
-            when (state) {
-                is SharedNoticeState.Asking -> actions.onCancelHeld()
-                is SharedNoticeState.Done -> actions.onNoticeOk()
-                is SharedNoticeState.Copying -> Unit
-            }
-        },
-        properties = DialogProperties(dismissOnClickOutside = false),
-    ) {
-        val view = LocalView.current
-        val density = LocalDensity.current
-        val tint = if (tokens.isDark) tokens.well else tokens.glass
-        SideEffect {
-            findWindowProvider(view)?.window?.let { window ->
-                val blur = window.windowManager.isCrossWindowBlurEnabled
-                val fill = if (blur) tint else tint.compositeOver(tokens.bg)
-                window.setBackgroundDrawable(
-                    GradientDrawable().apply {
-                        cornerRadius = with(density) { 28.dp.toPx() }
-                        setColor(fill.toArgb())
-                    },
-                )
-                if (blur) window.setBackgroundBlurRadius(with(density) { 26.dp.roundToPx() } * 2)
-            }
+    BackHandler {
+        when (state) {
+            is SharedNoticeState.Asking -> actions.onCancelHeld()
+            is SharedNoticeState.Done -> actions.onNoticeOk()
+            is SharedNoticeState.Copying -> Unit
         }
+    }
+    // Answered with its buttons: a tap outside does nothing, as the mockup's scrim.
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(tokens.binScrim)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
+    )
+    GlassSurface(
+        Modifier.align(Alignment.Center).padding(horizontal = 28.dp).fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        // The owner's glass: with no cards inside it, a dialog is the darker glass in dark mode.
+        fill = if (tokens.isDark) tokens.well else tokens.glass,
+    ) {
         Column(
-            Modifier.fillMaxWidth().clip(shape).border(1.dp, tokens.border, shape).padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 16.dp),
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             when (state) {

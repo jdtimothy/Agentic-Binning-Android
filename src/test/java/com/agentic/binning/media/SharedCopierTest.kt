@@ -129,6 +129,15 @@ class SharedCopierTest {
         assertTrue(fs.log.none { it.startsWith("copy") })
     }
 
+    /** The app died part way through an earlier copy: its unchecked temp files are never trusted or kept. */
+    @Test fun tempCopiesLeftByACrash_areRemoved() = runTest {
+        fs.put("$p/.binning/moving/copy-7.tmp", "half a file")
+        fs.put("$p/.binning/moving/12.tmp", "a Bin Files step's temp: the engine's own")
+        copy(held("$other/a.jpg"))
+        assertNull(fs.content("$p/.binning/moving/copy-7.tmp"))
+        assertEquals("a Bin Files step's temp: the engine's own", fs.content("$p/.binning/moving/12.tmp"))
+    }
+
     @Test fun reportsProgressPerFile() = runTest {
         val seen = ArrayList<Pair<Int, Int>>()
         copy(held("$other/a.jpg"), held("$other/b.jpg")) { done, total -> seen += done to total }

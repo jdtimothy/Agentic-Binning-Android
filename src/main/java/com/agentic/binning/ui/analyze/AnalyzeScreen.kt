@@ -2,6 +2,7 @@ package com.agentic.binning.ui.analyze
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,7 +38,14 @@ import kotlinx.coroutines.flow.StateFlow
 
 /** The main screen: carousel of the project's items, streamed analysis output and run controls. */
 @Composable
-fun AnalyzeScreen(vm: AnalyzeViewModel, onOpenSettings: () -> Unit, onOpenProjectSheet: () -> Unit, onOpenMedia: () -> Unit) {
+fun AnalyzeScreen(
+    vm: AnalyzeViewModel,
+    onOpenSettings: () -> Unit,
+    onOpenProjectSheet: () -> Unit,
+    onOpenMedia: () -> Unit,
+    /** Drawn over the screen in its own window, so glass can blur it. */
+    overlay: @Composable BoxScope.() -> Unit = {},
+) {
     val header by vm.header.collectAsState()
     val carousel by vm.carousel.collectAsState()
     // Read only where needed, so a streamed token recomposes the output card and the live card alone.
@@ -82,6 +90,7 @@ fun AnalyzeScreen(vm: AnalyzeViewModel, onOpenSettings: () -> Unit, onOpenProjec
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                 }
+                overlay()
             }
         }
     }

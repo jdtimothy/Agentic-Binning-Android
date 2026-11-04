@@ -12,6 +12,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -114,6 +115,8 @@ fun ProjectMediaScreen(
     onOpenSettings: () -> Unit,
     onAddFolder: () -> Unit,
     onPickFiles: () -> Unit,
+    /** Drawn over the screen in its own window, so glass can blur it. */
+    overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val state by vm.state.collectAsState()
     val binState by bin.state.collectAsState()
@@ -162,6 +165,7 @@ fun ProjectMediaScreen(
                     }
                 }
                 BinSheetHost(binState.sheet, bin, vm::onOpenItem)
+                overlay()
             }
             state.filtersSheet?.let { FiltersSheetView(it, vm) }
             state.sheet?.let { DetailSheetHost(it, vm) }

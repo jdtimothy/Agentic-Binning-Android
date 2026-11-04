@@ -22,6 +22,7 @@ import com.agentic.binning.AppGraph
 import com.agentic.binning.db.ItemTotals
 import com.agentic.binning.media.MediaUris
 import com.agentic.binning.media.RegistrationProgress
+import androidx.compose.foundation.layout.BoxScope
 import com.agentic.binning.media.HeldFile
 import com.agentic.binning.media.RegistrationSummary
 import com.agentic.binning.project.OpenRefusal
@@ -461,6 +462,8 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
                     heldBatchAdded = summary.added
                     val project = graph.currentProject.value?.ref?.name.orEmpty()
                     notice = SharedNoticeState.Asking(sharedAskUi(summary.held, summary.added, project))
+                    // The notice draws in the screen's window, under a sheet's own.
+                    visible = false
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -473,6 +476,12 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
             }
         }
     }
+}
+
+/** The notice for media another project holds; call inside the screen's root [BoxScope]. */
+@Composable
+fun BoxScope.ProjectSheetNotice(controller: ProjectSheetController) {
+    controller.notice?.let { SharedNoticeOverlay(it, controller) }
 }
 
 @Composable
@@ -493,7 +502,6 @@ private class PickFromGallery : ActivityResultContracts.GetMultipleContents() {
 /** Owns the pickers and shows [controller]'s sheet while it is open. */
 @Composable
 fun ProjectSheetHost(controller: ProjectSheetController) {
-    controller.notice?.let { SharedNoticeDialog(it, controller) }
     // Saved with the activity: a picker result can reach a recreated activity and a fresh controller,
     // so where it goes is recorded at launch rather than read from the controller's page.
     var pickFor by rememberSaveable { mutableStateOf<PickFor?>(null) }

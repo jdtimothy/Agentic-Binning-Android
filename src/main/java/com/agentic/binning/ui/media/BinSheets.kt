@@ -73,7 +73,7 @@ import kotlinx.coroutines.launch
 internal val GlassTokens.sheetGlass: Color get() = if (isDark) Color(0x8C484E60) else glass
 internal val GlassTokens.well: Color get() = if (isDark) Color(0x750A0C12) else chip
 internal val GlassTokens.wellWarn: Color get() = if (isDark) Color(0x9E34240C) else warnSoft
-private val GlassTokens.scrim: Color get() = if (isDark) Color(0x80000000) else Color(0x57141A28)
+internal val GlassTokens.binScrim: Color get() = if (isDark) Color(0x80000000) else Color(0x57141A28)
 
 private val SheetTop = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
 
@@ -97,7 +97,7 @@ internal fun BoxScope.BinSheetHost(sheet: BinSheetUi?, vm: BinFilesViewModel, on
         Box(
             Modifier
                 .fillMaxSize()
-                .background(tokens.scrim)
+                .background(tokens.binScrim)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = vm::onCloseSheet),
         )
     }

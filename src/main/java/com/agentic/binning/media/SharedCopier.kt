@@ -35,6 +35,8 @@ class SharedCopier(private val files: MoveFiles, projectDir: String) {
         register: suspend (path: String) -> Boolean,
         onProgress: (done: Int, total: Int) -> Unit,
     ): SharedCopyResult {
+        // Unchecked temp files from a copy the app died in; never trusted. The engine's own are left alone.
+        files.listFiles("$root/.binning/moving").filter { it.substringAfterLast('/').startsWith(TEMP_PREFIX) }.forEach { files.delete(it) }
         var result = SharedCopyResult()
         for ((index, file) in held.withIndex()) {
             val outcome = try {
@@ -72,9 +74,8 @@ class SharedCopier(private val files: MoveFiles, projectDir: String) {
         val wanted = size + MoveEngine.COPY_MARGIN_BYTES
         if (free < wanted) return Outcome.NoSpace(wanted - free)
 
-        val temp = "$root/.binning/moving/copy-$index.tmp"
+        val temp = "$root/.binning/moving/$TEMP_PREFIX$index.tmp"
         files.mkdirs(temp.substringBeforeLast('/'))
-        if (files.exists(temp)) files.delete(temp)
         var checked = false
         for (attempt in 1..MoveEngine.COPY_TRIES) {
             val hash = try {
@@ -117,5 +118,6 @@ class SharedCopier(private val files: MoveFiles, projectDir: String) {
 
     private companion object {
         const val RENAME_TRIES = 5
+        const val TEMP_PREFIX = "copy-"
     }
 }

@@ -26,6 +26,7 @@ import com.agentic.binning.settings.SortingModelChoice
 import com.agentic.binning.ui.analyze.AnalyzeScreen
 import com.agentic.binning.ui.analyze.AnalyzeViewModel
 import com.agentic.binning.pipeline.paced
+import com.agentic.binning.ui.project.ProjectSheetNotice
 import com.agentic.binning.ui.media.BinFilesViewModel
 import com.agentic.binning.ui.media.BinPipelineView
 import com.agentic.binning.ui.media.ProjectMediaScreen
@@ -177,6 +178,7 @@ class MainActivity : ComponentActivity() {
                                 onOpenSettings = { openSettings(Screen.Analyze) },
                                 onOpenProjectSheet = projectSheet::open,
                                 onOpenMedia = { screen = Screen.Media },
+                                overlay = { ProjectSheetNotice(projectSheet) },
                             )
                             ProjectSheetHost(projectSheet)
                         }
@@ -189,6 +191,7 @@ class MainActivity : ComponentActivity() {
                                 // The empty project's buttons are the project sheet's own pickers.
                                 onAddFolder = projectSheet::onPickFolder,
                                 onPickFiles = projectSheet::onPickFiles,
+                                overlay = { ProjectSheetNotice(projectSheet) },
                             )
                             ProjectSheetHost(projectSheet)
                         }
