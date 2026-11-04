@@ -27,8 +27,15 @@ Jetpack Compose app (package `com.agentic.binning`). Plans live under
   decisions" section holds every owner decision; "Left for Plan 3" lists what
   binning inherits. Mockups are in `docs/superpowers/mockups/` (open the HTML
   files in a browser; GitHub doesn't render them).
-- **Plan 3** (binning: moving files) is being planned on `plan-3-binning` by a
-  cloud session, from `docs/superpowers/plan-3-brief.md`.
+- **Plan 3** (binning: moving files) is on `plan-3-binning` (draft PR):
+  `docs/superpowers/plans/2026-11-04-plan-3-binning.md`. Questions and the
+  owner's Nov 4 answers: `docs/superpowers/mockups/2026-11-04-plan-3-questions.md`
+  (B7, B8, B11 open); mockups: `2026-11-04-plan-3-binning.html`. The move
+  engine, schema v4, the Binning job and resume are built and JVM-tested in
+  the cloud; no Plan 3 UI yet and no device test has run. Read
+  `docs/superpowers/notes/plan-3-cloud-handoff.md` first: **back up every
+  project's `project.db` before installing this branch** (schema v4; `main`
+  can't open it), and start Bin Files over adb only on test projects.
 - After release the owner will try other sorting models; LFM3-1.7B's odd
   calls (file-type categories, self-talk descriptions) are expected of a
   small model.

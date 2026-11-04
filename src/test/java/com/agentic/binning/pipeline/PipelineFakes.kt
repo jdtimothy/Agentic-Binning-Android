@@ -328,7 +328,8 @@ class FakeSortStore(private val store: FakeStore, private val events: Events = E
             store.items.replaceAll { _, item -> item.copy(nameSetByUser = false, categorySetByUser = false) }
             categoryRows.replaceAll { it.copy(createdBy = "model") }
         }
-        val unlocked = store.items.values.filter { it.status == ItemStatus.Sorted && !it.categorySetByUser }
+        // Plan 3 B10: binned items are re-sorted too; their files move at the next Bin Files.
+        val unlocked = store.items.values.filter { (it.status == ItemStatus.Sorted || it.status == ItemStatus.Binned) && !it.categorySetByUser }
         for (item in unlocked) {
             store.items[item.id] = item.copy(categoryId = null, status = ItemStatus.Analyzed)
         }

@@ -50,6 +50,10 @@ class AnalysisService : LifecycleService() {
                         RunKind.Analyze -> controller.start(ref)
                         RunKind.CategorizeOnly -> controller.categorizeNow(ref)
                         RunKind.Resort -> resort(ref, intent)
+                        RunKind.BinFiles -> logRefusal(controller.binFiles(ref))
+                        RunKind.ResumeMove -> logRefusal(
+                            controller.resumeMove(ref, intent.getLongExtra(EXTRA_MOVE_RUN, 0L), intent.getBooleanExtra(EXTRA_MOVE_PAUSED, false)),
+                        )
                     }
                 }
                 stopIfNotRunning(startId)
@@ -64,6 +68,10 @@ class AnalysisService : LifecycleService() {
         }
         observe()
         return START_NOT_STICKY
+    }
+
+    private fun logRefusal(start: MoveStart) {
+        if (start is MoveStart.Refused) Log.w(TAG, "Move refused: ${start.reason}")
     }
 
     /** Starts the Re-sort the intent describes; a refusal (a run began meanwhile) is only logged. */
@@ -109,8 +117,8 @@ class AnalysisService : LifecycleService() {
                         stopSelf(lastStartId)
                         return@collect
                     }
-                    // Paused holds the model but runs nothing: let the CPU sleep until Resume.
-                    if (model.phase == PipelinePhase.Paused) releaseWakeLock() else holdWakeLock()
+                    // Paused holds the model (or a move between files) but runs nothing: let the CPU sleep until Resume.
+                    if (model.phase == PipelinePhase.Paused || model.phase == PipelinePhase.MovingPaused) releaseWakeLock() else holdWakeLock()
                     notificationManager().notify(NOTIFICATION_ID, buildNotification(controller.state.value))
                 }
         }
@@ -172,7 +180,7 @@ class AnalysisService : LifecycleService() {
             model.progressMax > 0 -> builder.setProgress(model.progressMax, model.progress, false)
             model.phase.isRunning -> builder.setProgress(0, 0, true)
         }
-        if (model.phase == PipelinePhase.Paused) {
+        if (model.phase == PipelinePhase.Paused || model.phase == PipelinePhase.MovingPaused) {
             builder.addAction(0, "Resume", PendingIntent.getForegroundService(this, 2, action(this, ACTION_RESUME), PendingIntent.FLAG_IMMUTABLE))
         } else if (model.phase.canPause) {
             // Not while categorizing: there is nothing to pause between chunks.
@@ -191,6 +199,37 @@ class AnalysisService : LifecycleService() {
         val progressMax: Int,
     ) {
         companion object {
+            /** Bin Files (B2, Q11): "Binning Trip · 13 of 248", the file in progress, Pause/Resume and Stop. */
+            fun moving(s: PipelineState, name: String): NotificationModel {
+                val p = s.moveProgress
+                val done = p?.done ?: 0
+                val total = p?.total ?: 0
+                val save = p?.kind == com.agentic.binning.move.MoveKind.Save
+                val paused = s.phase == PipelinePhase.MovingPaused
+                val count = if (total > 0) " · ${minOf(done + if (paused) 0 else 1, total)} of $total" else ""
+                val title = when {
+                    paused && save -> "Saving paused$count"
+                    paused -> "Bin Files paused · $name$count"
+                    save -> "Saving$count"
+                    else -> "Binning $name$count"
+                }
+                val text = when {
+                    paused -> "The file in progress finished"
+                    p?.current == null -> "Checking the folders"
+                    else -> "${p.phase?.label ?: "Moving"} ${p.current}"
+                }
+                return NotificationModel(s.phase, title, text, done, total)
+            }
+
+            private val com.agentic.binning.move.MovePhase.label: String
+                get() = when (this) {
+                    com.agentic.binning.move.MovePhase.Moving -> "Moving"
+                    com.agentic.binning.move.MovePhase.Copying -> "Copying"
+                    com.agentic.binning.move.MovePhase.Checking -> "Checking"
+                    com.agentic.binning.move.MovePhase.Placing -> "Placing"
+                    com.agentic.binning.move.MovePhase.DeletingOriginal -> "Deleting the original of"
+                }
+
             fun of(s: PipelineState): NotificationModel {
                 val name = s.project?.name ?: "project"
                 val download = s.downloadFraction
@@ -205,6 +244,7 @@ class AnalysisService : LifecycleService() {
                         (download * 100).roundToInt(),
                         100,
                     )
+                    s.phase.isMoving -> moving(s, name)
                     s.phase == PipelinePhase.Paused -> NotificationModel(
                         s.phase, "Paused · $name · ${s.pending} left", tally, done, s.total,
                     )
@@ -245,6 +285,8 @@ class AnalysisService : LifecycleService() {
         private const val EXTRA_KIND = "run_kind"
         private const val EXTRA_RESORT_MODEL = "resort_model"
         private const val EXTRA_KEEP_EDITS = "resort_keep_edits"
+        private const val EXTRA_MOVE_RUN = "move_run_id"
+        private const val EXTRA_MOVE_PAUSED = "move_paused"
 
         private fun action(context: Context, action: String) = Intent(context, AnalysisService::class.java).setAction(action)
 
@@ -253,13 +295,21 @@ class AnalysisService : LifecycleService() {
          * only categorizes its analyzed items, or with [kind] Resort re-sorts it as [resort] says (required
          * then). Call while the app is in the foreground.
          */
-        fun start(context: Context, project: ProjectRef, kind: RunKind = RunKind.Analyze, resort: ResortRequest? = null) {
+        fun start(
+            context: Context,
+            project: ProjectRef,
+            kind: RunKind = RunKind.Analyze,
+            resort: ResortRequest? = null,
+            moveRunId: Long = 0L,
+            movePaused: Boolean = false,
+        ) {
             require((kind == RunKind.Resort) == (resort != null)) { "A Re-sort start needs its request, and only it" }
             val intent = action(context, ACTION_START)
                 .putExtra(EXTRA_NAME, project.name)
                 .putExtra(EXTRA_PATH, project.path)
                 .putExtra(EXTRA_KIND, kind.name)
             resort?.let { intent.putExtra(EXTRA_RESORT_MODEL, it.model.name).putExtra(EXTRA_KEEP_EDITS, it.keepEdits) }
+            if (kind == RunKind.ResumeMove) intent.putExtra(EXTRA_MOVE_RUN, moveRunId).putExtra(EXTRA_MOVE_PAUSED, movePaused)
             context.startForegroundService(intent)
         }
     }

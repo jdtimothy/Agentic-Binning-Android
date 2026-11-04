@@ -85,4 +85,23 @@ class MediaStatusTest {
         assertNull(binFilesBlockedReason(ready, null))
         assertTrue(mediaStatus(ready, null).binFilesEnabled)
     }
+
+    /** Plan 3: a move in progress, paused (B2), or before its first file (the folder check). */
+    @Test fun moving_statusLines() {
+        val c = MediaCounts(total = 251, readyToBin = 248, failed = 1, missing = 2)
+        assertEquals("Binning · checking the folders", mediaStatus(c, ActiveJob.Binning(0, 0)).text)
+        assertEquals("Binning · 13 of 248 files", mediaStatus(c, ActiveJob.Binning(12, 248)).text)
+        val paused = mediaStatus(c, ActiveJob.Binning(37, 248, paused = true))
+        assertEquals("Bin Files paused · 37 of 248 files", paused.text)
+        assertEquals(MediaTone.Attention, paused.tone)
+        assertFalse(paused.binFilesEnabled)
+        assertEquals("Saving paused · 1 of 3 files", mediaStatus(c, ActiveJob.Saving(1, 3, paused = true)).text)
+    }
+
+    @Test fun moving_blocksBinFilesWithItsOwnReason() {
+        val c = MediaCounts(total = 4, readyToBin = 4)
+        assertEquals("Bin Files is running", binFilesBlockedReason(c, ActiveJob.Binning(1, 4)))
+        assertEquals("Bin Files is running", binFilesBlockedReason(c, ActiveJob.Binning(1, 4, paused = true)))
+        assertEquals("Wait for the files to finish moving", binFilesBlockedReason(c, ActiveJob.Saving(0, 2)))
+    }
 }

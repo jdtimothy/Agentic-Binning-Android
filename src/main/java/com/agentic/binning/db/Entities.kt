@@ -107,6 +107,7 @@ data class CategoryEntity(
     val folderName: String?,
 )
 
+/** One Bin Files or Save run (Plan 3). [kind] is a `MoveKind` name, [state] a `RunState` name. */
 @Entity(tableName = "move_run")
 data class MoveRunEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -114,8 +115,13 @@ data class MoveRunEntity(
     val startedAt: Long,
     val finishedAt: Long?,
     val state: String,
+    /** Why the run stopped or failed, for the report (schema v4). */
+    val message: String? = null,
+    /** Empty folders the run removed, one per line, for the report (schema v4). */
+    val removedFolders: String? = null,
 )
 
+/** One file of a run (Plan 3). [state] is a `StepState` name. */
 @Entity(tableName = "move_step", indices = [Index(value = ["runId"])])
 data class MoveStepEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -124,6 +130,28 @@ data class MoveStepEntity(
     val source: String,
     val dest: String,
     val state: String,
+    /** The source's size when planned; a resume compares it to tell a finished rename (schema v4). */
+    @ColumnInfo(defaultValue = "0") val bytes: Long = 0,
+    /** Starts of this step; a third start skips it (B3, schema v4). */
+    @ColumnInfo(defaultValue = "0") val attempts: Int = 0,
+    /** Another project also holds the source: copy it and leave it (P8, schema v4). */
+    @ColumnInfo(defaultValue = "0") val keepSource: Boolean = false,
+    /** The destination got a " 2"-style number (schema v4). */
+    @ColumnInfo(defaultValue = "0") val numbered: Boolean = false,
+    /** Why the step was skipped or failed, a `StepErrors` value (schema v4). */
+    val error: String? = null,
+)
+
+/**
+ * A file in a category folder that belongs to no item on purpose, so the folder check skips it
+ * (schema v4): the file of an item removed from the project after it was binned (Q2, reason
+ * `removed`), or a file the user chose to leave there (B5, reason `left`).
+ */
+@Entity(tableName = "removed_file")
+data class RemovedFileEntity(
+    @PrimaryKey val path: String,
+    val removedAt: Long,
+    val reason: String,
 )
 
 /** One run of the sorting model over the uncategorized items (schema v3). */

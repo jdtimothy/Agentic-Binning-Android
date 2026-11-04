@@ -16,7 +16,7 @@ import java.io.File
 import kotlinx.coroutines.flow.Flow
 
 /** Room's schema version of the project database; every change needs a migration, never a destructive one. */
-const val PROJECT_DB_VERSION = 3
+const val PROJECT_DB_VERSION = 4
 
 @Database(
     entities = [
@@ -29,6 +29,7 @@ const val PROJECT_DB_VERSION = 3
         MoveStepEntity::class,
         ProjectMetaEntity::class,
         SortRunEntity::class,
+        RemovedFileEntity::class,
     ],
     version = PROJECT_DB_VERSION,
     exportSchema = true,
@@ -37,6 +38,8 @@ const val PROJECT_DB_VERSION = 3
         AutoMigration(from = 1, to = 2),
         // v3: the sort_run table.
         AutoMigration(from = 2, to = 3),
+        // v4: move_step and move_run columns, and the removed_file table (Plan 3).
+        AutoMigration(from = 3, to = 4),
     ],
 )
 abstract class ProjectDatabase : RoomDatabase() {
@@ -45,6 +48,7 @@ abstract class ProjectDatabase : RoomDatabase() {
     abstract fun sort(): SortDao
     abstract fun meta(): ProjectMetaDao
     abstract fun media(): ProjectMediaDao
+    abstract fun moves(): MoveDao
 }
 
 @Dao

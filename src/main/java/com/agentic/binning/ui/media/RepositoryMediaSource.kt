@@ -24,7 +24,7 @@ class RepositoryMediaSource(
     private val project: OpenProject,
     onRetry: suspend () -> Unit = {},
 ) : MediaSource {
-    private val repository = ProjectMediaRepository(project.db, onRetry)
+    private val repository = ProjectMediaRepository(project.db, onRetry, projectDir = project.ref.path)
     private val thumbs = ProjectFolders.thumbsDir(File(project.ref.path))
 
     override val projectName: String get() = project.ref.name

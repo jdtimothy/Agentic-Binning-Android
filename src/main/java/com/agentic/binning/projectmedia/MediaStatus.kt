@@ -1,6 +1,8 @@
 package com.agentic.binning.projectmedia
 
 import com.agentic.binning.db.ItemStatus
+import com.agentic.binning.move.MoveKind
+import com.agentic.binning.move.MoveProgress
 import com.agentic.binning.pipeline.PipelinePhase
 
 /**
@@ -56,18 +58,27 @@ fun <T> mediaCountsOf(items: List<T>, status: (T) -> ItemStatus, waiting: (T) ->
 sealed interface ActiveJob {
     data object Analysis : ActiveJob
     data object Sorting : ActiveJob
-    data class Saving(val filesDone: Int, val filesTotal: Int) : ActiveJob
-    data class Binning(val filesDone: Int, val filesTotal: Int) : ActiveJob
+    data class Saving(val filesDone: Int, val filesTotal: Int, val paused: Boolean = false) : ActiveJob
+    data class Binning(val filesDone: Int, val filesTotal: Int, val paused: Boolean = false) : ActiveJob
 }
 
 /**
- * The job running now, from the pipeline's phase (Task 10): categorizing is Sorting, any other
- * running phase (including Paused, which holds the vision model) is Analysis; Idle, Stopped or no
- * run is none. Saving and Binning come with Plan 3. Not from `ModelArbiter.active` (Task 6.3).
+ * The job running now, from the pipeline's phase (Task 10): categorizing is Sorting, a move is
+ * Binning or Saving with its [move] progress (Plan 3), any other running phase (including Paused,
+ * which holds the vision model) is Analysis; Idle, Stopped or no run is none. Not from
+ * `ModelArbiter.active` (Task 6.3).
  */
-fun activeJobOf(phase: PipelinePhase?): ActiveJob? = when {
+fun activeJobOf(phase: PipelinePhase?, move: MoveProgress? = null): ActiveJob? = when {
     phase == null || !phase.isRunning -> null
     phase == PipelinePhase.Categorizing -> ActiveJob.Sorting
+    phase.isMoving -> {
+        val paused = phase == PipelinePhase.MovingPaused
+        if (move?.kind == MoveKind.Save) {
+            ActiveJob.Saving(move.done, move.total, paused)
+        } else {
+            ActiveJob.Binning(move?.done ?: 0, move?.total ?: 0, paused)
+        }
+    }
     else -> ActiveJob.Analysis
 }
 
@@ -96,13 +107,18 @@ fun mediaStatus(counts: MediaCounts, job: ActiveJob?): MediaStatus {
     fun running(text: String) = MediaStatus(text, MediaTone.Running, null, false, c.readyToBin)
 
     when (job) {
-        is ActiveJob.Saving -> return running(
-            if (job.filesTotal == 0) "Saving…"
-            else "Saving · moving ${minOf(job.filesDone + 1, job.filesTotal)} of ${files(job.filesTotal)}",
-        )
-        is ActiveJob.Binning -> return running(
-            "Binning · ${minOf(job.filesDone + 1, job.filesTotal)} of ${files(job.filesTotal)}",
-        )
+        is ActiveJob.Saving -> return when {
+            job.paused -> MediaStatus("Saving paused · ${job.filesDone} of ${files(job.filesTotal)}", MediaTone.Attention, null, false, c.readyToBin)
+            job.filesTotal == 0 -> running("Saving…")
+            else -> running("Saving · moving ${minOf(job.filesDone + 1, job.filesTotal)} of ${files(job.filesTotal)}")
+        }
+        is ActiveJob.Binning -> return when {
+            // B2: paused between files; amber like the mockup's paused dot.
+            job.paused -> MediaStatus("Bin Files paused · ${job.filesDone} of ${files(job.filesTotal)}", MediaTone.Attention, null, false, c.readyToBin)
+            // Before the first file: the folder check and the plan (B5).
+            job.filesTotal == 0 -> running("Binning · checking the folders")
+            else -> running("Binning · ${minOf(job.filesDone + 1, job.filesTotal)} of ${files(job.filesTotal)}")
+        }
         ActiveJob.Sorting -> return running("Categorizing…")
         ActiveJob.Analysis -> return running("Analyzing ${c.pending + c.analyzing} left")
         null -> Unit
@@ -138,6 +154,8 @@ fun mediaStatus(counts: MediaCounts, job: ActiveJob?): MediaStatus {
 fun binFilesBlockedReason(counts: MediaCounts, job: ActiveJob?): String? {
     val c = counts
     return when {
+        job is ActiveJob.Binning -> "Bin Files is running"
+        job is ActiveJob.Saving -> "Wait for the files to finish moving"
         job != null -> "Bin Files is available when analysis is stopped or done"
         c.pending > 0 || c.analyzing > 0 -> "Bin Files waits for analysis to finish"
         c.waiting > 0 -> "Bin Files waits for ${items(c.waiting)} to be categorized"

@@ -10,4 +10,5 @@ val PROJECT_DB_IDENTITY_HASHES: Map<Int, String> = mapOf(
     1 to "8a77c185aacfe349637924448fd8027c",
     2 to "8ed51d8952043c923ca05ffc2c9ac4f0",
     3 to "95cf2f611134324a62782362640a5820",
+    4 to "e2915b6307ad16155355e32e657395f2",
 )

@@ -138,6 +138,7 @@ class MainActivity : ComponentActivity() {
                                 open?.let { RepositoryMediaSource(it) { graph.startAnalysisAfterRetry(it) } }
                             },
                             phase = graph.pipeline.state.map { it.phase },
+                            move = graph.pipeline.state.map { it.moveProgress },
                             onCategorizeNow = {
                                 graph.currentProject.value?.let { graph.startAnalysis(it.ref, RunKind.CategorizeOnly) }
                             },

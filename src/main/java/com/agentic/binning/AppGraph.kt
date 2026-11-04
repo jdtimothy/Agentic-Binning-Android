@@ -32,6 +32,7 @@ import com.agentic.binning.media.MediaScanner
 import com.agentic.binning.media.MediaUris
 import com.agentic.binning.media.ProjectItemLookup
 import com.agentic.binning.media.Registrar
+import com.agentic.binning.media.RegistrationOutcome
 import com.agentic.binning.media.RegistrationProgress
 import com.agentic.binning.media.RegistrationSummary
 import com.agentic.binning.model.ClaudeTextModel
@@ -45,7 +46,19 @@ import com.agentic.binning.model.TextModel
 import com.agentic.binning.model.VisionModel
 import com.agentic.binning.model.VisionModelException
 import com.agentic.binning.model.VisionProfile
+import com.agentic.binning.db.RoomBinStore
+import com.agentic.binning.move.BinFilesJob
+import com.agentic.binning.move.MediaStoreNotifier
+import com.agentic.binning.move.MoveNotifier
+import com.agentic.binning.move.MoveReport
+import com.agentic.binning.move.RealMoveFiles
 import com.agentic.binning.pipeline.AnalysisEngine
+import com.agentic.binning.pipeline.FileMover
+import com.agentic.binning.pipeline.MOVE_BUSY
+import com.agentic.binning.pipeline.MOVE_NOT_OPEN
+import com.agentic.binning.pipeline.MOVE_NOT_STARTED
+import com.agentic.binning.pipeline.MoveJob
+import com.agentic.binning.pipeline.MoveStart
 import com.agentic.binning.pipeline.AnalysisLauncher
 import com.agentic.binning.pipeline.AnalysisService
 import com.agentic.binning.pipeline.AnalysisStore
@@ -278,7 +291,97 @@ class AppGraph(val context: Context) {
             maxFramesPerClip = { settings.settings.first().maxFramesPerClip },
             prepareResort = sortStore::prepareResort,
             sortingAvailable = ::sortingUnavailable,
+            mover = FileMover { _, job, control, onProgress ->
+                withContext(Dispatchers.IO) {
+                    val bin = binFilesJob(pipelineProject())
+                    when (job) {
+                        MoveJob.BinFiles -> bin.binFiles(control, onProgress)
+                        is MoveJob.Resume -> bin.resume(job.runId, control, onProgress)
+                    }
+                }
+            },
         )
+    }
+
+    /** Files on the phone's storage; a volume is a device number, so a rename never crosses one (B1). */
+    private val moveFiles by lazy { RealMoveFiles { android.system.Os.stat(it.path).st_dev } }
+
+    /** Tells MediaStore about each move (B11, Plan 3 Task 10). */
+    private val moveNotifier: MoveNotifier by lazy { MediaStoreNotifier(context) }
+
+    /** One job per open project, so a report keeps what the database doesn't (in-place count, the check). */
+    @Volatile
+    private var binJob: Pair<OpenProject, BinFilesJob>? = null
+
+    private fun binFilesJob(project: OpenProject): BinFilesJob {
+        binJob?.takeIf { it.first === project }?.let { return it.second }
+        val job = BinFilesJob(
+            store = RoomBinStore(project.db, ::sharedWithOtherProjects),
+            files = moveFiles,
+            notifier = moveNotifier,
+            projectDir = project.ref.path,
+        )
+        binJob = project to job
+        return job
+    }
+
+    /**
+     * Which of [paths] another listed project also holds (P8's follow-on ruling: copied, never moved).
+     * Opens each other project's database that exists and closes it again.
+     */
+    private suspend fun sharedWithOtherProjects(paths: List<String>): Set<String> = withContext(Dispatchers.IO) {
+        val current = pipelineProject().ref
+        val opened = mutableListOf<ProjectDatabase>()
+        try {
+            val others = registry.list().filter { !ProjectRegistry.samePath(it.path, current.path) }.mapNotNull { ref ->
+                val dbFile = ProjectFolders.databaseFile(File(ref.path))
+                if (!dbFile.isFile) null else openProjectDatabase(context, dbFile).also { opened += it }
+            }
+            if (others.isEmpty()) return@withContext emptySet()
+            paths.chunked(500).flatMap { chunk -> others.flatMap { db -> db.items().findByPaths(chunk).map { it.currentPath } } }.toSet()
+        } finally {
+            withContext(NonCancellable) { opened.forEach { it.close() } }
+        }
+    }
+
+    /**
+     * Bin Files for the open project [ref] (Plan 3) in [AnalysisService]. Refused while any run is in
+     * progress (never queued) or for a project that is not open; the controller checks again when the
+     * service starts it.
+     */
+    fun binFiles(ref: ProjectRef): MoveStart {
+        if (pipelineTarget != ref) return MoveStart.Refused(MOVE_NOT_OPEN)
+        if (pipeline.state.value.phase.isRunning) return MoveStart.Refused(MOVE_BUSY)
+        return if (startAnalysis(ref, RunKind.BinFiles)) MoveStart.Started else MoveStart.Refused(MOVE_NOT_STARTED)
+    }
+
+    /** The report of the open project's last finished move run, or null (B8's layout is open). */
+    suspend fun lastMoveReport(): MoveReport? = withContext(Dispatchers.IO) {
+        val open = _currentProject.value ?: return@withContext null
+        val run = open.db.moves().lastFinishedRun() ?: return@withContext null
+        binFilesJob(open).report(run.id)
+    }
+
+    /**
+     * B3: a move run the app didn't finish is resumed (paused if it was paused) before anything else
+     * starts. True if there was one.
+     */
+    private suspend fun resumeOpenMove(project: OpenProject): Boolean {
+        val run = withContext(Dispatchers.IO) { project.db.moves().openRun() } ?: return false
+        val state = pipeline.state.value
+        if (state.project == project.ref && state.phase.isMoving) return true
+        val paused = run.state == com.agentic.binning.move.RunState.Paused.name
+        try {
+            AnalysisService.start(context, project.ref, RunKind.ResumeMove, moveRunId = run.id, movePaused = paused)
+            deferredStart = null
+        } catch (e: IllegalStateException) { // ForegroundServiceStartNotAllowedException
+            Log.w(TAG, "Move resume deferred until the app is back in the foreground", e)
+            deferredStart = DeferredStart(project.ref, RunKind.ResumeMove)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Move resume refused", e)
+            deferredStart = DeferredStart(project.ref, RunKind.ResumeMove)
+        }
+        return true
     }
 
     /**
@@ -359,6 +462,8 @@ class AppGraph(val context: Context) {
      * is already going, or that the user stopped (remembered across launches).
      */
     private suspend fun resumeAnalysisIfPending(project: OpenProject) {
+        // An interrupted move comes first; analysis waits until it has finished (B3, Q11).
+        if (resumeOpenMove(project)) return
         launcher.autoStart(project.ref, runFlags(project))
     }
 
@@ -372,6 +477,11 @@ class AppGraph(val context: Context) {
 
     /** The Stop button (screen or notification): stops the run and remembers it for the open project. */
     fun stopAnalysis() {
+        // A move's Stop only stops the move, after the file in progress (B2); it is not analysis' Stop.
+        if (pipeline.state.value.phase.isMoving) {
+            pipeline.stop()
+            return
+        }
         val open = _currentProject.value
         if (open == null) {
             pipeline.stop()
@@ -412,7 +522,12 @@ class AppGraph(val context: Context) {
             try {
                 val deferred = deferredStart?.takeIf { it.ref == open.ref }
                 deferredStart = null
-                if (deferred != null) launcher.retryDeferred(open.ref, runFlags(open), deferred.kind) else resumeAnalysisIfPending(open)
+                when {
+                    deferred == null -> resumeAnalysisIfPending(open)
+                    // A refused move start: the open run (if any) is resumed; a Bin Files tap is not repeated.
+                    deferred.kind == RunKind.BinFiles || deferred.kind == RunKind.ResumeMove -> resumeAnalysisIfPending(open)
+                    else -> launcher.retryDeferred(open.ref, runFlags(open), deferred.kind)
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "Could not start analysis on resume", e)
             }
@@ -753,10 +868,14 @@ class AppGraph(val context: Context) {
                 clock = System::currentTimeMillis,
             )
             var summary = RegistrationSummary(skipped = skipped)
+            val added = mutableListOf<String>()
             registrar.register(candidates).flowOn(Dispatchers.IO).collect { progress ->
                 summary += progress.last
+                (progress.last as? RegistrationOutcome.Added)?.let { added += it.path }
                 onProgress(progress)
             }
+            // A removed (or left) file added again is an item once more; the folder check needn't skip it (Q2).
+            if (added.isNotEmpty()) withContext(Dispatchers.IO) { added.chunked(500).forEach { project.db.moves().dropRemoved(it) } }
             try {
                 onRegistered(project)
             } catch (e: CancellationException) {
