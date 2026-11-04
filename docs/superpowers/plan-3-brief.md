@@ -18,6 +18,12 @@ Vocabulary the owner insists on: an item is **sorted** once it has a category
 and **binned** once its file is in its category folder. The button is
 **Bin Files**.
 
+## Before you start
+
+Merge `origin/main` into `plan-3-binning`. PR #22, a tidy-up that edits
+`CLAUDE.md`, may have landed after this brief was written. Merging it first
+avoids a conflict when you update `CLAUDE.md` at the end.
+
 ## Read first, in this order
 
 1. `CLAUDE.md`: project rules, build commands, the cloud build setup (OpenJDK
