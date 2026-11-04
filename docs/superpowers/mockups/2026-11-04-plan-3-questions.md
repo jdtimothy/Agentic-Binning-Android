@@ -2,6 +2,8 @@
 
 Nov 4, 2026 · goes with `2026-11-04-plan-3-binning.html`
 
+Answered on Nov 4 by the owner: B3, B5, B10 and P8. Everything else is open.
+
 These are the decisions the spec leaves open, the two carried from Plan 2b
 (Q11 and P8), and the ones the move engine had to make before it could be
 planned. Most important first. Each has the choices, a recommended answer and
@@ -17,18 +19,18 @@ B2 and so on, so they never clash with 2b's Q1–Q19.
 | # | Question | Status |
 | --- | --- | --- |
 | B1 | Copy, check, then delete; never a plain rename | Open (recommend: copy, as the brief says) |
-| Q11 | The user may leave the screen while files move | Open (recommend: yes) |
+| Q11 | The user may leave the screen while files move | Open (recommend: yes; B3's answer assumes it) |
 | B2 | Stop during Bin Files finishes the current file; no Pause | Open (recommend: Stop after this file) |
-| B3 | A crashed run resumes on its own when the project opens | Open (recommend: yes) |
+| B3 | A crashed run resumes on its own when the project opens | **Approved Nov 4** (as recommended) |
 | B4 | A copy that doesn't match its original stops the run | Open (recommend: retry once, then stop) |
-| B5 | Folder check before and after; extra files block until added or ignored | Open (recommend: as described) |
+| B5 | Folder check before and after; extra files block until added or ignored | **Approved Nov 4** (as recommended) |
 | B6 | Storage full: check before each file, stop cleanly | Open (recommend: as described) |
 | B7 | A confirm sheet before Bin Files | Open (recommend: yes) |
 | B8 | What the report lists, and where it stays | Open (recommend: as described) |
 | B9 | Bin Files when nothing needs to move | Open (recommend: off; in-place items just count as binned) |
-| B10 | Re-sort includes binned items (spec) or leaves them out (2b Task 9) | Open (recommend: include them, as the spec says) |
+| B10 | Re-sort includes binned items (spec) or leaves them out (2b Task 9) | **Approved Nov 4**: include them, as the spec says |
 | Q2 | The removed-file record | Approved Oct 31 in principle; details open (recommend: as described) |
-| P8 | Skip folders that hold a project database; items in two projects | Open (recommend: skip, and leave shared items out of Bin Files) |
+| P8 | Media another project already holds | **Decided Nov 4** (owner's own design): notice with Cancel / Copy media files; copies go to `<project>/Copied from <other>/` |
 | B11 | MediaStore after a move, and what Gallery and both pickers show | Open (recommend: scan both paths; keep the file's date) |
 | B12 | Source folders are never removed; only category folders the app made | Open (recommend: yes) |
 
@@ -106,6 +108,8 @@ Stop on the Analyze screen stay off while files move, as the spec says.
 
 ## B3. Resuming after a crash, force-stop or reboot
 
+**Status: approved Nov 4, 2026** (recommended answer (a) accepted).
+
 The plan and each step's state are in `move_run` / `move_step`, so a run
 the process didn't finish is found the next time the project opens.
 
@@ -142,6 +146,8 @@ different: that item becomes Missing, the run carries on, and the report
 lists it.
 
 ## B5. The folder check: before and after, and what blocks
+
+**Status: approved Nov 4, 2026** (block, with Add to project and Leave them).
 
 Spec step 3: after the moves, the files across the category folders must
 match the binned items, and on any mismatch stop and show which are missing
@@ -237,6 +243,8 @@ shown after a restart. Steps are kept as history (B12 needs them).
 
 ## B10. Does Re-sort reach binned items?
 
+**Status: approved Nov 4, 2026: (a), include them**, as the spec says. Plan 3 changes `SortDao.prepareResort` (and 2b Task 9's note).
+
 The spec: "Binned files whose category or name changed move at the next Bin
 Files, and the status line shows how many are waiting." So a Re-sort may
 change binned items. 2b Task 9 left Binned items out of Re-sort ("Failed,
@@ -272,25 +280,51 @@ remembered so the folder check skips it. The details:
 
 **Recommend as described.**
 
-## P8. Projects taken off the list, and items in two projects *(2b P8 revisit)*
+## P8. Media another project already holds *(2b P8 revisit)*
+
+**Status: decided Nov 4, 2026, with the owner's own design** (it replaces the
+recommendation below, kept for the record).
 
 Today registration skips only the folders of projects on the Current projects
-list. A project taken off the list (×) keeps its folder, database and binned
-files, so another project could add those binned files. Reopening the first
-project then leaves the same file in two projects.
+list, and refuses a file a listed project holds by hash or path ("in another
+project (<name>)"). A project taken off the list (×) keeps its folder,
+database and binned files, so another project could add those files and
+leave one file in two projects.
 
-- **Skip project folders by content, not by list:** Add a folder skips every
-  folder that holds `.binning/project.db`, listed or not; a picked file inside
-  such a folder is refused with "in another project's folder (<name from its
-  database>)".
-- **Items in two projects anyway** (both added a file from DCIM/Camera while one
-  was off the list): before planning, Bin Files looks up each item's hash and
-  path in every listed project. A shared item is left out of the plan and the
-  report lists it as "Also in <project>"; remove it from one of the two. Projects
-  off the list can't be checked, but no file is lost either way: the project
-  whose file moved away later sees it as Missing.
+**Decided:**
 
-**Recommend both.**
+- **Which files:** any file another project holds: a file inside another
+  project's folder, listed or not (a folder holding `.binning/project.db`), and
+  a file elsewhere (say DCIM/Camera) that a listed project holds by hash or
+  path.
+- **Both add flows** (Add a folder and Pick photos and videos) show **one
+  notice** naming the other project or projects and how many files, with
+  **Cancel** and **Copy media files** (state 7).
+  - Cancel adds nothing of the files another project holds; the rest of the
+    batch is still added.
+  - Copy media files copies each of those files into
+    `<project>/Copied from <other project>/`, with the copy's progress in the
+    notice. Each copy is checked (size and SHA-256) like a Bin Files copy. The
+    other project's file is never moved, renamed or deleted.
+- Once copied, the copy is an ordinary item of this project (its
+  `originalPath` is the copy). It stays in `Copied from <other>/` until Bin
+  Files moves it into its category folder like any other file.
+- A `Copied from <other>/` folder is one the app made, so it is removed once
+  Bin Files empties it, if it is truly empty (B12).
+
+**Follow-on rulings** (cheap to change, in the ledger):
+
+- A file in two projects can still happen when one of them was off the list
+  while the other added the same file from outside both folders (its database
+  can't be found from the file). At Bin Files, an item whose path another
+  listed project also holds is **copied** into its category folder instead of
+  moved, and its original is left where it is, as the owner asked for shared
+  files. The report lists it as "Copied, also in <project>".
+- The duplicate check inside this project is unchanged: a copy has the same
+  hash as the other project's file, but no file of this project.
+
+*Recommended before the decision:* skip every project folder found on disk,
+and leave items shared with another listed project out of Bin Files.
 
 ## B11. MediaStore after a move, and what Gallery and the pickers show
 
@@ -301,7 +335,7 @@ the FUSE filesystem already update MediaStore on Android 11 and later; the
 scan makes sure. The copy keeps the original's last-modified time.
 
 What the owner will see after a file moves out of a folder like DCIM/Camera
-(to confirm on the phone; Task 15 checks each):
+(to confirm on the phone; the plan's phone end-to-end task checks each):
 
 - **Samsung Gallery, Pictures tab:** the photo stays at the same place in the
   timeline: its date taken comes from EXIF or the video's metadata, and
@@ -338,8 +372,9 @@ in the app depends on the rest; it is what the owner should expect.
 
 Spec: "A category folder left empty is removed only if it is truly empty."
 
-- Only a folder the app made: one that a finished step put a file in (from
-  `move_step`), directly inside the project folder.
+- Only a folder the app made, directly inside the project folder: one that a
+  finished step put a file in (from `move_step`), or a `Copied from <other>/`
+  folder (P8).
 - Removed with a plain directory delete, which fails if anything is inside,
   including hidden files. A folder that isn't empty stays.
 - Source folders (DCIM/Camera, Download, a user's own folder inside the
