@@ -61,6 +61,49 @@ class MoveJobTest {
             moves.addStep(2, "/storage/emulated/0/DCIM/b.jpg", "$p/Beach/B.jpg", 1)
     }
 
+    /** The UI opens a report when this changes: one count per finished run, even an instant one. */
+    @Test fun moveEnded_countsFinishedRuns() = runTest {
+        twoFiles()
+        val controller = controller()
+        assertEquals(0, controller.state.value.moveEnded)
+        controller.binFiles(project)
+        advanceUntilIdle()
+        assertEquals(1, controller.state.value.moveEnded)
+        controller.binFiles(project)
+        advanceUntilIdle()
+        assertEquals(2, controller.state.value.moveEnded)
+    }
+
+    /** State 6: a resumed run says how many files had moved before the app closed. */
+    @Test fun resumeMove_saysWhereItPickedUp() = runTest {
+        fs.put("/storage/emulated/0/DCIM/b.jpg", "B")
+        moves.addStep(1, "/storage/emulated/0/DCIM/a.jpg", "$p/Beach/A.jpg", 1, com.agentic.binning.move.StepState.Done)
+        moves.addStep(2, "/storage/emulated/0/DCIM/b.jpg", "$p/Beach/B.jpg", 1)
+        val controller = controller()
+
+        // Paused, so the run holds still: B3 brings a paused run back paused.
+        controller.resumeMove(project, runId = 1, paused = true)
+        advanceUntilIdle()
+        assertEquals(1, controller.state.value.moveResumedFrom)
+
+        controller.resume()
+        advanceUntilIdle()
+        assertEquals(PipelinePhase.Idle, controller.state.value.phase)
+        assertNull(controller.state.value.moveResumedFrom)
+    }
+
+    @Test fun binFiles_isNotAResume() = runTest {
+        twoFiles()
+        val controller = controller()
+        controller.binFiles(project)
+        controller.pause()
+        advanceUntilIdle()
+        assertEquals(PipelinePhase.MovingPaused, controller.state.value.phase)
+        assertNull(controller.state.value.moveResumedFrom)
+        controller.stop()
+        advanceUntilIdle()
+    }
+
     @Test fun binFiles_runsUnderTheBinningJob() = runTest {
         twoFiles()
         val controller = controller()

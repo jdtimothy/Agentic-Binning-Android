@@ -11,7 +11,7 @@ import org.junit.Test
 
 /** A [BinStore] over [FakeMoveStore]: items with categories and names, runs, removed files. */
 class FakeBinStore(val ms: FakeMoveStore = FakeMoveStore()) : BinStore, MoveStore by ms {
-    data class Meta(val categoryId: Long?, val name: String?, val original: String)
+    data class Meta(val categoryId: Long?, val name: String?, val original: String, val failure: String? = null)
 
     val meta = HashMap<Long, Meta>()
     val categories = LinkedHashMap<Long, String>()
@@ -22,9 +22,9 @@ class FakeBinStore(val ms: FakeMoveStore = FakeMoveStore()) : BinStore, MoveStor
     /** Folders earlier runs put files in (their steps are history, not in [ms]). */
     val madeFolders = LinkedHashSet<String>()
 
-    fun item(id: Long, path: String, category: Long?, name: String? = "Item $id", status: ItemStatus = ItemStatus.Sorted) {
+    fun item(id: Long, path: String, category: Long?, name: String? = "Item $id", status: ItemStatus = ItemStatus.Sorted, failure: String? = null) {
         ms.items[id] = FakeMoveStore.Item(path, status, "h$id")
-        meta[id] = Meta(category, name, path.substringAfterLast('/'))
+        meta[id] = Meta(category, name, path.substringAfterLast('/'), failure)
     }
 
     fun status(id: Long) = ms.items.getValue(id).status
@@ -33,7 +33,7 @@ class FakeBinStore(val ms: FakeMoveStore = FakeMoveStore()) : BinStore, MoveStor
     override suspend fun binItems() = ms.items.keys.sorted().map { id ->
         val i = ms.items.getValue(id)
         val m = meta.getValue(id)
-        BinItem(id, i.status, m.categoryId, m.name, i.path, m.original)
+        BinItem(id, i.status, m.categoryId, m.name, i.path, m.original, m.failure)
     }
 
     override suspend fun categoryNames(): Map<Long, String> = categories
@@ -43,7 +43,7 @@ class FakeBinStore(val ms: FakeMoveStore = FakeMoveStore()) : BinStore, MoveStor
 
     override suspend fun writeRun(kind: MoveKind, startedAt: Long, steps: List<PlannedStep>, bytes: Map<Long, Long>, inPlace: List<Long>, missing: List<Long>): Long {
         val runId = runs.size + 1L
-        runs += MoveRunEntity(id = runId, kind = kind.name, startedAt = startedAt, finishedAt = null, state = RunState.Running.name)
+        runs += MoveRunEntity(id = runId, kind = kind.name, startedAt = startedAt, finishedAt = null, state = RunState.Running.name, inPlace = inPlace.size)
         ms.steps.clear()
         steps.forEach { ms.addStep(it.itemId, it.source, it.dest, bytes[it.itemId] ?: 0, keepSource = it.keepSource) }
         markItems(inPlace, missing)
@@ -58,10 +58,19 @@ class FakeBinStore(val ms: FakeMoveStore = FakeMoveStore()) : BinStore, MoveStor
     override suspend fun openRun() = runs.lastOrNull { RunState.of(it.state).isOpen }
     override suspend fun run(id: Long) = runs.firstOrNull { it.id == id }
 
-    override suspend fun finishRun(runId: Long, state: RunState, finishedAt: Long, message: String?, removedFolders: List<String>) {
+    override suspend fun finishRun(runId: Long, state: RunState, finishedAt: Long, message: String?, removedFolders: List<String>, checkOk: Boolean?) {
         val i = runs.indexOfFirst { it.id == runId }
-        runs[i] = runs[i].copy(state = state.name, finishedAt = finishedAt, message = message, removedFolders = removedFolders.joinToString("\n").ifEmpty { null })
+        runs[i] = runs[i].copy(state = state.name, finishedAt = finishedAt, message = message, removedFolders = removedFolders.joinToString("\n").ifEmpty { null }, checkOk = checkOk)
     }
+
+    override suspend fun unreadRun() = runs.lastOrNull { it.finishedAt != null && !it.reportClosed }
+
+    override suspend fun closeReport(runId: Long) {
+        val i = runs.indexOfFirst { it.id == runId }
+        runs[i] = runs[i].copy(reportClosed = true)
+    }
+
+    override suspend fun leaveFiles(paths: List<String>, at: Long) { removed += paths }
 
     override suspend fun binnedFolders() =
         (madeFolders + ms.steps.filter { it.state == "Done" || it.state == "Verified" }.map { it.dest.substringBeforeLast('/') }).distinct()
@@ -101,7 +110,7 @@ class BinFilesJobTest {
         assertTrue(fs.log.none { it.startsWith("rmdir /storage/emulated/0/DCIM") })
         val report = job.report(run.id)!!
         assertEquals("2 files binned into 2 category folders", report.headline)
-        assertEquals(listOf(LeftOut(3, LeftOutReason.Failed)), report.leftOut)
+        assertEquals(listOf(3L to LeftOutReason.Failed), report.leftOut.map { it.itemId to it.reason })
         assertEquals(true, report.checkOk)
     }
 
@@ -243,6 +252,147 @@ class BinFilesJobTest {
         fs.before = { _, _ -> }
         assertEquals(MoveOutcome.Done, bin())
         assertEquals(ItemStatus.Binned, store.status(2))
+    }
+
+    /** B8: the report's numbers are in the database: a new job (the app restarted) reads the same ones. */
+    @Test fun report_survivesARestart() = runTest {
+        fs.put("$p/Beach/Item 1.jpg", "1")
+        store.item(1, "$p/Beach/Item 1.jpg", 1)
+        fs.put("/storage/emulated/0/DCIM/b.jpg", "B")
+        store.item(2, "/storage/emulated/0/DCIM/b.jpg", 1)
+        assertEquals(MoveOutcome.Done, bin())
+
+        val restarted = BinFilesJob(store, fs, MoveNotifier { _, _ -> }, p, clock = { 200L }).report(store.runs.single().id)!!
+
+        assertEquals(1, restarted.inPlace)
+        assertEquals(true, restarted.checkOk)
+    }
+
+    /** State 4 says "the moved files are all in place": a stopped run checks them too. */
+    @Test fun stoppedRun_runsTheFolderCheck() = runTest {
+        fs.put("/storage/emulated/0/DCIM/a.jpg", "A")
+        fs.put("/storage/emulated/0/DCIM/b.jpg", "B")
+        store.item(1, "/storage/emulated/0/DCIM/a.jpg", 1)
+        store.item(2, "/storage/emulated/0/DCIM/b.jpg", 1)
+        val control = MoveControl()
+        fs.before = { op, path -> if (op == "rename" && path.endsWith("a.jpg")) control.stop() }
+
+        assertEquals(MoveOutcome.Stopped, job.binFiles(control) {})
+
+        assertEquals(true, job.report(store.runs.single().id)!!.checkOk)
+    }
+
+    /** B8: shown until closed, including after a restart; a closed report never comes back. */
+    @Test fun unreadReport_isShownUntilClosed() = runTest {
+        fs.put("/storage/emulated/0/DCIM/a.jpg", "A")
+        store.item(1, "/storage/emulated/0/DCIM/a.jpg", 1)
+        assertNull(job.unreadReport())
+        bin()
+        val report = job.unreadReport()!!
+        assertEquals("1 file binned into 1 category folder", report.headline)
+
+        job.closeReport(report.runId)
+
+        assertNull(job.unreadReport())
+    }
+
+    @Test fun report_namesWhatItLeftOut() = runTest {
+        fs.put("/storage/emulated/0/DCIM/a.jpg", "A")
+        store.item(1, "/storage/emulated/0/DCIM/a.jpg", 1)
+        store.item(2, "/storage/emulated/0/DCIM/Camera/bad.mp4", null, null, ItemStatus.Failed, failure = "decode")
+        bin()
+        val left = job.report(store.runs.single().id)!!.leftOut.single()
+        assertEquals("bad.mp4", left.name)
+        assertEquals("/storage/emulated/0/DCIM/Camera/bad.mp4", left.path)
+        assertEquals("decode", left.failure)
+    }
+
+    @Test fun leave_recordsTheFilesSoTheCheckSkipsThem() = runTest {
+        fs.put("$p/Beach/IMG.jpg", "stray")
+        fs.put("/storage/emulated/0/DCIM/a.jpg", "A")
+        store.item(1, "/storage/emulated/0/DCIM/a.jpg", 1)
+        assertTrue(bin() is MoveOutcome.Blocked)
+
+        job.leave(listOf("$p/Beach/IMG.jpg"))
+
+        assertEquals(MoveOutcome.Done, bin())
+        assertEquals("stray", fs.content("$p/Beach/IMG.jpg"))
+    }
+
+    /** State 1: what would happen, with nothing written, moved or marked. */
+    @Test fun preview_changesNothing() = runTest {
+        fs.put("/storage/emulated/0/DCIM/Camera/a.jpg", "A")
+        store.item(1, "/storage/emulated/0/DCIM/Camera/a.jpg", 1, "Morning")
+        store.item(2, "/storage/emulated/0/DCIM/Camera/gone.jpg", 1)
+        val logBefore = fs.log.toList()
+
+        val preview = job.preview()
+
+        assertEquals(1, preview.files)
+        assertTrue(store.runs.isEmpty())
+        assertEquals(logBefore, fs.log)
+        assertEquals(ItemStatus.Sorted, store.status(1))
+        assertEquals("a gone file is reported, not marked, until a run does it", ItemStatus.Sorted, store.status(2))
+    }
+
+    @Test fun preview_countsFilesFoldersAndSourcesLargestFirst() = runTest {
+        fs.put("/storage/emulated/0/Download/d.jpg", "D")
+        fs.put("/storage/emulated/0/DCIM/Camera/a.jpg", "A")
+        fs.put("/storage/emulated/0/DCIM/Camera/b.jpg", "B")
+        store.item(1, "/storage/emulated/0/Download/d.jpg", 1)
+        store.item(2, "/storage/emulated/0/DCIM/Camera/a.jpg", 2)
+        store.item(3, "/storage/emulated/0/DCIM/Camera/b.jpg", 2)
+
+        val preview = job.preview()
+
+        assertEquals(3, preview.files)
+        assertEquals(2, preview.folders)
+        assertEquals(listOf(BinSource("Camera", "DCIM/Camera", 2), BinSource("Download", "Download", 1)), preview.sources)
+        assertEquals(0, preview.otherStorage)
+    }
+
+    /** B1, B6: files on another volume are copied, and the sheet says how much room that takes. */
+    @Test fun preview_countsCopiesAndTheSpaceTheyNeed() = runTest {
+        fs.put("/sd/DCIM/a.mp4", "x".repeat(100))
+        store.item(1, "/sd/DCIM/a.mp4", 1)
+        fs.put("/storage/emulated/0/DCIM/s.jpg", "S".repeat(10))
+        store.item(2, "/storage/emulated/0/DCIM/s.jpg", 1)
+        store.shared = setOf("/storage/emulated/0/DCIM/s.jpg")
+        fs.free = 5000
+
+        val preview = job.preview()
+
+        assertEquals(2, preview.files)
+        assertEquals(1, preview.otherStorage)
+        assertEquals(1, preview.shared)
+        assertEquals(110L, preview.copyBytes)
+        assertEquals(5000L, preview.freeBytes)
+        assertTrue(preview.sources.isEmpty())
+    }
+
+    @Test fun preview_countsWhatIsAlreadyInItsFolder() = runTest {
+        fs.put("$p/Beach/Item 1.jpg", "1")
+        store.item(1, "$p/Beach/Item 1.jpg", 1, status = ItemStatus.Binned)
+        fs.put("$p/Beach/Item 2.jpg", "2")
+        store.item(2, "$p/Beach/Item 2.jpg", 1)
+        fs.put("/storage/emulated/0/DCIM/c.jpg", "C")
+        store.item(3, "/storage/emulated/0/DCIM/c.jpg", 1)
+        assertEquals(2, job.preview().inPlace)
+    }
+
+    @Test fun preview_listsWhatStaysWithNames() = runTest {
+        fs.put("/storage/emulated/0/DCIM/a.jpg", "A")
+        store.item(1, "/storage/emulated/0/DCIM/a.jpg", 1)
+        store.item(2, "/storage/emulated/0/DCIM/bad.mp4", null, null, ItemStatus.Failed, failure = "decode")
+        store.item(3, "/storage/emulated/0/DCIM/lost.jpg", 1, status = ItemStatus.Missing)
+        store.item(4, "/storage/emulated/0/DCIM/gone.jpg", 1)
+
+        val left = job.preview().leftOut
+
+        assertEquals(
+            listOf("bad.mp4" to LeftOutReason.Failed, "lost.jpg" to LeftOutReason.Missing, "gone.jpg" to LeftOutReason.Missing),
+            left.map { it.name to it.reason },
+        )
     }
 
     @Test fun goneRemovedRows_areDropped() = runTest {

@@ -36,7 +36,7 @@ class RoomBinStore(
         inPlace: List<Long>,
         missing: List<Long>,
     ): Long = dao.writeRun(
-        MoveRunEntity(kind = kind.name, startedAt = startedAt, finishedAt = null, state = RunState.Running.name),
+        MoveRunEntity(kind = kind.name, startedAt = startedAt, finishedAt = null, state = RunState.Running.name, inPlace = inPlace.size),
         steps.map {
             MoveStepEntity(
                 runId = 0,
@@ -59,8 +59,14 @@ class RoomBinStore(
 
     override suspend fun run(id: Long): MoveRunEntity? = dao.run(id)
 
-    override suspend fun finishRun(runId: Long, state: RunState, finishedAt: Long, message: String?, removedFolders: List<String>) =
-        dao.finishRun(runId, state.name, finishedAt, message, removedFolders.joinToString("\n").ifEmpty { null })
+    override suspend fun finishRun(runId: Long, state: RunState, finishedAt: Long, message: String?, removedFolders: List<String>, checkOk: Boolean?) =
+        dao.finishRun(runId, state.name, finishedAt, message, removedFolders.joinToString("\n").ifEmpty { null }, checkOk)
+
+    override suspend fun unreadRun(): MoveRunEntity? = dao.unreadRun()
+
+    override suspend fun closeReport(runId: Long) = dao.closeReport(runId)
+
+    override suspend fun leaveFiles(paths: List<String>, at: Long) = dao.addRemoved(paths, "left", at)
 
     override suspend fun binnedFolders(): List<String> = dao.binnedFolders()
 

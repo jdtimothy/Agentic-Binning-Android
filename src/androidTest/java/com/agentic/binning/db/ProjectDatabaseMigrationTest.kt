@@ -171,7 +171,20 @@ class ProjectDatabaseMigrationTest {
         db.close()
     }
 
-    /** Plan 3 Task 4: the real open path opens a v3 file at v4 and the move DAO works on it. Not yet run on the phone. */
+    /** Plan 3 Task 16: a run from v4 keeps its row, and its report reads as unread with no check. */
+    @Test fun migrate4To5_keepsRunsAndAddsReportDefaults() {
+        helper.createDatabase(4).apply {
+            execSQL("INSERT INTO move_run (kind, startedAt, finishedAt, state, message, removedFolders) VALUES ('Bin', 1, 2, 'Done', NULL, NULL)")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(5)
+
+        assertEquals(1, db.long("SELECT COUNT(*) FROM move_run WHERE state = 'Done' AND inPlace = 0 AND reportClosed = 0 AND checkOk IS NULL"))
+        db.close()
+    }
+
+    /** Plan 3 Task 4: the real open path opens a v3 file at v5 and the move DAO works on it. */
     @Test fun openProjectDatabase_migratesAV3File() = runTest {
         helper.createDatabase(3).apply {
             fillV3()

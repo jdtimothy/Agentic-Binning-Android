@@ -174,11 +174,14 @@ class ProjectMediaViewModelTest {
     private val resortRequests = mutableListOf<ResortRequest>()
     private var resortResult: ResortStart = ResortStart.Started
 
+    private var binRequests = 0
+
     private fun TestScope.vm() = ProjectMediaViewModel(
         source = sources,
         phase = phase,
         move = move,
         onCategorizeNow = { categorizeCalls++ },
+        onBinFiles = { binRequests++ },
         resort = object : ResortActions {
             override suspend fun settingsChoice() = this@ProjectMediaViewModelTest.settingsChoice
             override suspend fun unavailable(choice: SortingModelChoice) = this@ProjectMediaViewModelTest.unavailable[choice]
@@ -420,6 +423,25 @@ class ProjectMediaViewModelTest {
         assertEquals(setOf(5L), vm.state.value.selection)
     }
 
+    /** A Bin Files sheet's row opens the item's own sheet, even when the filters hide its tile. */
+    @Test
+    fun onOpenItem_opensAnItemTheGridDoesNotShow() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onKind(ItemKind.Video)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.tiles.none { it.id == 4L || it.id == 1L })
+
+        vm.onOpenItem(4)
+        advanceUntilIdle()
+        assertTrue("a failed item opens the failed sheet", vm.state.value.failed != null)
+
+        vm.onCloseDetail()
+        vm.onOpenItem(1)
+        advanceUntilIdle()
+        assertTrue("a sorted item opens its detail sheet", vm.state.value.sheet != null)
+    }
+
     @Test
     fun dock_followsCountsAndTheRunningJob() = runTest {
         val messages = mutableListOf<String>()
@@ -452,9 +474,12 @@ class ProjectMediaViewModelTest {
         rows.value = rows.value.map { if (it.status == ItemStatus.Analyzed) it.copy(status = ItemStatus.Sorted, categoryId = 1) else it }
         advanceUntilIdle()
         assertTrue(vm.state.value.status.binFilesEnabled)
+        assertEquals("a Bin Files that is off asks nothing", 0, binRequests)
+        val toasts = messages.size
         vm.onBinFiles()
         advanceUntilIdle()
-        assertEquals(BIN_FILES_LATER, messages.last())
+        assertEquals(1, binRequests)
+        assertEquals("no toast when it is on", toasts, messages.size)
     }
 
     @Test

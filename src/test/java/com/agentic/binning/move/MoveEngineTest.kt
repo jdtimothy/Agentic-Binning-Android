@@ -4,6 +4,7 @@ import com.agentic.binning.db.ItemStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
@@ -405,5 +406,54 @@ class MoveEngineTest {
         control.resume()
         assertEquals(MoveOutcome.Done, result.await())
         assertEquals("Done", store.step(id).state)
+    }
+
+    /** State 2: the card names the file, where it comes from and goes, and the files just finished. */
+    @Test fun progress_namesFoldersAndRecentFiles() = runTest {
+        for (n in 1..3) {
+            fs.put("/storage/emulated/0/DCIM/Camera/s$n.jpg", "x")
+            store.addStep(n.toLong(), "/storage/emulated/0/DCIM/Camera/s$n.jpg", "$p/Beach/F$n.jpg", 1)
+        }
+        val seen = ArrayList<MoveProgress>()
+        engine.run(1, MoveKind.Bin, MoveControl()) { seen += it }
+
+        val moving = seen.first { it.current == "F3.jpg" }
+        assertEquals("Camera", moving.from)
+        assertEquals("Beach", moving.to)
+        assertEquals(listOf(MovedFile("F1.jpg", "Beach"), MovedFile("F2.jpg", "Beach")), moving.recent)
+    }
+
+    @Test fun progress_recentKeepsOnlyTheLastTwoAndOnlyMovedFiles() = runTest {
+        for (n in 1..3) {
+            fs.put("/storage/emulated/0/DCIM/s$n.jpg", "x")
+            store.addStep(n.toLong(), "/storage/emulated/0/DCIM/s$n.jpg", "$p/Beach/F$n.jpg", 1)
+        }
+        store.addStep(4, "/storage/emulated/0/DCIM/gone.jpg", "$p/Beach/F4.jpg", 1)
+        val seen = ArrayList<MoveProgress>()
+        engine.run(1, MoveKind.Bin, MoveControl()) { seen += it }
+
+        assertEquals(listOf("F2.jpg", "F3.jpg"), seen.last().recent.map { it.name })
+    }
+
+    /** A resumed run's card shows the files already moved before the crash. */
+    @Test fun progress_recentIncludesWhatMovedBeforeAResume() = runTest {
+        store.addStep(1, "/storage/emulated/0/DCIM/s1.jpg", "$p/Beach/F1.jpg", 1, StepState.Done)
+        fs.put("/storage/emulated/0/DCIM/s2.jpg", "x")
+        store.addStep(2, "/storage/emulated/0/DCIM/s2.jpg", "$p/Beach/F2.jpg", 1)
+        val seen = ArrayList<MoveProgress>()
+        engine.run(1, MoveKind.Bin, MoveControl()) { seen += it }
+        assertEquals(listOf("F1.jpg"), seen.first().recent.map { it.name })
+    }
+
+    /** State 2, paused: "Next: <the file>". */
+    @Test fun progress_pausedNamesTheNextFile() = runTest {
+        fs.put("/storage/emulated/0/DCIM/s1.jpg", "x")
+        store.addStep(1, "/storage/emulated/0/DCIM/s1.jpg", "$p/Beach/F1.jpg", 1)
+        val control = MoveControl(startPaused = true)
+        val paused = CompletableDeferred<MoveProgress>()
+        val job = launch { engine.run(1, MoveKind.Bin, control) { if (it.paused) paused.complete(it) } }
+        assertEquals("F1.jpg", paused.await().next)
+        control.resume()
+        job.join()
     }
 }

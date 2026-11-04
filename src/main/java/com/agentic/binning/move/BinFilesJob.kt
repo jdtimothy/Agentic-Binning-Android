@@ -24,7 +24,14 @@ interface BinStore : MoveStore {
     /** A run the app didn't finish (Running or Paused), to resume (B3). */
     suspend fun openRun(): MoveRunEntity?
     suspend fun run(id: Long): MoveRunEntity?
-    suspend fun finishRun(runId: Long, state: RunState, finishedAt: Long, message: String?, removedFolders: List<String>)
+    suspend fun finishRun(runId: Long, state: RunState, finishedAt: Long, message: String?, removedFolders: List<String>, checkOk: Boolean?)
+
+    /** The newest finished run whose report the user hasn't closed (B8). */
+    suspend fun unreadRun(): MoveRunEntity?
+    suspend fun closeReport(runId: Long)
+
+    /** Files in category folders the user chose to leave (B5): the folder check skips them from now on. */
+    suspend fun leaveFiles(paths: List<String>, at: Long)
 
     /** Folders a finished step put a file in: the only ones (with `Copied from` folders) ever removed (B12). */
     suspend fun binnedFolders(): List<String>
@@ -48,10 +55,33 @@ class BinFilesJob(
     private val root = projectDir.trimEnd('/')
     private val engine = MoveEngine(store, files, notifier, root)
 
-    /** What a report needs that the database doesn't keep; lost on restart (B8 is open). */
-    private data class Note(val inPlace: Int = 0, val checkOk: Boolean? = null)
-
-    private val notes = HashMap<Long, Note>()
+    /**
+     * What a Bin Files would do now, for the confirm sheet (B7). Writes and moves nothing; the run
+     * itself checks the folders and plans again.
+     */
+    suspend fun preview(): BinPreview {
+        val categories = store.categoryNames()
+        val items = store.binItems()
+        val onDisk = FolderCheck.categoryFiles(root, categories.values, files::listFiles)
+        val shared = store.sharedPaths(movable(items).map { it.currentPath })
+        val plan = BinPlanner.plan(root, items, categories, onDisk.toSet(), files::exists, shared)
+        val (kept, moved) = plan.steps.partition { it.keepSource }
+        val (renames, otherStorage) = moved.partition { files.sameVolume(it.source, root) }
+        val eligible = items.count { it.categoryId in categories && it in movable(items) }
+        return BinPreview(
+            files = plan.steps.size,
+            folders = plan.steps.map { it.dest.substringBeforeLast('/').lowercase() }.distinct().size,
+            sources = renames.groupBy { it.source.substringBeforeLast('/') }
+                .map { (folder, steps) -> BinSource(folder.substringAfterLast('/'), folder.removePrefix(SHARED_STORAGE), steps.size) }
+                .sortedWith(compareBy({ -it.count }, { it.folder })),
+            otherStorage = otherStorage.size,
+            shared = kept.size,
+            copyBytes = (otherStorage + kept).sumOf { files.size(it.source) },
+            freeBytes = files.usableSpace(root),
+            inPlace = eligible - plan.steps.size - plan.becameMissing.size,
+            leftOut = leftOutOf(items, plan.becameMissing.toSet()),
+        )
+    }
 
     suspend fun binFiles(control: MoveControl, onProgress: (MoveProgress) -> Unit): MoveOutcome {
         store.openRun()?.let { return resume(it.id, control, onProgress) }
@@ -74,15 +104,13 @@ class BinFilesJob(
         if (FolderCheck.blocks(before)) return MoveOutcome.Blocked(before)
 
         val onDisk = FolderCheck.categoryFiles(root, categories.values, files::listFiles)
-        val movable = items.filter { it.status == ItemStatus.Sorted || it.status == ItemStatus.Binned }
+        val movable = movable(items)
         val shared = if (movable.isEmpty()) emptySet() else store.sharedPaths(movable.map { it.currentPath })
         val plan = BinPlanner.plan(root, items, categories, onDisk.toSet(), files::exists, shared)
         val bytes = plan.steps.associate { it.itemId to files.size(it.source) }
         val runId = store.writeRun(MoveKind.Bin, clock(), plan.steps, bytes, plan.inPlace, plan.becameMissing)
-        notes[runId] = Note(inPlace = plan.inPlace.size)
         if (plan.steps.isEmpty()) {
-            notes[runId] = Note(inPlace = plan.inPlace.size, checkOk = true)
-            store.finishRun(runId, RunState.Done, clock(), null, emptyList())
+            store.finishRun(runId, RunState.Done, clock(), null, emptyList(), checkOk = true)
             return MoveOutcome.NothingToMove(plan.inPlace.size)
         }
         return execute(runId, MoveKind.Bin, control, onProgress)
@@ -97,22 +125,33 @@ class BinFilesJob(
     /** The report for [runId]: the run and its steps from the database, the left-out items as they are now. */
     suspend fun report(runId: Long): MoveReport? {
         val run = store.run(runId) ?: return null
-        val leftOut = store.binItems().mapNotNull {
-            when (it.status) {
-                ItemStatus.Failed -> LeftOut(it.id, LeftOutReason.Failed)
-                ItemStatus.Missing -> LeftOut(it.id, LeftOutReason.Missing)
-                else -> null
-            }
+        return MoveReport.of(run, store.steps(runId), leftOutOf(store.binItems(), emptySet()))
+    }
+
+    /** The newest run's report while the user hasn't closed it (B8). */
+    suspend fun unreadReport(): MoveReport? = store.unreadRun()?.let { report(it.id) }
+
+    suspend fun closeReport(runId: Long) = store.closeReport(runId)
+
+    /** Leave them (B5): the folder check skips these files from now on. */
+    suspend fun leave(paths: List<String>) = store.leaveFiles(paths, clock())
+
+    private fun movable(items: List<BinItem>) = items.filter { it.status == ItemStatus.Sorted || it.status == ItemStatus.Binned }
+
+    private fun leftOutOf(items: List<BinItem>, goneNow: Set<Long>): List<LeftOut> = items.mapNotNull {
+        val reason = when {
+            it.status == ItemStatus.Failed -> LeftOutReason.Failed
+            it.status == ItemStatus.Missing || it.id in goneNow -> LeftOutReason.Missing
+            else -> return@mapNotNull null
         }
-        val note = notes[runId] ?: Note()
-        return MoveReport.of(run, store.steps(runId), note.inPlace, leftOut, note.checkOk)
+        LeftOut(it.id, reason, it.currentPath.substringAfterLast('/'), it.currentPath, it.failureReason)
     }
 
     private suspend fun execute(runId: Long, kind: MoveKind, control: MoveControl, onProgress: (MoveProgress) -> Unit): MoveOutcome {
         val outcome = engine.run(runId, kind, control, onProgress)
         val removedFolders = removeEmptyFolders(runId)
         var checkOk: Boolean? = null
-        if (outcome == MoveOutcome.Done) {
+        if (outcome !is MoveOutcome.Failed) {
             val categories = store.categoryNames()
             val items = store.binItems()
             val after = check(categories, items, store.removedPaths())
@@ -120,13 +159,12 @@ class BinFilesJob(
             if (missing.isNotEmpty()) store.markItems(emptyList(), missing)
             checkOk = after.ok
         }
-        notes[runId] = (notes[runId] ?: Note()).copy(checkOk = checkOk)
         val state = when (outcome) {
             MoveOutcome.Done -> RunState.Done
             is MoveOutcome.Failed -> RunState.Failed
             else -> RunState.Stopped
         }
-        store.finishRun(runId, state, clock(), messageOf(outcome), removedFolders)
+        store.finishRun(runId, state, clock(), messageOf(outcome), removedFolders, checkOk)
         return outcome
     }
 
@@ -172,5 +210,8 @@ class BinFilesJob(
     companion object {
         /** The start of a folder P8's copies go into: `Copied from <other project>`. */
         const val COPIED_FROM = "Copied from "
+
+        /** Shared storage's root: paths are shown relative to it. */
+        private const val SHARED_STORAGE = "/storage/emulated/0/"
     }
 }

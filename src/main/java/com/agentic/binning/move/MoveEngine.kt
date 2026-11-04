@@ -65,6 +65,7 @@ class MoveEngine(
 
     private sealed interface StepResult {
         data object Next : StepResult
+        data class Moved(val dest: String) : StepResult
         data class Stop(val outcome: MoveOutcome) : StepResult
     }
 
@@ -72,15 +73,24 @@ class MoveEngine(
         val steps = store.steps(runId)
         val total = steps.size
         var done = steps.count { StepState.of(it.state).isFinal }
-        fun report(current: String?, phase: MovePhase?, paused: Boolean = false) =
-            onProgress(MoveProgress(kind, done, total, current, phase, paused))
+        val recent = ArrayDeque(steps.filter { StepState.of(it.state) == StepState.Done }.takeLast(RECENT).map { movedFile(it.dest) })
+        var active: MoveStepEntity? = null
+        fun report(current: String?, phase: MovePhase?, paused: Boolean = false, next: String? = null) = onProgress(
+            MoveProgress(
+                kind, done, total, current, phase, paused,
+                from = active?.takeIf { current != null }?.let { folder(it.source) },
+                to = active?.takeIf { current != null }?.let { folder(it.dest) },
+                next = next,
+                recent = recent.toList(),
+            ),
+        )
 
         for (step in steps) {
             if (StepState.of(step.state).isFinal) continue
             // Between files: Stop, Pause, cancellation and the space floor.
             if (control.request.value == MoveControl.Request.Pause) {
                 store.setRunState(runId, RunState.Paused.name, null)
-                report(null, null, paused = true)
+                report(null, null, paused = true, next = name(step.dest))
                 val next = control.request.first { it != MoveControl.Request.Pause }
                 if (next == MoveControl.Request.Stop) return MoveOutcome.Stopped
                 store.setRunState(runId, RunState.Running.name, null)
@@ -90,12 +100,19 @@ class MoveEngine(
             val free = files.usableSpace(root)
             if (free < MIN_FREE_BYTES) return MoveOutcome.StorageFull(MIN_FREE_BYTES - free)
 
+            active = step
             val result = withContext(NonCancellable) {
                 runStep(step) { current, phase -> report(current, phase) }
             }
             when (result) {
                 StepResult.Next -> {
                     done++
+                    report(null, null)
+                }
+                is StepResult.Moved -> {
+                    done++
+                    recent.addLast(movedFile(result.dest))
+                    if (recent.size > RECENT) recent.removeFirst()
                     report(null, null)
                 }
                 is StepResult.Stop -> return result.outcome
@@ -126,7 +143,7 @@ class MoveEngine(
             if (resumed && files.exists(step.dest) && files.size(step.dest) == step.bytes) {
                 store.recordMoved(step.id, step.itemId, step.dest, files.sha256(step.dest), StepState.Done.name)
                 notifier.moved(step.source, step.dest)
-                return StepResult.Next
+                return StepResult.Moved(step.dest)
             }
             store.recordMissing(step.id, step.itemId)
             return StepResult.Next
@@ -169,7 +186,7 @@ class MoveEngine(
         }
         store.recordMoved(step.id, step.itemId, step.dest, files.sha256(step.dest), StepState.Done.name)
         notifier.moved(step.source, step.dest)
-        return StepResult.Next
+        return StepResult.Moved(step.dest)
     }
 
     private suspend fun copy(start: MoveStepEntity, temp: String, report: (String, MovePhase) -> Unit): StepResult {
@@ -240,7 +257,7 @@ class MoveEngine(
         }
         store.setStepState(step.id, StepState.Done.name, null)
         notifier.moved(if (step.keepSource) null else step.source, step.dest)
-        return StepResult.Next
+        return StepResult.Moved(step.dest)
     }
 
     private suspend fun withDest(step: MoveStepEntity, dest: String): MoveStepEntity {
@@ -251,6 +268,10 @@ class MoveEngine(
     private fun tempFor(step: MoveStepEntity) = "$root/.binning/moving/${step.id}.tmp"
 
     private fun name(path: String) = path.substringAfterLast('/')
+
+    private fun folder(path: String) = name(path.substringBeforeLast('/'))
+
+    private fun movedFile(dest: String) = MovedFile(name(dest), folder(dest))
 
     companion object {
         /** Every run keeps this much free, so the database journal always has room (B6). */
@@ -266,5 +287,8 @@ class MoveEngine(
         const val COPY_TRIES = 2
 
         private const val RENAME_TRIES = 5
+
+        /** Finished files the progress card lists. */
+        private const val RECENT = 2
     }
 }

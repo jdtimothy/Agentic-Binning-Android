@@ -109,16 +109,21 @@ internal val GlassTokens.warnSoft: Color get() = if (isDark) Color(0x29FFB547) e
 @Composable
 fun ProjectMediaScreen(
     vm: ProjectMediaViewModel,
+    bin: BinFilesViewModel,
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onAddFolder: () -> Unit,
     onPickFiles: () -> Unit,
 ) {
     val state by vm.state.collectAsState()
+    val binState by bin.state.collectAsState()
     val context = LocalContext.current
     val hazeState = remember { HazeState() }
     LaunchedEffect(vm) {
         vm.messages.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+    }
+    LaunchedEffect(bin) {
+        bin.messages.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
     BackHandler { if (state.selection != null) vm.onExitSelect() else onBack() }
 
@@ -148,9 +153,15 @@ fun ProjectMediaScreen(
                             Grid(state, vm, hazeState, Modifier.weight(1f))
                         }
                     }
-                    val bottom = Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-                    if (state.selection != null) SelectionBar(state.selection.orEmpty().isNotEmpty(), vm, bottom) else Dock(state, vm, onBack, bottom)
+                    Column(
+                        Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        binState.card?.let { MoveCard(it, bin) }
+                        if (state.selection != null) SelectionBar(state.selection.orEmpty().isNotEmpty(), vm, Modifier) else Dock(state, vm, onBack, Modifier)
+                    }
                 }
+                BinSheetHost(binState.sheet, bin, vm::onOpenItem)
             }
             state.filtersSheet?.let { FiltersSheetView(it, vm) }
             state.sheet?.let { DetailSheetHost(it, vm) }

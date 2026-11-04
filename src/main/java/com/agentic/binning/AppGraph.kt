@@ -50,7 +50,13 @@ import com.agentic.binning.db.RoomBinStore
 import com.agentic.binning.move.BinFilesJob
 import com.agentic.binning.move.MediaStoreNotifier
 import com.agentic.binning.move.MoveNotifier
-import com.agentic.binning.move.MoveReport
+import com.agentic.binning.move.formatBytes
+import com.agentic.binning.ui.media.BinActions
+import com.agentic.binning.ui.media.UnknownFileFacts
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import com.agentic.binning.move.RealMoveFiles
 import com.agentic.binning.pipeline.AnalysisEngine
 import com.agentic.binning.pipeline.FileMover
@@ -354,11 +360,44 @@ class AppGraph(val context: Context) {
         return if (startAnalysis(ref, RunKind.BinFiles)) MoveStart.Started else MoveStart.Refused(MOVE_NOT_STARTED)
     }
 
-    /** The report of the open project's last finished move run, or null (B8's layout is open). */
-    suspend fun lastMoveReport(): MoveReport? = withContext(Dispatchers.IO) {
-        val open = _currentProject.value ?: return@withContext null
-        val run = open.db.moves().lastFinishedRun() ?: return@withContext null
-        binFilesJob(open).report(run.id)
+    /** Bin Files for [project], as the UI drives it (Plan 3 Task 16). */
+    fun binActions(project: OpenProject): BinActions = object : BinActions {
+        override val projectName = project.ref.name
+        override val projectPath = project.ref.path
+
+        private fun isOpen() = _currentProject.value === project
+
+        override suspend fun preview() = if (isOpen()) binFilesJob(project).preview() else null
+
+        override fun start() = binFiles(project.ref)
+
+        override fun pause() = pipeline.pause()
+
+        override fun resume() = pipeline.resume()
+
+        override fun stop() = stopAnalysis()
+
+        override suspend fun unreadReport() = if (isOpen()) binFilesJob(project).unreadReport() else null
+
+        override suspend fun closeReport(runId: Long) {
+            if (isOpen()) binFilesJob(project).closeReport(runId)
+        }
+
+        override suspend fun facts(path: String): UnknownFileFacts {
+            val file = File(path)
+            val added = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()).format(Instant.ofEpochMilli(file.lastModified()).atZone(ZoneId.systemDefault()))
+            return UnknownFileFacts(added, formatBytes(file.length()))
+        }
+
+        override suspend fun leave(paths: List<String>) {
+            if (isOpen()) binFilesJob(project).leave(paths)
+        }
+
+        override suspend fun add(paths: List<String>) {
+            if (!isOpen()) return
+            val candidates = paths.map(::File).filter { it.isFile }.mapNotNull { file -> MediaScanner.kindOf(file)?.let { Candidate(file, it) } }
+            register(project, candidates, paths.size - candidates.size, {}, ::startAnalysisAfterAdd)
+        }
     }
 
     /**

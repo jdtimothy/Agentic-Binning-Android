@@ -289,9 +289,6 @@ const val EDIT_BUSY = "Edit is available when analysis is stopped or done"
 /** A tap on an item that is still waiting to be analyzed. */
 const val DETAIL_AFTER_ANALYSIS = "Details open once this item is analyzed"
 
-/** Shown when Bin Files is on: binning arrives with Plan 3. */
-const val BIN_FILES_LATER = "Bin Files comes in a later version"
-
 /** While files move (Bin Files or a Save), every edit waits (2b state 6, Q11). */
 const val EDITS_WAIT = "Edits wait until the files have moved"
 
@@ -378,6 +375,8 @@ class ProjectMediaViewModel(
     source: Flow<MediaSource?>,
     phase: Flow<PipelinePhase?>,
     private val onCategorizeNow: () -> Unit,
+    /** Bin Files, when it is on: the confirm sheet (Plan 3). */
+    private val onBinFiles: () -> Unit = {},
     /** The move in progress (Plan 3), for the status line; null when no files move. */
     move: Flow<MoveProgress?> = flowOf(null),
     private val resort: ResortActions? = null,
@@ -866,8 +865,22 @@ class ProjectMediaViewModel(
     }
 
     fun onBinFiles() {
-        val s = state.value
-        _messages.tryEmit(s.binReason ?: BIN_FILES_LATER)
+        val reason = state.value.binReason
+        if (reason != null) _messages.tryEmit(reason) else onBinFiles.invoke()
+    }
+
+    /**
+     * A row of a Bin Files sheet: opens the item's sheet, whatever the filters show. The file may have
+     * moved or gone, so its picture comes from where it is now.
+     */
+    fun onOpenItem(id: Long) {
+        val src = current ?: return
+        scope.launch {
+            val d = withContext(io) { src.detail(id) } ?: return@launch
+            if (current === src) {
+                session.value = DetailSession(d, File(d.item.currentPath), d.item.kind == ItemKind.Video, DetailDraft.of(d))
+            }
+        }
     }
 
     private fun Set<Long>.toggle(id: Long) = if (id in this) this - id else this + id

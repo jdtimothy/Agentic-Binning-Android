@@ -119,6 +119,12 @@ data class MoveRunEntity(
     val message: String? = null,
     /** Empty folders the run removed, one per line, for the report (schema v4). */
     val removedFolders: String? = null,
+    /** Items the plan found already in place and only marked binned, for the report (schema v5). */
+    @ColumnInfo(defaultValue = "0") val inPlace: Int = 0,
+    /** The folder check after the run: null when it didn't run (schema v5). */
+    val checkOk: Boolean? = null,
+    /** The user closed this run's report; until then it shows again when they come back (B8, schema v5). */
+    @ColumnInfo(defaultValue = "0") val reportClosed: Boolean = false,
 )
 
 /** One file of a run (Plan 3). [state] is a `StepState` name. */

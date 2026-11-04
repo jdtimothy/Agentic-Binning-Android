@@ -43,6 +43,22 @@ class NotificationPacingTest {
         assertEquals("paused", posted.last())
     }
 
+    /** The progress card reads the same paced flow, so a filename stays up long enough to read. */
+    @Test fun paced_emitsTheLatestValueAtMostOncePerGap() = runTest {
+        val state = MutableStateFlow(0)
+        val seen = mutableListOf<Int>()
+        val job = launch { state.paced(gapMs = 250).collect { seen += it } }
+        runCurrent()
+        for (i in 1..50) {
+            state.value = i
+            delay(10)
+        }
+        advanceUntilIdle()
+        job.cancel()
+        assertTrue("500 ms of updates should show about 3, showed ${seen.size}", seen.size <= 4)
+        assertEquals(50, seen.last())
+    }
+
     @Test fun slowUpdates_areEachPostedAtOnce() = runTest {
         val state = MutableStateFlow(0)
         val posted = mutableListOf<Int>()

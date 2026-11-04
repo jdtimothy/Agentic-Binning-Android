@@ -8,10 +8,11 @@ import java.util.Locale
 data class SkippedFile(val itemId: Long, val name: String, val reason: String)
 
 /**
- * What a finished or stopped run did, for the report (B8; its layout is open, these numbers aren't).
- * Built from the run and its steps, so it can be shown again after a restart.
+ * What a finished or stopped run did, for the report (B8). Built from the run and its steps, so it
+ * can be shown again after a restart.
  */
 data class MoveReport(
+    val runId: Long,
     val kind: MoveKind,
     val state: RunState,
     val headline: String,
@@ -30,6 +31,8 @@ data class MoveReport(
     val becameMissing: Int,
     /** Items found already in place and only marked binned (B9). */
     val inPlace: Int,
+    /** The last file that moved, by name: "You stopped it after <this>". */
+    val lastMoved: String?,
     /** Empty folders the run removed (B12), by name. */
     val removedFolders: List<String>,
     /** Steps not done because the run stopped. */
@@ -40,7 +43,8 @@ data class MoveReport(
     val checkOk: Boolean?,
 ) {
     companion object {
-        fun of(run: MoveRunEntity, steps: List<MoveStepEntity>, inPlace: Int, leftOut: List<LeftOut>, checkOk: Boolean?): MoveReport {
+        fun of(run: MoveRunEntity, steps: List<MoveStepEntity>, leftOut: List<LeftOut>): MoveReport {
+            val inPlace = run.inPlace
             val kind = MoveKind.of(run.kind)
             val state = RunState.of(run.state)
             val done = steps.filter { StepState.of(it.state) == StepState.Done }
@@ -58,6 +62,7 @@ data class MoveReport(
                 else -> "Bin Files stopped"
             }
             return MoveReport(
+                runId = run.id,
                 kind = kind,
                 state = state,
                 headline = headline,
@@ -70,10 +75,11 @@ data class MoveReport(
                 numbered = done.filter { it.numbered }.map { it.dest.substringAfterLast('/') },
                 becameMissing = steps.count { StepState.of(it.state) == StepState.Missing },
                 inPlace = inPlace,
+                lastMoved = done.lastOrNull()?.dest?.substringAfterLast('/'),
                 removedFolders = run.removedFolders.orEmpty().lines().filter { it.isNotBlank() }.map { it.substringAfterLast('/') },
                 stillToMove = still,
                 leftOut = leftOut,
-                checkOk = checkOk,
+                checkOk = run.checkOk,
             )
         }
 

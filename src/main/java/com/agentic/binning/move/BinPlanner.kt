@@ -11,12 +11,22 @@ data class BinItem(
     val currentPath: String,
     /** The file's name when it was added; its extension is kept as it is. */
     val originalName: String,
+    /** A Failed item's `FailureReasons` code. */
+    val failureReason: String? = null,
 )
 
 enum class LeftOutReason { Failed, Missing, NoCategory }
 
 /** An item Bin Files leaves where it is; the report lists it (B8). */
-data class LeftOut(val itemId: Long, val reason: LeftOutReason)
+data class LeftOut(
+    val itemId: Long,
+    val reason: LeftOutReason,
+    /** The file's name and path as they are now; the planner leaves them empty, the report and preview fill them. */
+    val name: String = "",
+    val path: String = "",
+    /** A Failed item's `FailureReasons` code. */
+    val failure: String? = null,
+)
 
 /** One file to move, as written to `move_step`. */
 data class PlannedStep(

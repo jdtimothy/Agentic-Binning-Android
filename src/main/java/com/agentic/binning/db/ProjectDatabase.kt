@@ -17,7 +17,7 @@ import java.io.File
 import kotlinx.coroutines.flow.Flow
 
 /** Room's schema version of the project database; every change needs a migration, never a destructive one. */
-const val PROJECT_DB_VERSION = 4
+const val PROJECT_DB_VERSION = 5
 
 @Database(
     entities = [
@@ -41,6 +41,8 @@ const val PROJECT_DB_VERSION = 4
         AutoMigration(from = 2, to = 3),
         // v4: move_step and move_run columns, and the removed_file table (Plan 3).
         AutoMigration(from = 3, to = 4),
+        // v5: move_run's report columns, so a report survives a restart (Plan 3, B8).
+        AutoMigration(from = 4, to = 5),
     ],
 )
 abstract class ProjectDatabase : RoomDatabase() {

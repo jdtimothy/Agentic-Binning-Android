@@ -87,6 +87,10 @@ data class PipelineState(
     val moveProgress: MoveProgress? = null,
     /** How the last move ended (or why it didn't start), for the report; kept until the next move. */
     val moveOutcome: MoveOutcome? = null,
+    /** Counts finished moves: a change means one just ended, even one too quick to be seen running. */
+    val moveEnded: Int = 0,
+    /** Files that had moved when a resumed move picked up (B3); null for a move started here. */
+    val moveResumedFrom: Int? = null,
 )
 
 /** Where the pipeline reports problems it recovers from; the app logs them. */
@@ -235,6 +239,7 @@ class PipelineController(
                     total = if (sameProject) it.total else 0,
                     failed = if (sameProject) it.failed else 0,
                     sortNotice = if (sameProject) it.sortNotice else null,
+                    moveEnded = it.moveEnded,
                 )
             }
             val launched = scope.launch {
@@ -263,7 +268,11 @@ class PipelineController(
             arbiter.withJob(JobKind.Binning) {
                 mover.run(project, job, control) { progress ->
                     update(gen) {
-                        it.copy(phase = if (progress.paused) PipelinePhase.MovingPaused else PipelinePhase.Moving, moveProgress = progress)
+                        it.copy(
+                            phase = if (progress.paused) PipelinePhase.MovingPaused else PipelinePhase.Moving,
+                            moveProgress = progress,
+                            moveResumedFrom = it.moveResumedFrom ?: progress.done.takeIf { job is MoveJob.Resume },
+                        )
                     }
                 }
             }
@@ -274,7 +283,7 @@ class PipelineController(
             MoveOutcome.Failed(e.message ?: e.javaClass.simpleName)
         }
         synchronized(lock) { if (moveControl === control) moveControl = null }
-        update(gen) { it.copy(phase = PipelinePhase.Idle, moveProgress = null, moveOutcome = outcome) }
+        update(gen) { it.copy(phase = PipelinePhase.Idle, moveProgress = null, moveOutcome = outcome, moveEnded = it.moveEnded + 1, moveResumedFrom = null) }
     }
 
     private fun launchRun(project: ProjectRef, analyze: Boolean, resort: ResortRequest? = null) {

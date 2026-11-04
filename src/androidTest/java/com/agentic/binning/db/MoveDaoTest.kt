@@ -104,13 +104,30 @@ class MoveDaoTest {
     @Test fun openRun_findsRunningAndPaused() = runTest {
         val a = addItem("a")
         val first = db.moves().writeRun(run(), listOf(step(a, "/a", "/p/B/A.jpg")), emptyList(), emptyList())
-        db.moves().finishRun(first, RunState.Done.name, 9L, null, "Turtle Beach")
+        db.moves().finishRun(first, RunState.Done.name, 9L, null, "Turtle Beach", true)
         assertNull(db.moves().openRun())
         val second = db.moves().writeRun(run(), listOf(step(a, "/p/B/A.jpg", "/p/C/A.jpg")), emptyList(), emptyList())
         db.moves().setRunState(second, RunState.Paused.name, null)
         assertEquals(second, db.moves().openRun()?.id)
         assertEquals("Turtle Beach", db.moves().run(first)?.removedFolders)
         assertEquals(first, db.moves().lastFinishedRun()?.id)
+    }
+
+    /** B8: the newest finished run's report is unread until closed; closing it closes older ones too. */
+    @Test fun unreadRun_isTheNewestUntilClosed() = runTest {
+        val a = addItem("a")
+        assertNull(db.moves().unreadRun())
+        val first = db.moves().writeRun(run(), listOf(step(a, "/a", "/p/B/A.jpg")), emptyList(), emptyList())
+        assertNull("a run still going has no report", db.moves().unreadRun())
+        db.moves().finishRun(first, RunState.Stopped.name, 9L, null, null, true)
+        val second = db.moves().writeRun(run(), emptyList(), emptyList(), emptyList())
+        db.moves().finishRun(second, RunState.Done.name, 10L, null, null, false)
+
+        assertEquals(second, db.moves().unreadRun()?.id)
+        assertEquals(false, db.moves().unreadRun()?.checkOk)
+
+        db.moves().closeReport(second)
+        assertNull(db.moves().unreadRun())
     }
 
     @Test fun binnedFolders_areDoneDestinationsOnly() = runTest {
