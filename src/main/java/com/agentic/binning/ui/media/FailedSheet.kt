@@ -1,5 +1,6 @@
 package com.agentic.binning.ui.media
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,8 @@ private val YoursWhenSaved = LockMarker(MarkerKind.PendingYours, null)
 private fun ColumnScope.FailedContent(sheet: FailedSheetState, vm: ProjectMediaViewModel) {
     val tokens = LocalGlassTokens.current
     val ui = sheet.ui
+    // System Back in the by-hand form goes back to the three actions, keeping the sheet open.
+    BackHandler(enabled = ui.manual, onBack = vm::onSetByHandBack)
     SheetHead(ui.title, vm::onCloseDetail)
     Column(
         Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
@@ -81,9 +84,9 @@ private fun ColumnScope.FailedContent(sheet: FailedSheetState, vm: ProjectMediaV
                     Button("Retry analysis", MediaIcons.Retry, ButtonStyle.Primary, Modifier.fillMaxWidth(), enabled = !sheet.saving, onClick = vm::onRetryFailed)
                 }
                 if (ui.canSetByHand) {
-                    Button("Set name and category by hand", MediaIcons.Pencil, ButtonStyle.Secondary, Modifier.fillMaxWidth(), onClick = vm::onSetByHand)
+                    Button("Set name and category by hand", MediaIcons.Pencil, ButtonStyle.Secondary, Modifier.fillMaxWidth(), enabled = !sheet.saving, onClick = vm::onSetByHand)
                 }
-                Button("Remove from project", MediaIcons.Remove, ButtonStyle.Danger, Modifier.fillMaxWidth(), onClick = vm::onRemoveDetail)
+                Button("Remove from project", MediaIcons.Remove, ButtonStyle.Danger, Modifier.fillMaxWidth(), enabled = !sheet.saving, onClick = vm::onRemoveDetail)
             }
         } else {
             Field("Friendly name", YoursWhenSaved, onLink = {}) {

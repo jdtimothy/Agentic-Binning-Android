@@ -157,6 +157,7 @@ fun ProjectMediaScreen(
             state.failed?.let { FailedSheetHost(it, vm) }
             state.move?.let { PickerSheet(it, vm.movePicker) }
             state.categoryEdit?.let { CategoryEditSheet(it, vm.categoryEdit) }
+            state.resort?.let { ResortSheetHost(it, vm) }
             state.removeSelected?.let { RemoveDialog(it, onCancel = vm::onCancelBulkRemove, onRemove = vm::onConfirmBulkRemove) }
         }
     }
@@ -284,7 +285,7 @@ private fun CategoriesHead(state: MediaUiState, vm: ProjectMediaViewModel) {
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.9.sp,
         )
-        // Re-sort is off, with the reason, while a run is in progress (Q12); its sheet is Task 15.
+        // Re-sort is off, with the reason, while a run is in progress (Q12); otherwise it opens its sheet.
         MiniButton(MediaIcons.Shuffle, "Re-sort", dimmed = state.busyReason != null, onClick = vm::onResort)
         // Off, with the reason, while a run is in progress: the sorter matches categories by name.
         MiniButton(MediaIcons.Pencil, "Edit", dimmed = state.busyReason != null, onClick = vm::onOpenCategoryEdit)

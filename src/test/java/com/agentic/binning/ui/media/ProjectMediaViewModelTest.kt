@@ -12,10 +12,14 @@ import com.agentic.binning.projectmedia.MediaChip
 import com.agentic.binning.projectmedia.MediaRow
 import com.agentic.binning.projectmedia.MatchedIn
 import com.agentic.binning.projectmedia.RESORT_BUSY
+import com.agentic.binning.projectmedia.ResortRequest
+import com.agentic.binning.projectmedia.ResortStart
+import com.agentic.binning.settings.SortingModelChoice
 import java.io.File
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -51,10 +55,12 @@ class ProjectMediaViewModelTest {
         name: String? = "Item $id",
         durationMs: Long? = null,
         matchedIn: MatchedIn? = null,
+        categorySet: Boolean = false,
+        hasAnalysis: Boolean = status != ItemStatus.Failed && status != ItemStatus.Pending,
     ) = MediaRow(
         id = id, kind = kind, durationMs = durationMs, takenAt = takenAt, status = status, categoryId = categoryId,
-        friendlyName = name, suggestedName = null, shotType = shot, nameSetByUser = false, categorySetByUser = false,
-        currentPath = "/sdcard/DCIM/$id.jpg", matchedIn = matchedIn,
+        friendlyName = name, suggestedName = null, shotType = shot, nameSetByUser = false, categorySetByUser = categorySet,
+        currentPath = "/sdcard/DCIM/$id.jpg", matchedIn = matchedIn, hasAnalysis = hasAnalysis,
     )
 
     /** Beach (1, model), Mine (2, user), Empty (3, no items). */
@@ -111,6 +117,7 @@ class ProjectMediaViewModelTest {
         }
 
         override suspend fun save(request: SaveRequest): EditResult {
+            gate?.await()
             saved += request
             return saveResult
         }
@@ -136,7 +143,11 @@ class ProjectMediaViewModelTest {
 
         val retried = mutableListOf<Long>()
 
+        /** While set, Retry, Set by hand and Save wait for it: a slow write. */
+        var gate: CompletableDeferred<Unit>? = null
+
         override suspend fun retry(id: Long): EditResult {
+            gate?.await()
             retried += id
             return saveResult
         }
@@ -144,6 +155,7 @@ class ProjectMediaViewModelTest {
         val byHand = mutableListOf<SetByHandRequest>()
 
         override suspend fun setByHand(request: SetByHandRequest): EditResult {
+            gate?.await()
             byHand += request
             return saveResult
         }
@@ -153,11 +165,23 @@ class ProjectMediaViewModelTest {
     private val sources = MutableStateFlow<MediaSource?>(source)
     private val phase = MutableStateFlow<PipelinePhase?>(PipelinePhase.Idle)
     private var categorizeCalls = 0
+    private var settingsChoice = SortingModelChoice.Lfm3_1_7B
+    private val unavailable = mutableMapOf<SortingModelChoice, String>()
+    private val resortRequests = mutableListOf<ResortRequest>()
+    private var resortResult: ResortStart = ResortStart.Started
 
     private fun TestScope.vm() = ProjectMediaViewModel(
         source = sources,
         phase = phase,
         onCategorizeNow = { categorizeCalls++ },
+        resort = object : ResortActions {
+            override suspend fun settingsChoice() = this@ProjectMediaViewModelTest.settingsChoice
+            override suspend fun unavailable(choice: SortingModelChoice) = this@ProjectMediaViewModelTest.unavailable[choice]
+            override suspend fun start(request: ResortRequest): ResortStart {
+                resortRequests += request
+                return resortResult
+            }
+        },
         zone = zone,
         io = StandardTestDispatcher(testScheduler),
         // Not backgroundScope: advanceUntilIdle() does not wait for background work.
@@ -956,5 +980,233 @@ class ProjectMediaViewModelTest {
 
         assertEquals("Beach", vm.state.value.categoryEdit!!.ui.rows.first().name)
         assertTrue(source.categoryEdits.isEmpty())
+    }
+
+    /** Task 15: Re-sort opens its sheet on the Settings choice with Keep my edits ticked (Q4, Q14). */
+    @Test
+    fun resort_opensOnTheSettingsChoice_andStartsWithTheSheetsPicks() = runTest {
+        settingsChoice = SortingModelChoice.Claude
+        val messages = mutableListOf<String>()
+        val vm = vm()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.messages.toList(messages) }
+        advanceUntilIdle()
+
+        vm.onResort()
+        advanceUntilIdle()
+        val ui = vm.state.value.resort!!.ui
+        assertEquals(listOf(true, false), ui.rows.map { it.selected })
+        assertTrue(ui.keepEdits)
+        // Four analyzed items (the failed one is left out); Mine is the user's category.
+        assertEquals("Re-sort 4 items", ui.buttonLabel)
+        assertEquals("Keeps the 1 category you set. New items can still join your categories.", ui.keepText)
+
+        vm.onResortModel(SortingModelChoice.Lfm3_1_7B)
+        vm.onResortKeepEdits()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.resort!!.ui.keepEdits)
+
+        vm.onRunResort()
+        advanceUntilIdle()
+        assertEquals(listOf(ResortRequest(SortingModelChoice.Lfm3_1_7B, keepEdits = false)), resortRequests)
+        assertNull(vm.state.value.resort)
+        assertEquals("Re-sorting 4 items with LFM3-1.7B", messages.last())
+    }
+
+    @Test
+    fun resort_aModelThatCantRun_turnsTheButtonOff() = runTest {
+        settingsChoice = SortingModelChoice.Claude
+        unavailable[SortingModelChoice.Claude] = "Add your API key to use Claude"
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onResort()
+        advanceUntilIdle()
+
+        val ui = vm.state.value.resort!!.ui
+        assertFalse(ui.enabled)
+        assertEquals("Add your API key to use Claude", ui.reason)
+        vm.onRunResort()
+        advanceUntilIdle()
+        assertTrue(resortRequests.isEmpty())
+
+        vm.onResortModel(SortingModelChoice.Lfm3_1_7B)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.resort!!.ui.enabled)
+    }
+
+    @Test
+    fun resort_refused_keepsTheSheetWithTheReason() = runTest {
+        resortResult = ResortStart.Refused("Re-sort could not start; try again")
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onResort()
+        advanceUntilIdle()
+        vm.onRunResort()
+        advanceUntilIdle()
+
+        val sheet = vm.state.value.resort!!
+        assertEquals("Re-sort could not start; try again", sheet.error)
+        assertFalse(sheet.starting)
+    }
+
+    @Test
+    fun resort_aRunStartingWhileOpen_turnsTheButtonOff_andCloseDropsTheSheet() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onResort()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.resort!!.ui.enabled)
+
+        phase.value = PipelinePhase.Describing
+        advanceUntilIdle()
+        assertFalse(vm.state.value.resort!!.ui.enabled)
+        assertEquals(RESORT_BUSY, vm.state.value.resort!!.ui.reason)
+        vm.onRunResort()
+        advanceUntilIdle()
+        assertTrue(resortRequests.isEmpty())
+
+        vm.onCloseResort()
+        advanceUntilIdle()
+        assertNull(vm.state.value.resort)
+    }
+
+    /** Review finding: "Re-sort N items" counts what the run re-sorts, and follows Keep my edits. */
+    @Test
+    fun resort_countsWhatTheRunResorts() = runTest {
+        rows.value = rows.value +
+            row(6, categoryId = 2, categorySet = true) +
+            // A failed item set by hand: sorted and locked, but no analysis, so never re-sorted.
+            row(7, categoryId = 2, categorySet = true, hasAnalysis = false)
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onResort()
+        advanceUntilIdle()
+        assertEquals("Re-sort 4 items", vm.state.value.resort!!.ui.buttonLabel)
+
+        vm.onResortKeepEdits()
+        advanceUntilIdle()
+        assertEquals("Re-sort 5 items", vm.state.value.resort!!.ui.buttonLabel)
+    }
+
+    /** Review minor: a slow Retry must not close another item's sheet opened meanwhile. */
+    @Test
+    fun lateRetry_leavesAnotherItemsSheetOpen() = runTest {
+        val gate = CompletableDeferred<Unit>().also { source.gate = it }
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+        vm.onRetryFailed()
+        advanceUntilIdle()
+        vm.onCloseDetail()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+        vm.onDetailName("Typed meanwhile")
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf(4L), source.retried)
+        assertEquals(1L, vm.state.value.sheet!!.ui.id)
+        assertEquals("Typed meanwhile", vm.state.value.sheet!!.ui.name)
+    }
+
+    @Test
+    fun lateClash_doesNotPutItsErrorOnAnotherSheet() = runTest {
+        source.saveResult = EditResult.Clash("Beach")
+        val gate = CompletableDeferred<Unit>().also { source.gate = it }
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(3)
+        advanceUntilIdle()
+        vm.onDetailName("Rename")
+        vm.onSaveDetail()
+        advanceUntilIdle()
+        vm.onCloseDetail()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(1L, vm.state.value.sheet!!.ui.id)
+        assertNull(vm.state.value.sheet!!.error)
+        assertFalse(vm.state.value.sheet!!.saving)
+    }
+
+    @Test
+    fun lateSetByHand_leavesAnotherItemsSheetOpen() = runTest {
+        val gate = CompletableDeferred<Unit>().also { source.gate = it }
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+        vm.onSetByHand()
+        vm.onDetailName("Harbor Clip")
+        vm.onOpenPicker()
+        advanceUntilIdle()
+        vm.onPickCategory(1)
+        vm.onSaveByHand()
+        advanceUntilIdle()
+        vm.onCloseDetail()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(1, source.byHand.size)
+        assertEquals(1L, vm.state.value.sheet!!.ui.id)
+    }
+
+    /** Review minor: while a Retry is in flight, Set by hand and Remove do nothing. */
+    @Test
+    fun duringRetry_setByHandAndRemoveWait() = runTest {
+        val gate = CompletableDeferred<Unit>().also { source.gate = it }
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+        vm.onRetryFailed()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.failed!!.saving)
+
+        vm.onSetByHand()
+        vm.onRemoveDetail()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.failed!!.ui.manual)
+        assertNull(vm.state.value.failed!!.remove)
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(source.removed.isEmpty())
+    }
+
+    /** Review minor: a Retry while the run is paused waits for Resume, and says so. */
+    @Test
+    fun retryWhilePaused_saysItWaitsForResume() = runTest {
+        phase.value = PipelinePhase.Paused
+        val messages = mutableListOf<String>()
+        val vm = vm()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.messages.toList(messages) }
+        advanceUntilIdle()
+        vm.onTileClick(4)
+        advanceUntilIdle()
+        vm.onRetryFailed()
+        advanceUntilIdle()
+        assertEquals("4.jpg will be analyzed again when you resume", messages.last())
+    }
+
+    /** Review minor: picking a model checks again whether it can run (a download may have finished). */
+    @Test
+    fun resort_pickingAModelChecksItAgain() = runTest {
+        unavailable[SortingModelChoice.Claude] = "Add your API key to use Claude"
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onResort()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.resort!!.ui.rows.first { it.choice == SortingModelChoice.Claude }.unavailable)
+
+        unavailable.clear()
+        vm.onResortModel(SortingModelChoice.Claude)
+        advanceUntilIdle()
+        val ui = vm.state.value.resort!!.ui
+        assertFalse(ui.rows.first { it.choice == SortingModelChoice.Claude }.unavailable)
+        assertTrue(ui.enabled)
     }
 }

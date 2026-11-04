@@ -251,17 +251,34 @@ class ProjectMediaRepository(
         return EditResult.Ok
     }
 
+    /**
+     * Retry analysis (Q19): the item back to Pending with its attempts reset and a remembered Stop
+     * lifted, in one transaction; analysis is started only after it commits (P6).
+     */
     suspend fun retryFailed(id: Long): EditResult {
-        val item = db.media().item(id) ?: return EditResult.NotFound
-        if (item.status != ItemStatus.Failed) return EditResult.NotFound
-        db.media().retryFailed(id)
-        db.meta().setStoppedByUser(false)
-        onRetryFailed()
-        return EditResult.Ok
+        val result = db.useWriterConnection { connection ->
+            connection.immediateTransaction {
+                val item = db.media().item(id)
+                if (item == null || item.status != ItemStatus.Failed) {
+                    EditResult.NotFound
+                } else {
+                    db.media().retryFailed(id)
+                    db.meta().setStoppedByUser(false)
+                    EditResult.Ok
+                }
+            }
+        }
+        if (result == EditResult.Ok) onRetryFailed()
+        return result
     }
 
-    suspend fun setByHand(id: Long, name: String, category: CategoryChoice): EditResult {
-        val item = db.media().item(id) ?: return EditResult.NotFound
+    /** A failed item's name and category set by hand, both locked (Q19), in one transaction. */
+    suspend fun setByHand(id: Long, name: String, category: CategoryChoice): EditResult = db.useWriterConnection { connection ->
+        connection.immediateTransaction { setByHandLocked(id, name, category) }
+    }
+
+    private suspend fun setByHandLocked(id: Long, name: String, category: CategoryChoice): EditResult {
+        db.media().item(id) ?: return EditResult.NotFound
         val categoryId = when (category) {
             is CategoryChoice.Existing -> {
                 if (db.media().category(category.id) == null) return EditResult.NotFound
@@ -330,6 +347,7 @@ class ProjectMediaRepository(
         nameSetByUser = nameSetByUser,
         categorySetByUser = categorySetByUser,
         currentPath = currentPath,
+        hasAnalysis = hasAnalysis,
     )
 }
 
