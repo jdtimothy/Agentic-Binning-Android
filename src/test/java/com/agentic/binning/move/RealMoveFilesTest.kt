@@ -79,7 +79,7 @@ class RealMoveFilesTest {
     @Test fun listFiles_isRecursive() {
         write("Beach/a.jpg", "a")
         write("Beach/sub/b.jpg", "b")
-        assertEquals(listOf("Beach/a.jpg", "Beach/sub/b.jpg"), files.listFiles(File(root, "Beach").path).map { it.removePrefix(root.path + "/") }.sorted())
+        assertEquals(listOf("Beach/a.jpg", "Beach/sub/b.jpg"), files.listFiles(File(root, "Beach").path).map { File(it).relativeTo(root).invariantSeparatorsPath }.sorted())
         assertEquals(emptyList<String>(), files.listFiles(File(root, "Nowhere").path))
     }
 
