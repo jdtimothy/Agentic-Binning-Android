@@ -109,13 +109,13 @@ class AnalysisService : LifecycleService() {
             controller.state
                 .map { NotificationModel.of(it) }
                 .distinctUntilChanged()
-                .collect { model ->
+                .collectPaced(NOTIFICATION_GAP_MS) { model ->
                     if (!model.phase.isRunning) {
                         Log.d(TAG, "pipeline ${model.phase}; stopping service")
                         releaseWakeLock()
                         stopForeground(STOP_FOREGROUND_REMOVE)
                         stopSelf(lastStartId)
-                        return@collect
+                        return@collectPaced
                     }
                     // Paused holds the model (or a move between files) but runs nothing: let the CPU sleep until Resume.
                     if (model.phase == PipelinePhase.Paused || model.phase == PipelinePhase.MovingPaused) releaseWakeLock() else holdWakeLock()
@@ -276,6 +276,7 @@ class AnalysisService : LifecycleService() {
         private const val CHANNEL_ID = "analysis"
         private const val NOTIFICATION_ID = 11
         private const val WAKE_LOCK_TIMEOUT_MS = 30 * 60 * 1000L
+        private const val NOTIFICATION_GAP_MS = 500L
         private const val ACTION_START = "com.agentic.binning.action.START_ANALYSIS"
         private const val ACTION_PAUSE = "com.agentic.binning.action.PAUSE_ANALYSIS"
         private const val ACTION_RESUME = "com.agentic.binning.action.RESUME_ANALYSIS"
