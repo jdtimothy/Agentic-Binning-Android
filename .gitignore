@@ -19,3 +19,6 @@ ui.xml
 
 # Subagent-driven development scratch
 .superpowers/
+
+# Project-local Hermes notes
+/IDEA.md

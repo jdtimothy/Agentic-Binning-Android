@@ -62,6 +62,7 @@ import com.agentic.binning.model.DownloadState
 import com.agentic.binning.settings.AppSettings
 import com.agentic.binning.settings.ApiKeyInfo
 import com.agentic.binning.settings.FRAME_CAP_OPTIONS
+import com.agentic.binning.settings.MediaPickerChoice
 import com.agentic.binning.settings.SortingModelChoice
 import com.agentic.binning.ui.glass.AmbientBackdrop
 import com.agentic.binning.ui.glass.GlassIconButton
@@ -93,6 +94,7 @@ interface SettingsActions {
     fun onSaveKey(key: String, onResult: (Boolean) -> Unit)
     fun onRemoveKey()
     fun onMaxFramesPerClip(cap: Int)
+    fun onMediaPicker(choice: MediaPickerChoice)
     fun onBack()
 }
 
@@ -194,6 +196,17 @@ fun SettingsScreen(
                         onSelect = actions::onMaxFramesPerClip,
                     )
                     Text(frameHint(settings.maxFramesPerClip), color = tokens.sub, fontSize = 13.sp)
+                }
+
+                SettingsCard {
+                    CardTitle("Photo and video picker")
+                    SegmentedControl(
+                        options = MediaPickerChoice.entries,
+                        selected = settings.mediaPicker,
+                        label = ::mediaPickerLabel,
+                        onSelect = actions::onMediaPicker,
+                    )
+                    Text(mediaPickerHint(settings.mediaPicker), color = tokens.sub, fontSize = 13.sp)
                 }
 
                 SettingsCard {

@@ -354,8 +354,8 @@ fun outputOf(
 
 private fun cardOutput(hasProject: Boolean, empty: Boolean, card: CardItem?, state: PipelineState?, stored: StoredAnalysis?): OutputState {
     fun notice(text: String) = EmptyOutput.copy(notice = text, itemId = card?.id)
-    if (!hasProject) return notice("Create a project, then add a folder or pick photos and clips from the project menu.")
-    if (empty || card == null) return notice("Add a folder or pick photos and clips from the project menu.")
+    if (!hasProject) return notice("Create a project, then add a folder or pick photos and videos from the project menu.")
+    if (empty || card == null) return notice("Add a folder or pick photos and videos from the project menu.")
     if (state != null && state.currentItemId == card.id) {
         val partial = state.partial
         if (state.phase != PipelinePhase.Describing || partial == null) {

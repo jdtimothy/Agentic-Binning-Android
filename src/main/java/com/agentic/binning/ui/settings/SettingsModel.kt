@@ -5,10 +5,11 @@ import com.agentic.binning.model.DownloadState
 import com.agentic.binning.model.ModelCatalog
 import com.agentic.binning.model.ModelSpec
 import com.agentic.binning.settings.ApiKeyInfo
+import com.agentic.binning.settings.MediaPickerChoice
 import com.agentic.binning.settings.SortingModelChoice
 import kotlin.math.roundToInt
 
-// The Settings screen's pure pieces: sorting model rows, the API key row and the frames hint.
+// The Settings screen's pure pieces: sorting model rows, the API key row, the frames and picker hints.
 
 /** One sorting model row. [spec] is the on-device model to download, null for Claude. */
 data class SortingOption(val choice: SortingModelChoice, val title: String, val spec: ModelSpec?)
@@ -95,3 +96,13 @@ fun canSaveKey(text: String): Boolean = text.isNotBlank()
 
 /** Under the frame chips: what the cap does to a 1-minute clip. */
 fun frameHint(cap: Int): String = VisionBudget.hint(cap)
+
+fun mediaPickerLabel(choice: MediaPickerChoice): String = when (choice) {
+    MediaPickerChoice.AndroidPhotoPicker -> "Android"
+    MediaPickerChoice.SamsungGallery -> "Samsung Gallery"
+}
+
+fun mediaPickerHint(choice: MediaPickerChoice): String = when (choice) {
+    MediaPickerChoice.AndroidPhotoPicker -> "Android's photo picker. Up to 100 at a time."
+    MediaPickerChoice.SamsungGallery -> "The Gallery app's picker. Up to 500 at a time."
+}

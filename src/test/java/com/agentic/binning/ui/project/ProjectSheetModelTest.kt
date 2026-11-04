@@ -55,8 +55,8 @@ class ProjectSheetModelTest {
 
     @Test
     fun selectionLabelCountsFiles() {
-        assertEquals("1 photo or clip", selectionLabel(MediaChoice.Files(1), Locale.US))
-        assertEquals("24 photos and clips", selectionLabel(MediaChoice.Files(24), Locale.US))
+        assertEquals("1 photo or video", selectionLabel(MediaChoice.Files(1), Locale.US))
+        assertEquals("24 photos and videos", selectionLabel(MediaChoice.Files(24), Locale.US))
     }
 
     @Test

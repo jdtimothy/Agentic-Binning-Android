@@ -21,6 +21,7 @@ import com.agentic.binning.projectmedia.RESORT_NOT_OPEN
 import com.agentic.binning.projectmedia.ResortRequest
 import com.agentic.binning.projectmedia.ResortStart
 import com.agentic.binning.settings.AppSettings
+import com.agentic.binning.settings.MediaPickerChoice
 import com.agentic.binning.settings.SortingModelChoice
 import com.agentic.binning.ui.analyze.AnalyzeScreen
 import com.agentic.binning.ui.analyze.AnalyzeViewModel
@@ -209,6 +210,10 @@ class MainActivity : ComponentActivity() {
 
                                     override fun onMaxFramesPerClip(cap: Int) {
                                         scope.launch { safeWrite { graph.settings.setMaxFramesPerClip(cap) } }
+                                    }
+
+                                    override fun onMediaPicker(choice: MediaPickerChoice) {
+                                        scope.launch { safeWrite { graph.settings.setMediaPicker(choice) } }
                                     }
 
                                     override fun onBack() {

@@ -4,6 +4,7 @@ import com.agentic.binning.analysis.VisionBudget
 import com.agentic.binning.model.DownloadState
 import com.agentic.binning.settings.ApiKeyInfo
 import com.agentic.binning.settings.FRAME_CAP_OPTIONS
+import com.agentic.binning.settings.MediaPickerChoice
 import com.agentic.binning.settings.SortingModelChoice
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -94,5 +95,12 @@ class SettingsModelTest {
         assertEquals("1-minute clip: 16 frames, one every 3.8 s", frameHint(16))
         assertEquals("1-minute clip: 32 frames, one every 1.9 s", frameHint(32))
         FRAME_CAP_OPTIONS.forEach { assertEquals(VisionBudget.hint(it), frameHint(it)) }
+    }
+
+    @Test fun mediaPicker_labelsAndHints() {
+        assertEquals("Android", mediaPickerLabel(MediaPickerChoice.AndroidPhotoPicker))
+        assertEquals("Samsung Gallery", mediaPickerLabel(MediaPickerChoice.SamsungGallery))
+        assertEquals("Android's photo picker. Up to 100 at a time.", mediaPickerHint(MediaPickerChoice.AndroidPhotoPicker))
+        assertEquals("The Gallery app's picker. Up to 500 at a time.", mediaPickerHint(MediaPickerChoice.SamsungGallery))
     }
 }

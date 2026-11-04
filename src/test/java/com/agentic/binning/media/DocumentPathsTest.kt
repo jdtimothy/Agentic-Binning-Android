@@ -28,6 +28,17 @@ class DocumentPathsTest {
         assertEquals(ItemKind.Photo to 77L, DocumentPaths.mediaDocId("image:77"))
     }
 
+    @Test fun localPickerSegments_giveTheMediaStoreId() {
+        assertEquals(58064L, DocumentPaths.pickerMediaId(listOf("picker", "0", "com.android.providers.media.photopicker", "media", "58064")))
+        assertEquals(7L, DocumentPaths.pickerMediaId(listOf("picker_get_content", "0", "com.google.android.providers.media.photopicker", "media", "7")))
+    }
+
+    @Test fun cloudOrMalformedPickerSegments_areNull() {
+        assertNull(DocumentPaths.pickerMediaId(listOf("picker", "0", "com.google.android.apps.photos.cloudpicker", "media", "58064")))
+        assertNull(DocumentPaths.pickerMediaId(listOf("picker", "0", "com.android.providers.media.photopicker", "media", "abc")))
+        assertNull(DocumentPaths.pickerMediaId(listOf("picker")))
+    }
+
     @Test fun unsupportedMediaDocIds_areNull() {
         assertNull(DocumentPaths.mediaDocId("audio:5"))
         assertNull(DocumentPaths.mediaDocId("video:abc"))

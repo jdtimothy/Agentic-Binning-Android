@@ -20,14 +20,18 @@ Jetpack Compose app (package `com.agentic.binning`). Plans live under
   authenticated Claude request passed on the phone on Nov 3 (Maui, 35 items;
   `docs/superpowers/notes/2026-11-01-plan-2a-phone-recheck.md`). Keep LFM3-1.7B
   selected and never make a paid Claude call without the owner. A network that blocks api.anthropic.com makes Claude report "No connection".
-- **Plan 2b** (Project Media, editing, Re-sort, and Task 6A: Open project and
-  Edit/× on Current projects) is in progress:
-  `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Tasks 1–14,
-  16–17, 6A and the one-word category rule are in `main`; Task 15 is on
-  `feat/plan-2b-task-15`. Every task is done. Its "Product decisions" section holds
-  every owner decision (none open). Mockups are in `docs/superpowers/mockups/` (open the HTML
+- **Plan 2b** (Project Media, editing, Re-sort, the failed item sheet, and
+  Task 6A: Open project and Edit/× on Current projects) is done and merged
+  into `main`, phone checks included:
+  `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Its "Product
+  decisions" section holds every owner decision; "Left for Plan 3" lists what
+  binning inherits. Mockups are in `docs/superpowers/mockups/` (open the HTML
   files in a browser; GitHub doesn't render them).
-- **Plan 3** (binning: moving files) is not started.
+- **Plan 3** (binning: moving files) is being planned on `plan-3-binning` by a
+  cloud session, from `docs/superpowers/plan-3-brief.md`.
+- After release the owner will try other sorting models; LFM3-1.7B's odd
+  calls (file-type categories, self-talk descriptions) are expected of a
+  small model.
 
 Reference copies of the useful GenieX sample code live in
 `docs/reference/sample/` (`GgufVisionConfig.kt.txt`, `MediaUtil.kt.txt`,
@@ -96,13 +100,17 @@ Analyzed with `stopReason` `eos`.
   (`AnalysisPrompt.MAX_TOKENS_*`).
 - Drive the add-media flow with `uiautomator dump` + `input tap`: the project
   chip opens the sheet: "Current project" with "Add a folder" / "Pick photos
-  and clips", then "Current projects" with "Open project" / "New project",
+  and videos", then "Current projects" with "Open project" / "New project",
   "Edit" (× on each row, "Done" to leave), and the list (the open project
   first; without a project only the Current projects section shows). "Add a
   folder" and "Open project" open the system folder picker (breadcrumbs work),
-  then "USE THIS FOLDER" and "ALLOW". "New project" opens the New project
-  page: name, optional "A folder" / "Photos and clips" tile (held until
-  "Create and analyze"), back arrow or system Back to return. × only takes a
+  then "USE THIS FOLDER" and "ALLOW". "Pick photos and videos" opens the picker
+  chosen in Settings: the Android photo picker by default (tap items, then
+  "Done"; 100 at most) or Samsung Gallery's (tap each item's circle, then
+  "Done"; 500 at most), which falls back to the system document picker without
+  that app. "New project" opens the
+  New project page: name, optional "A folder" / "Photos and videos" tile (held
+  until "Create and analyze"), back arrow or system Back to return. × only takes a
   project off the list; its files and database stay. Don't swipe on the sheet
   while the keyboard is up: the swipe types into the name field.
 - Registration matches files across projects by content hash: media already in
