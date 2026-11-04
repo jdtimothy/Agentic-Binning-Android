@@ -61,6 +61,31 @@ class MoveJobTest {
             moves.addStep(2, "/storage/emulated/0/DCIM/b.jpg", "$p/Beach/B.jpg", 1)
     }
 
+    /** Plan 3 Task 14: a Save's plan is written with its edit; this only runs it. */
+    @Test fun saveMoves_runsTheWrittenPlanUnderTheBinningJob() = runTest {
+        twoFiles()
+        val controller = controller()
+
+        assertEquals(MoveStart.Started, controller.saveMoves(project, runId = 7))
+        advanceUntilIdle()
+
+        assertEquals(listOf<MoveJob>(MoveJob.Save(7)), jobs)
+        assertEquals(JobKind.Binning, activeDuringMove)
+        assertEquals(1, controller.state.value.moveEnded)
+    }
+
+    @Test fun saveMoves_isNotAResume() = runTest {
+        twoFiles()
+        val controller = controller()
+        controller.saveMoves(project, runId = 7)
+        controller.pause()
+        advanceUntilIdle()
+        assertEquals(PipelinePhase.MovingPaused, controller.state.value.phase)
+        assertNull(controller.state.value.moveResumedFrom)
+        controller.stop()
+        advanceUntilIdle()
+    }
+
     /** The UI opens a report when this changes: one count per finished run, even an instant one. */
     @Test fun moveEnded_countsFinishedRuns() = runTest {
         twoFiles()

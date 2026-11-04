@@ -53,7 +53,7 @@ enum class MarkerKind {
 /** The pill beside a field's label, and its link ("Unlock" or "Undo") if any. */
 data class LockMarker(val kind: MarkerKind, val link: String?)
 
-enum class StatusBadge { Sorted, Waiting }
+enum class StatusBadge { Sorted, Waiting, Binned }
 
 data class Callout(val text: String, val warn: Boolean)
 
@@ -77,6 +77,8 @@ data class DetailUi(
     val tags: List<String>,
     val details: List<Pair<String, String>>,
     val saveEnabled: Boolean,
+    /** "Save and move file" when it will move a binned file (2b state 3b). */
+    val saveLabel: String = "Save",
 )
 
 /** What Save sends to `ProjectMediaRepository.saveItem`. */
@@ -135,7 +137,9 @@ fun detailUi(d: ItemDetail, draft: DetailDraft, zone: ZoneId): DetailUi {
     val waiting = isWaiting(item.status, item.categoryId, item.categorySetByUser)
     val nameChanged = d.nameChanged(draft)
     val catChanged = d.categoryChanged(draft)
-    val ext = if (item.kind == ItemKind.Video) ".mp4" else ".jpg"
+    // The same extension the planner keeps (BinPlanner), so the hint never promises another.
+    val ext = item.originalName.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
+    val binned = item.status == ItemStatus.Binned
     val fileName = draft.name.trim().ifEmpty { item.friendlyName ?: item.originalName.substringBeforeLast('.') }
     val suggestion = d.suggestedName?.takeIf { it.isNotBlank() && it != draft.name.trim() }
     val pickName = when (val p = draft.pick) {
@@ -148,7 +152,11 @@ fun detailUi(d: ItemDetail, draft: DetailDraft, zone: ZoneId): DetailUi {
     return DetailUi(
         id = item.id,
         title = if (waiting) "Waiting to be categorized" else "Item details",
-        badge = if (waiting) StatusBadge.Waiting else StatusBadge.Sorted,
+        badge = when {
+            waiting -> StatusBadge.Waiting
+            binned -> StatusBadge.Binned
+            else -> StatusBadge.Sorted
+        },
         isVideo = item.kind == ItemKind.Video,
         duration = item.durationMs?.takeIf { item.kind == ItemKind.Video }?.let(ProjectMediaViewModel::durationText),
         name = draft.name,
@@ -167,6 +175,10 @@ fun detailUi(d: ItemDetail, draft: DetailDraft, zone: ZoneId): DetailUi {
                     "Bin Files waits until it has one.",
                 warn = true,
             )
+        } else if (binned) {
+            val here = "Binned in the ${folder.substringAfterLast('/')} folder as ${item.currentPath.substringAfterLast('/')}."
+            val then = if (nameChanged || catChanged) "Saving moves or renames this file right away." else "If you change the name or category, Save moves the file right away."
+            Callout("$here $then", warn = false)
         } else {
             Callout("Not binned yet. The file stays in ${folder.ifEmpty { "its folder" }} until Bin Files.", warn = false)
         },
@@ -183,6 +195,7 @@ fun detailUi(d: ItemDetail, draft: DetailDraft, zone: ZoneId): DetailUi {
         },
         saveEnabled = draft.name.isNotBlank() &&
             (nameChanged || catChanged || request.unlockName || request.unlockCategory),
+        saveLabel = if (binned && (nameChanged || catChanged)) "Save and move file" else "Save",
     )
 }
 

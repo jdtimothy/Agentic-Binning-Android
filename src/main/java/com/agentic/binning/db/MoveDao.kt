@@ -25,6 +25,9 @@ abstract class MoveDao : MoveStore {
     @Query("UPDATE item SET status = 'Missing' WHERE id IN (:ids)")
     protected abstract suspend fun markMissing(ids: List<Long>)
 
+    @Query("UPDATE item SET status = 'Sorted' WHERE id IN (:ids)")
+    abstract suspend fun markSorted(ids: List<Long>)
+
     /**
      * Writes a run and every step in one transaction before anything moves, with the items found in
      * place marked binned and the ones whose file is gone marked Missing. Returns the run's id.

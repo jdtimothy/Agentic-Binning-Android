@@ -1240,6 +1240,85 @@ class ProjectMediaViewModelTest {
         assertTrue(ui.enabled)
     }
 
+    /** 2b state 4: the bulk picker says what happens to binned files. */
+    @Test
+    fun bulkMove_noteSaysWhetherFilesMoveNow() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileLongPress(1)
+        vm.onBulkMove()
+        advanceUntilIdle()
+        assertEquals(
+            "Only the database changes now. The files move at the next Bin Files. Moved items count as set by you.",
+            vm.state.value.move?.note,
+        )
+
+        rows.value = rows.value.map { if (it.id == 1L) it.copy(status = ItemStatus.Binned) else it }
+        advanceUntilIdle()
+        assertEquals(
+            "1 of them is binned; its file moves right away. The others move at the next Bin Files. Moved items count as set by you.",
+            vm.state.value.move?.note,
+        )
+    }
+
+    /** 2b state 4: Remove says a binned file stays in its category folder. */
+    @Test
+    fun bulkRemove_saysWhatStaysInACategoryFolder() = runTest {
+        rows.value = rows.value.map { if (it.id == 1L) it.copy(status = ItemStatus.Binned) else it }
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileLongPress(1)
+        vm.onTileClick(2)
+        vm.onBulkRemove()
+        advanceUntilIdle()
+        assertEquals(
+            "The files stay on your phone where they are now. The project forgets their analysis, names and categories. " +
+                "1 of them is in a category folder and stays there. You can add them again later.",
+            vm.state.value.removeSelected?.body,
+        )
+    }
+
+    /** A Save that would move files while analysis runs is refused with its reason (never queued). */
+    @Test
+    fun saveRefusedWhileBusy_saysWhyAndKeepsTheSheet() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+        vm.onDetailName("New name")
+        advanceUntilIdle()
+        source.saveResult = EditResult.Busy("Saving moves this file, so it waits until analysis is done")
+
+        vm.onSaveDetail()
+        advanceUntilIdle()
+
+        assertEquals("Saving moves this file, so it waits until analysis is done", vm.state.value.sheet?.error)
+        assertFalse(vm.state.value.sheet!!.saving)
+    }
+
+    /** State 2: Select is greyed while files move, like Re-sort and Edit; analysis doesn't hold it. */
+    @Test
+    fun movingFiles_holdSelect() = runTest {
+        val vm = vm()
+        val messages = mutableListOf<String>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.messages.toList(messages) }
+        phase.value = PipelinePhase.Moving
+        advanceUntilIdle()
+
+        vm.onStartSelect()
+        vm.onTileLongPress(1)
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.selection)
+        assertEquals(listOf(EDITS_WAIT, EDITS_WAIT), messages)
+
+        phase.value = PipelinePhase.Idle
+        advanceUntilIdle()
+        vm.onStartSelect()
+        advanceUntilIdle()
+        assertEquals(emptySet<Long>(), vm.state.value.selection)
+    }
+
     /** Plan 3 (Q11, 2b state 6): while files move, the status line follows the move and edits wait. */
     @Test
     fun movingFiles_showsProgressAndHoldsEdits() = runTest {

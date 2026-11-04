@@ -68,6 +68,8 @@ class RoomBinStore(
 
     override suspend fun leaveFiles(paths: List<String>, at: Long) = dao.addRemoved(paths, "left", at)
 
+    override suspend fun markReady(ids: List<Long>) = ids.chunked(CHUNK).forEach { dao.markSorted(it) }
+
     override suspend fun binnedFolders(): List<String> = dao.binnedFolders()
 
     private companion object {

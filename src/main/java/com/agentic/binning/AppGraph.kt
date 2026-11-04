@@ -51,6 +51,8 @@ import com.agentic.binning.move.BinFilesJob
 import com.agentic.binning.move.MediaStoreNotifier
 import com.agentic.binning.move.MoveNotifier
 import com.agentic.binning.move.formatBytes
+import com.agentic.binning.pipeline.SAVE_BUSY
+import com.agentic.binning.projectmedia.SaveMoveHooks
 import com.agentic.binning.ui.media.BinActions
 import com.agentic.binning.ui.media.UnknownFileFacts
 import java.time.Instant
@@ -301,6 +303,7 @@ class AppGraph(val context: Context) {
                     val bin = binFilesJob(pipelineProject())
                     when (job) {
                         MoveJob.BinFiles -> bin.binFiles(control, onProgress)
+                        is MoveJob.Save -> bin.resume(job.runId, control, onProgress)
                         is MoveJob.Resume -> bin.resume(job.runId, control, onProgress)
                     }
                 }
@@ -358,6 +361,25 @@ class AppGraph(val context: Context) {
         if (pipelineTarget != ref) return MoveStart.Refused(MOVE_NOT_OPEN)
         if (pipeline.state.value.phase.isRunning) return MoveStart.Refused(MOVE_BUSY)
         return if (startAnalysis(ref, RunKind.BinFiles)) MoveStart.Started else MoveStart.Refused(MOVE_NOT_STARTED)
+    }
+
+    /** A Save's file moves for [project] (Plan 3 Task 14): the plan is written with the edit, then run here. */
+    fun saveMoveHooks(project: OpenProject): SaveMoveHooks = object : SaveMoveHooks {
+        override fun blockedReason() = if (pipeline.state.value.phase.isRunning) SAVE_BUSY else null
+
+        override suspend fun plan(ids: Collection<Long>) = binFilesJob(project).planSave(ids)
+
+        override suspend fun started(runId: Long) {
+            try {
+                AnalysisService.start(context, project.ref, RunKind.SaveMoves, moveRunId = runId)
+            } catch (e: IllegalStateException) { // ForegroundServiceStartNotAllowedException
+                Log.w(TAG, "Save's moves deferred until the app is back in the foreground", e)
+                deferredStart = DeferredStart(project.ref, RunKind.ResumeMove)
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Save's moves refused", e)
+                deferredStart = DeferredStart(project.ref, RunKind.ResumeMove)
+            }
+        }
     }
 
     /** Bin Files for [project], as the UI drives it (Plan 3 Task 16). */
@@ -563,7 +585,7 @@ class AppGraph(val context: Context) {
                 when {
                     deferred == null -> resumeAnalysisIfPending(open)
                     // A refused move start: the open run (if any) is resumed; a Bin Files tap is not repeated.
-                    deferred.kind == RunKind.BinFiles || deferred.kind == RunKind.ResumeMove -> resumeAnalysisIfPending(open)
+                    deferred.kind == RunKind.BinFiles || deferred.kind == RunKind.SaveMoves || deferred.kind == RunKind.ResumeMove -> resumeAnalysisIfPending(open)
                     else -> launcher.retryDeferred(open.ref, runFlags(open), deferred.kind)
                 }
             } catch (e: Exception) {

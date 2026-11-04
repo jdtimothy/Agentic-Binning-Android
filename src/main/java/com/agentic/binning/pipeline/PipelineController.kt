@@ -212,6 +212,9 @@ class PipelineController(
      */
     fun binFiles(project: ProjectRef): MoveStart = launchMove(project, MoveJob.BinFiles, paused = false)
 
+    /** Runs the plan a Save wrote (Plan 3 Task 14); refused like [binFiles]. */
+    fun saveMoves(project: ProjectRef, runId: Long): MoveStart = launchMove(project, MoveJob.Save(runId), paused = false)
+
     /** Finishes the open move run [runId] (B3), paused if it was paused; refused like [binFiles]. */
     fun resumeMove(project: ProjectRef, runId: Long, paused: Boolean): MoveStart = launchMove(project, MoveJob.Resume(runId), paused)
 

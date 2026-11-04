@@ -215,6 +215,8 @@ data class PickerUi(
     /** Bulk move only: the footer's "Save · move N"; the detail picker chooses on tap instead. */
     val saveLabel: String?,
     val canSave: Boolean,
+    /** Bulk move only: what happens to the files (2b state 4). */
+    val note: String? = null,
 )
 
 /** What the category picker's rows and buttons do; the detail sheet and bulk move each have one. */
@@ -512,6 +514,7 @@ class ProjectMediaViewModel(
         EditResult.Ok, is EditResult.Created -> settle(detail) { null }
         is EditResult.Clash -> settle(detail) { it.copy(saving = false, error = "A category named “${result.existing}” already exists.") }
         EditResult.InvalidName -> settle(detail) { it.copy(saving = false, error = "That category name can't be used.") }
+        is EditResult.Busy -> settle(detail) { it.copy(saving = false, error = result.reason) }
         EditResult.NotFound -> {
             settle(detail) { null }
             _messages.tryEmit("This item is no longer in the project")
@@ -643,9 +646,15 @@ class ProjectMediaViewModel(
         scope.launch { withContext(io) { src.remove(listOf(s.detail.item.id)) } }
     }
 
-    fun onTileLongPress(id: Long) = picks.update { p -> p.copy(selection = (p.selection ?: emptySet()).let { if (id in it) it else it + id }) }
+    fun onTileLongPress(id: Long) {
+        if (refuseWhileMoving()) return
+        picks.update { p -> p.copy(selection = (p.selection ?: emptySet()).let { if (id in it) it else it + id }) }
+    }
 
-    fun onStartSelect() = picks.update { it.copy(selection = it.selection ?: emptySet()) }
+    fun onStartSelect() {
+        if (refuseWhileMoving()) return
+        picks.update { it.copy(selection = it.selection ?: emptySet()) }
+    }
 
     fun onExitSelect() = picks.update { it.copy(selection = null, move = null, confirmBulkRemove = false) }
 
@@ -717,6 +726,10 @@ class ProjectMediaViewModel(
                 EditResult.InvalidName, EditResult.NotFound -> {
                     updateMove { it.copy(saving = false) }
                     _messages.tryEmit("Couldn't move the items; try again")
+                }
+                is EditResult.Busy -> {
+                    updateMove { it.copy(saving = false) }
+                    _messages.tryEmit(result.reason)
                 }
             }
         }
@@ -796,6 +809,7 @@ class ProjectMediaViewModel(
                 is EditResult.Clash -> categorySession.update { it?.copy(saving = false, error = "A category named “${result.existing}” already exists.") }
                 EditResult.InvalidName -> categorySession.update { it?.copy(saving = false, error = "A category name can't be empty.") }
                 EditResult.NotFound -> categorySession.update { it?.copy(saving = false, error = "A category changed meanwhile. Close and try again.") }
+                is EditResult.Busy -> categorySession.update { it?.copy(saving = false, error = result.reason) }
             }
         }
     }
@@ -1017,12 +1031,14 @@ class ProjectMediaViewModel(
                     l = l,
                     saveLabel = "Save · move $n",
                     canSave = m.pick != null && n > 0 && !m.saving,
+                    note = bulkMoveNote(selection.orEmpty(), l),
                 )
             },
             removeSelected = if (p.confirmBulkRemove && !selection.isNullOrEmpty()) bulkRemoveDialog(selection, l, src.projectName) else null,
             categoryEdit = c?.let {
                 val counts = l.all.mapNotNull { row -> row.categoryId }.groupingBy { id -> id }.eachCount()
-                CategoryEditState(categoryEditUi(l.categories, counts, it.draft), it.error, it.saving)
+                val binned = l.all.filter { row -> row.status == ItemStatus.Binned }.mapNotNull { row -> row.categoryId }.groupingBy { id -> id }.eachCount()
+                CategoryEditState(categoryEditUi(l.categories, counts, it.draft, binned), it.error, it.saving)
             },
             resort = sheets.resort?.let { r ->
                 // What Task 9's prepareResort hands the sorter: analyzed items waiting or sorted, less
@@ -1044,20 +1060,41 @@ class ProjectMediaViewModel(
         )
     }
 
+    private fun bulkMoveNote(ids: Set<Long>, l: Loaded): String {
+        val binned = l.all.count { it.id in ids && it.status == ItemStatus.Binned }
+        val files = when (binned) {
+            0 -> "Only the database changes now. The files move at the next Bin Files."
+            1 -> "1 of them is binned; its file moves right away. The others move at the next Bin Files."
+            else -> "$binned of them are binned; their files move right away. The others move at the next Bin Files."
+        }
+        return "$files Moved items count as set by you."
+    }
+
+    /** ", in the Beach folder" for a binned file: Remove never moves it (Q2). */
+    private fun whereItStays(status: ItemStatus, path: String) =
+        if (status == ItemStatus.Binned) ", in the ${path.substringBeforeLast('/').substringAfterLast('/')} folder" else ""
+
     private fun bulkRemoveDialog(ids: Set<Long>, l: Loaded, projectName: String): RemoveDialogUi {
         if (ids.size == 1) {
             val row = l.all.firstOrNull { it.id == ids.first() }
             val name = row?.let(::tileName) ?: "this item"
+            val where = row?.let { whereItStays(it.status, it.currentPath) }.orEmpty()
             return RemoveDialogUi(
                 title = "Remove “$name” from $projectName?",
-                body = "The file stays on your phone where it is now. The project forgets its analysis, name and category. " +
+                body = "The file stays on your phone where it is now$where. The project forgets its analysis, name and category. " +
                     "You can add it again later.",
             )
+        }
+        val binned = l.all.count { it.id in ids && it.status == ItemStatus.Binned }
+        val inFolders = when (binned) {
+            0 -> ""
+            1 -> "1 of them is in a category folder and stays there. "
+            else -> "$binned of them are in a category folder and stay there. "
         }
         return RemoveDialogUi(
             title = "Remove ${ids.size} items from $projectName?",
             body = "The files stay on your phone where they are now. The project forgets their analysis, names and categories. " +
-                "You can add them again later.",
+                inFolders + "You can add them again later.",
             removeLabel = "Remove ${ids.size}",
         )
     }
@@ -1070,6 +1107,7 @@ class ProjectMediaViewModel(
         l: Loaded,
         saveLabel: String?,
         canSave: Boolean,
+        note: String? = null,
     ): PickerUi {
         val byCategory = l.all.groupingBy { it.categoryId }.eachCount()
         val clean = CategoryNames.clean(session.newName)
@@ -1086,6 +1124,7 @@ class ProjectMediaViewModel(
             canAdd = clean.isNotEmpty() && clash == null,
             saveLabel = saveLabel,
             canSave = canSave,
+            note = note,
         )
     }
 
@@ -1105,7 +1144,7 @@ class ProjectMediaViewModel(
         val name = item.friendlyName?.takeIf { it.isNotBlank() } ?: item.originalName
         return RemoveDialogUi(
             title = "Remove “$name” from $projectName?",
-            body = "The file stays on your phone where it is now. The project forgets its analysis, name and category. " +
+            body = "The file stays on your phone where it is now${whereItStays(item.status, item.currentPath)}. The project forgets its analysis, name and category. " +
                 "You can add it again later.",
         )
     }

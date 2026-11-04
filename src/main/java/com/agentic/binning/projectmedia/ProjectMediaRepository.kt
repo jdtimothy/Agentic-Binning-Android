@@ -19,6 +19,9 @@ import kotlinx.serialization.json.Json
  *
  * [onRetryFailed] is how a Retry lifts Stop and starts analysis (P6), wired by AppGraph; tests leave
  * it as a no-op.
+ *
+ * An edit that changes where a binned file belongs writes its move plan in the same transaction, and
+ * the plan runs after the commit ([saveMoves], Plan 3 Task 14).
  */
 class ProjectMediaRepository(
     private val db: ProjectDatabase,
@@ -26,7 +29,37 @@ class ProjectMediaRepository(
     /** The project's folder: a removed item whose file is inside it is remembered (Q2); null knows only Binned. */
     private val projectDir: String? = null,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** How a Save moves binned files; null changes only the database. */
+    private val saveMoves: SaveMoveHooks? = null,
 ) {
+    /**
+     * Runs [edit] in one transaction with the move plan for the items it reports. An edit refused because
+     * a run is in progress rolls back with its plan, so nothing is half done and nothing is queued.
+     */
+    private suspend fun withMoves(edit: suspend (affected: MutableCollection<Long>) -> EditResult): EditResult {
+        var runId: Long? = null
+        val outcome: EditResult = try {
+            db.useWriterConnection { connection ->
+                // The bundled-driver way to a transaction; DAO calls inside it use this connection.
+                connection.immediateTransaction<EditResult> {
+                    val affected = ArrayList<Long>()
+                    val result = edit(affected)
+                    if (saveMoves != null && result == EditResult.Ok && affected.isNotEmpty()) {
+                        runId = saveMoves.plan(affected)
+                        if (runId != null) saveMoves.blockedReason()?.let { throw MovesRefused(it) }
+                    }
+                    result
+                }
+            }
+        } catch (e: MovesRefused) {
+            return EditResult.Busy(e.reason)
+        }
+        runId?.let { saveMoves?.started(it) }
+        return outcome
+    }
+
+    private class MovesRefused(val reason: String) : Exception()
+
     fun observeRows(filter: MediaFilter, ftsQuery: String?): Flow<List<MediaRow>> = flow {
         db.media().observeGrid().collect { grid ->
             emit(rowsFrom(grid, filter, ftsQuery))
@@ -99,9 +132,9 @@ class ProjectMediaRepository(
         category: CategoryChoice?,
         unlockName: Boolean,
         unlockCategory: Boolean,
-    ): EditResult = db.useWriterConnection { connection ->
-        // The bundled-driver way to a transaction; DAO calls inside it use this connection.
-        connection.immediateTransaction { saveItemLocked(id, name, category, unlockName, unlockCategory) }
+    ): EditResult = withMoves { affected ->
+        affected += id
+        saveItemLocked(id, name, category, unlockName, unlockCategory)
     }
 
     private suspend fun saveItemLocked(
@@ -156,8 +189,9 @@ class ProjectMediaRepository(
      * user's. Items not analyzed yet (pending, failed, missing) are left as they are: a category on
      * them would leave them neither waiting nor ready to bin.
      */
-    suspend fun moveItems(ids: List<Long>, category: CategoryChoice): EditResult = db.useWriterConnection { connection ->
-        connection.immediateTransaction { moveItemsLocked(ids, category) }
+    suspend fun moveItems(ids: List<Long>, category: CategoryChoice): EditResult = withMoves { affected ->
+        affected += ids
+        moveItemsLocked(ids, category)
     }
 
     private suspend fun moveItemsLocked(ids: List<Long>, category: CategoryChoice): EditResult {
@@ -239,11 +273,13 @@ class ProjectMediaRepository(
      * becomes the user's, and the FTS rows of their items are rebuilt.
      */
     suspend fun applyCategoryEdits(renames: Map<Long, String>, merges: List<Pair<Long, Long>>): EditResult =
-        db.useWriterConnection { connection ->
-            connection.immediateTransaction { applyCategoryEditsLocked(renames, merges) }
-        }
+        withMoves { affected -> applyCategoryEditsLocked(renames, merges, affected) }
 
-    private suspend fun applyCategoryEditsLocked(renames: Map<Long, String>, merges: List<Pair<Long, Long>>): EditResult {
+    private suspend fun applyCategoryEditsLocked(
+        renames: Map<Long, String>,
+        merges: List<Pair<Long, Long>>,
+        affected: MutableCollection<Long>,
+    ): EditResult {
         val cats = db.media().categories().associateBy { it.id }
         if (merges.any { (keep, drop) -> keep == drop || keep !in cats || drop !in cats }) return EditResult.NotFound
         val dropped = merges.mapTo(HashSet()) { it.second }
@@ -267,7 +303,9 @@ class ProjectMediaRepository(
             db.media().renameCategory(id, name)
             touched += id
         }
-        touched.flatMap { db.media().itemIdsInCategory(it) }.distinct().forEach { db.media().refreshFts(it) }
+        val items = touched.flatMap { db.media().itemIdsInCategory(it) }.distinct()
+        items.forEach { db.media().refreshFts(it) }
+        affected += items
         return EditResult.Ok
     }
 
@@ -372,6 +410,18 @@ class ProjectMediaRepository(
 }
 
 private val DetailJson = Json { ignoreUnknownKeys = true }
+
+/** How a Save moves binned files: wired by AppGraph over the move engine and the foreground service. */
+interface SaveMoveHooks {
+    /** Why files can't move now (a run is in progress); null when they can. */
+    fun blockedReason(): String?
+
+    /** Writes the plan for [ids], inside the edit's transaction; null when no file has to move. */
+    suspend fun plan(ids: Collection<Long>): Long?
+
+    /** Runs the plan, after the edit has committed. */
+    suspend fun started(runId: Long)
+}
 
 /** `removed_file.reason` for an item removed from the project (Q2); B5's Leave them writes `left`. */
 const val REMOVED = "removed"

@@ -283,6 +283,36 @@ class BinFilesViewModelTest {
 
     // ---------------------------------------------------------------- unknown files (B5)
 
+    private fun saveReport(state: RunState = RunState.Done) = MoveReport(
+        9, MoveKind.Save, state, "Saved. 2 files moved and checked.", null, 2, 0, 1, emptyList(), emptyList(), 0, 0, "A.jpg", emptyList(), 0, emptyList(), true,
+    )
+
+    /** 2b state 6: a Save that went well says so in a line; there is nothing to read in a report. */
+    @Test fun aFinishedSave_saysSoAndClosesItsReport() = runTest {
+        val vm = vm()
+        runCurrent()
+        val messages = ArrayList<String>()
+        backgroundScope.launch { vm.messages.collect { messages += it } }
+        runCurrent()
+        actions.unread = saveReport()
+        view.value = BinPipelineView(PipelinePhase.Idle, null, 1, MoveOutcome.Done, null)
+        runCurrent()
+        assertNull(vm.state.value.sheet)
+        assertEquals(listOf("Saved. 2 files moved and checked."), messages)
+        assertEquals(listOf(9L), actions.closed)
+    }
+
+    /** One that stopped, or left a file behind, needs the report. */
+    @Test fun aStoppedSave_opensItsReport() = runTest {
+        val vm = vm()
+        runCurrent()
+        actions.unread = saveReport(RunState.Stopped)
+        view.value = BinPipelineView(PipelinePhase.Idle, null, 1, MoveOutcome.Stopped, null)
+        runCurrent()
+        assertEquals("Saving stopped", (vm.state.value.sheet as BinSheetUi.Report).ui.title)
+        assertTrue(actions.closed.isEmpty())
+    }
+
     private val problems get() = LayoutProblems(missing = emptyList(), unexpected = listOf("$p/Beach/IMG.jpg"))
 
     @Test fun blockedRun_opensTheUnknownFilesSheet() = runTest {

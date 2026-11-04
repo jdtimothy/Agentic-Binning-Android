@@ -151,7 +151,7 @@ class MainActivity : ComponentActivity() {
                     val mediaViewModel = viewModel {
                         ProjectMediaViewModel(
                             source = graph.currentProject.map { open ->
-                                open?.let { RepositoryMediaSource(it) { graph.startAnalysisAfterRetry(it) } }
+                                open?.let { RepositoryMediaSource(it, { graph.startAnalysisAfterRetry(it) }, graph.saveMoveHooks(it)) }
                             },
                             phase = graph.pipeline.state.map { it.phase },
                             move = graph.pipeline.state.map { it.moveProgress }.distinctUntilChanged().paced(MOVE_UI_GAP_MS),

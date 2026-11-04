@@ -191,6 +191,14 @@ class BinModelsTest {
         assertEquals(listOf(MovedFile("A.jpg", "Beach")), ui.recent)
     }
 
+    /** 2b state 6: a Save's card says what it is doing. */
+    @Test fun card_save_saysSaving() {
+        val ui = moveCardUi(progress(done = 1, total = 3, kind = MoveKind.Save), null, MoveRequest.None)
+        assertEquals("Saving changes", ui.title)
+        assertEquals("2 of 3 files", ui.count)
+        assertEquals("Other edits wait until this finishes. You can still browse and search.", ui.note)
+    }
+
     // ---------------------------------------------------------------- State 3: report
 
     @Test fun report_done_headlineAndCheck() {
@@ -223,6 +231,13 @@ class BinModelsTest {
         assertEquals("A 2.jpg, B 2.jpg, C 2.jpg and 1 more", numbered.sub)
         assertEquals("Turtle Beach", ui.facts.single { it.text == "Empty folders removed" }.sub)
         assertEquals("4", ui.facts.single { it.text == "Already in place" }.value)
+    }
+
+    /** Two folders can each get "Sign 2.jpg": the count is of files, the list of names. */
+    @Test fun report_numberedNames_listEachNameOnce() {
+        val fact = reportUi(report(numbered = listOf("A 2.jpg", "A 2.jpg", "B 2.jpg"))).facts.single { it.text == "Names that got a number" }
+        assertEquals("3", fact.value)
+        assertEquals("A 2.jpg, B 2.jpg", fact.sub)
     }
 
     /** B4: a copy that didn't match is listed, and the user is told nothing was lost. */

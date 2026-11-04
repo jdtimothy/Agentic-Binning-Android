@@ -129,6 +129,109 @@ class ProjectMediaRepositoryTest {
     }
 
     /** Plan 3 Q2: a removed binned item's file stays, and its path is remembered for the folder check. Not yet run on the phone. */
+    // ---------------------------------------------------------------- Save on binned files (Plan 3 Task 14)
+
+    private class Hooks(val runId: Long? = 7, val blocked: String? = null) : SaveMoveHooks {
+        val planned = ArrayList<Long>()
+        val asked = ArrayList<List<Long>>()
+        override fun blockedReason() = blocked
+        override suspend fun plan(ids: Collection<Long>): Long? {
+            asked += ids.toList()
+            return runId
+        }
+        override suspend fun started(runId: Long) { planned += runId }
+    }
+
+    private suspend fun binnedItem(name: String): Long {
+        val category = db.media().insertCategory(CategoryEntity(name = "Beach $name", description = "", createdBy = "model", folderName = null))
+        val id = photo(name, friendlyName = name)
+        db.media().updateItemEdit(id, name, nameSetByUser = false, categoryId = category, categorySetByUser = false, status = ItemStatus.Binned)
+        return id
+    }
+
+    @Test fun saveRename_binnedItem_startsItsPlanAfterTheEditCommits() = runTest {
+        val hooks = Hooks()
+        val repo = ProjectMediaRepository(db, saveMoves = hooks)
+        val id = binnedItem("a")
+
+        assertEquals(EditResult.Ok, repo.saveItem(id, "New name", null, unlockName = false, unlockCategory = false))
+
+        assertEquals("New name", db.media().item(id)?.friendlyName)
+        assertEquals(listOf(listOf(id)), hooks.asked)
+        assertEquals(listOf(7L), hooks.planned)
+    }
+
+    @Test fun save_withNothingToMove_startsNothing() = runTest {
+        val hooks = Hooks(runId = null)
+        val repo = ProjectMediaRepository(db, saveMoves = hooks)
+        val id = binnedItem("a")
+        assertEquals(EditResult.Ok, repo.saveItem(id, "New name", null, unlockName = false, unlockCategory = false))
+        assertTrue(hooks.planned.isEmpty())
+    }
+
+    /** Refused while a run is in progress, never queued: the edit rolls back with its plan. */
+    @Test fun save_refusedWhileBusy_rollsTheEditBack() = runTest {
+        val hooks = Hooks(blocked = "Busy")
+        val repo = ProjectMediaRepository(db, saveMoves = hooks)
+        val id = binnedItem("a")
+
+        assertEquals(EditResult.Busy("Busy"), repo.saveItem(id, "New name", null, unlockName = false, unlockCategory = false))
+
+        assertEquals("a", db.media().item(id)?.friendlyName)
+        assertTrue(hooks.planned.isEmpty())
+    }
+
+    /** A failure writing the plan takes the edit with it: never a name with no plan to match. */
+    @Test fun save_planFails_rollsTheEditBack() = runTest {
+        val repo = ProjectMediaRepository(db, saveMoves = object : SaveMoveHooks {
+            override fun blockedReason() = null
+            override suspend fun plan(ids: Collection<Long>): Long? = throw java.io.IOException("disk")
+            override suspend fun started(runId: Long) = Unit
+        })
+        val id = binnedItem("a")
+        assertEquals(true, runCatching { repo.saveItem(id, "New name", null, unlockName = false, unlockCategory = false) }.isFailure)
+        assertEquals("a", db.media().item(id)?.friendlyName)
+    }
+
+    @Test fun moveItems_binnedItem_startsItsPlan() = runTest {
+        val hooks = Hooks()
+        val repo = ProjectMediaRepository(db, saveMoves = hooks)
+        val id = binnedItem("a")
+        val other = db.media().insertCategory(CategoryEntity(name = "Other", description = "", createdBy = "model", folderName = null))
+
+        assertEquals(EditResult.Ok, repo.moveItems(listOf(id), CategoryChoice.Existing(other)))
+
+        assertEquals(other, db.media().item(id)?.categoryId)
+        assertEquals(listOf(listOf(id)), hooks.asked)
+        assertEquals(listOf(7L), hooks.planned)
+    }
+
+    @Test fun renameCategory_startsAPlanForEveryItemInIt() = runTest {
+        val hooks = Hooks()
+        val repo = ProjectMediaRepository(db, saveMoves = hooks)
+        val id = binnedItem("a")
+        val category = db.media().item(id)!!.categoryId!!
+
+        assertEquals(EditResult.Ok, repo.applyCategoryEdits(mapOf(category to "Coast"), emptyList()))
+
+        assertEquals(listOf(listOf(id)), hooks.asked)
+        assertEquals(listOf(7L), hooks.planned)
+    }
+
+    @Test fun merge_startsAPlanForTheDroppedCategorysItems() = runTest {
+        val hooks = Hooks()
+        val repo = ProjectMediaRepository(db, saveMoves = hooks)
+        val a = binnedItem("a")
+        val b = binnedItem("b")
+        val keep = db.media().item(a)!!.categoryId!!
+        val drop = db.media().item(b)!!.categoryId!!
+
+        assertEquals(EditResult.Ok, repo.applyCategoryEdits(emptyMap(), listOf(keep to drop)))
+
+        assertEquals(keep, db.media().item(b)?.categoryId)
+        assertEquals(setOf(a, b), hooks.asked.single().toSet())
+    }
+
     @Test fun remove_binnedItem_recordsItsPath() = runTest {
         val id = photo("hb")
         db.items().setStatus(id, ItemStatus.Binned)

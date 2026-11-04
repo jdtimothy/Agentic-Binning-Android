@@ -141,11 +141,11 @@ fun moveCardUi(p: MoveProgress, resumedFrom: Int?, request: MoveRequest): MoveCa
     return MoveCardUi(
         title = when {
             p.paused -> "Paused"
-            p.kind == MoveKind.Save -> "Saving files"
+            p.kind == MoveKind.Save -> "Saving changes"
             resumedFrom != null -> "Finishing Bin Files"
             else -> "Binning files"
         },
-        count = "$shown of ${p.total}",
+        count = if (p.kind == MoveKind.Save) "$shown of ${files(p.total)}" else "$shown of ${p.total}",
         fraction = if (p.total == 0) 0f else p.done.toFloat() / p.total,
         banner = banner,
         file = if (p.paused) "Next: ${p.next ?: p.current.orEmpty()}" else p.current.orEmpty(),
@@ -159,6 +159,7 @@ fun moveCardUi(p: MoveProgress, resumedFrom: Int?, request: MoveRequest): MoveCa
             request == MoveRequest.Stop -> "Stopping after this file…"
             request == MoveRequest.Pause && !p.paused -> "Pausing after this file…"
             p.paused -> "Other edits wait until it ends."
+            p.kind == MoveKind.Save -> "Other edits wait until this finishes. You can still browse and search."
             else -> "Other edits wait. You can leave this screen."
         },
         paused = p.paused,
@@ -176,8 +177,10 @@ private fun skippedRow(s: SkippedFile): LeftRowUi {
     return LeftRowUi(s.itemId, s.name, "$why Nothing was lost; the next Bin Files tries again.", "Skipped")
 }
 
-private fun namesSub(names: List<String>): String =
-    if (names.size <= SHOWN_NAMES) names.joinToString(", ") else names.take(SHOWN_NAMES).joinToString(", ") + " and ${names.size - SHOWN_NAMES} more"
+private fun namesSub(all: List<String>): String {
+    val names = all.distinct()
+    return if (names.size <= SHOWN_NAMES) names.joinToString(", ") else names.take(SHOWN_NAMES).joinToString(", ") + " and ${names.size - SHOWN_NAMES} more"
+}
 
 private const val SHOWN_NAMES = 3
 

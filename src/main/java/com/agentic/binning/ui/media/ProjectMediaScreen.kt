@@ -453,7 +453,7 @@ private fun ResultLine(state: MediaUiState, vm: ProjectMediaViewModel) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(state.resultText, Modifier.weight(1f), color = tokens.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (state.selection == null) MiniButton(MediaIcons.Select, "Select", height = 28, onClick = vm::onStartSelect)
+        if (state.selection == null) MiniButton(MediaIcons.Select, "Select", dimmed = state.busyReason == EDITS_WAIT, height = 28, onClick = vm::onStartSelect)
     }
 }
 

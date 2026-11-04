@@ -4,9 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.agentic.binning.move.BinPreview
 import com.agentic.binning.move.LayoutProblems
+import com.agentic.binning.move.MoveKind
 import com.agentic.binning.move.MoveOutcome
 import com.agentic.binning.move.MoveProgress
 import com.agentic.binning.move.MoveReport
+import com.agentic.binning.move.RunState
 import com.agentic.binning.pipeline.MoveStart
 import com.agentic.binning.pipeline.PipelinePhase
 import kotlinx.coroutines.CancellationException
@@ -158,7 +160,14 @@ class BinFilesViewModel(
 
     private fun loadReport(a: BinActions) = launchSafely {
         val report = withContext(io) { a.unreadReport() } ?: return@launchSafely
-        if (current === a && viewNow.value.phase?.isMoving != true) sheet.value = BinSheetUi.Report(report.runId, reportUi(report))
+        if (current !== a || viewNow.value.phase?.isMoving == true) return@launchSafely
+        // 2b state 6: a Save that went well says so in a line; one that didn't needs the report.
+        if (report.kind == MoveKind.Save && report.state == RunState.Done && report.skipped.isEmpty() && report.checkOk != false) {
+            _messages.tryEmit(report.headline)
+            closeReport(report.runId)
+        } else {
+            sheet.value = BinSheetUi.Report(report.runId, reportUi(report))
+        }
     }
 
     private fun showUnknown(a: BinActions, problems: LayoutProblems) = launchSafely {

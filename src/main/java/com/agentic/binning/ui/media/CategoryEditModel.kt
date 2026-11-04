@@ -106,6 +106,8 @@ data class CategoryEditUi(
     val mergeBox: MergeBox?,
     val saveLabel: String,
     val canSave: Boolean,
+    /** What a Save does to files (2b state 5a); null with nothing to save. */
+    val note: String? = null,
 )
 
 /** What Save applies: renames of the surviving categories, and the merges in order (keep, drop). */
@@ -122,11 +124,24 @@ fun categoryEditsOf(cats: List<CategoryEntity>, d: CategoryEditDraft): CategoryE
     )
 }
 
-fun categoryEditUi(cats: List<CategoryEntity>, counts: Map<Long, Int>, d: CategoryEditDraft): CategoryEditUi {
+fun categoryEditUi(cats: List<CategoryEntity>, counts: Map<Long, Int>, d: CategoryEditDraft, binned: Map<Long, Int> = emptyMap()): CategoryEditUi {
     val byId = cats.associateBy { it.id }
     val dropped = d.merges.mapTo(HashSet()) { it.second }
     fun name(id: Long) = d.renames[id] ?: byId[id]?.name.orEmpty()
     fun total(id: Long): Int = (counts[id] ?: 0) + d.merges.filter { it.first == id }.sumOf { total(it.second) }
+    fun binnedIn(id: Long): Int = (binned[id] ?: 0) + d.merges.filter { it.first == id }.sumOf { binnedIn(it.second) }
+    /** What a merge choice does to files (2b state 5b): keep [keep]'s name, drop [other]'s. */
+    fun mergeDetail(keep: Long, other: Long): String {
+        val moving = binnedIn(other)
+        val inKept = binnedIn(keep) > 0
+        val files = if (moving == 1) "1 binned file moves" else "$moving binned files move"
+        return when {
+            moving > 0 && inKept -> "$files into the ${name(keep)} folder when you save."
+            moving > 0 -> "$files from the ${name(other)} folder into a new ${name(keep)} folder when you save."
+            inKept -> "No files move now. ${name(other)} files go into the ${name(keep)} folder at the next Bin Files."
+            else -> "No files move now."
+        }
+    }
     val error = d.editError(cats)
     val rows = cats.filter { it.id !in dropped }.map { c ->
         val mergedIn = d.merges.filter { it.first == c.id }.map { name(it.second) }
@@ -151,13 +166,22 @@ fun categoryEditUi(cats: List<CategoryEntity>, counts: Map<Long, Int>, d: Catego
         val keep = d.keepId ?: d.ticked.first()
         MergeBox(
             title = "Merge ${name(d.ticked[0])} and ${name(d.ticked[1])}",
-            // In 2b nothing is binned, so no category has a folder yet: a merge never moves files now.
-            options = d.ticked.map { KeepOption(it, "Keep the name “${name(it)}”", "No files move now.", it == keep) },
+            options = d.ticked.map { id ->
+                val other = d.ticked.first { it != id }
+                KeepOption(id, "Keep the name “${name(id)}”", mergeDetail(id, other), id == keep)
+            },
         )
     } else {
         null
     }
     val n = categoryEditsOf(cats, d).count
+    // A surviving category's own files move only if it is renamed; a dropped one's always do.
+    val moving = d.merges.sumOf { binnedIn(it.second) } + d.renames.keys.filter { it !in dropped }.sumOf { binned[it] ?: 0 }
+    val note = when {
+        n == 0 -> null
+        moving == 0 -> "Only the database changes. Files move at the next Bin Files."
+        else -> "Saving moves $moving binned ${if (moving == 1) "file" else "files"} right away, one at a time. Other files move at the next Bin Files."
+    }
     return CategoryEditUi(
         rows = rows,
         mergeBox = box,
@@ -167,5 +191,6 @@ fun categoryEditUi(cats: List<CategoryEntity>, counts: Map<Long, Int>, d: Catego
             else -> "Save $n changes"
         },
         canSave = n > 0,
+        note = note,
     )
 }

@@ -51,6 +51,7 @@ class AnalysisService : LifecycleService() {
                         RunKind.CategorizeOnly -> controller.categorizeNow(ref)
                         RunKind.Resort -> resort(ref, intent)
                         RunKind.BinFiles -> logRefusal(controller.binFiles(ref))
+                        RunKind.SaveMoves -> logRefusal(controller.saveMoves(ref, intent.getLongExtra(EXTRA_MOVE_RUN, 0L)))
                         RunKind.ResumeMove -> logRefusal(
                             controller.resumeMove(ref, intent.getLongExtra(EXTRA_MOVE_RUN, 0L), intent.getBooleanExtra(EXTRA_MOVE_PAUSED, false)),
                         )
@@ -310,7 +311,7 @@ class AnalysisService : LifecycleService() {
                 .putExtra(EXTRA_PATH, project.path)
                 .putExtra(EXTRA_KIND, kind.name)
             resort?.let { intent.putExtra(EXTRA_RESORT_MODEL, it.model.name).putExtra(EXTRA_KEEP_EDITS, it.keepEdits) }
-            if (kind == RunKind.ResumeMove) intent.putExtra(EXTRA_MOVE_RUN, moveRunId).putExtra(EXTRA_MOVE_PAUSED, movePaused)
+            if (kind == RunKind.ResumeMove || kind == RunKind.SaveMoves) intent.putExtra(EXTRA_MOVE_RUN, moveRunId).putExtra(EXTRA_MOVE_PAUSED, movePaused)
             context.startForegroundService(intent)
         }
     }

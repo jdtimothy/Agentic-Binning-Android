@@ -81,6 +81,12 @@ fun CategoryEditSheet(state: CategoryEditState, actions: CategoryEditActions) {
         HorizontalDivider(color = tokens.line)
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             state.error?.let { Text(it, Modifier.padding(horizontal = 4.dp), color = tokens.danger, fontSize = 12.sp) }
+            ui.note?.let {
+                Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(MediaIcons.Info, contentDescription = null, tint = tokens.sub, modifier = Modifier.padding(top = 1.dp).size(14.dp))
+                    Text(it, color = tokens.sub, fontSize = 12.sp, lineHeight = 16.sp)
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button("Cancel", null, ButtonStyle.Secondary, onClick = actions::onClose)
                 Button(ui.saveLabel, null, ButtonStyle.Primary, Modifier.weight(1f), enabled = ui.canSave && !state.saving, onClick = actions::onSave)

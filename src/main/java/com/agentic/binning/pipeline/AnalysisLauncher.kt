@@ -12,6 +12,9 @@ import kotlinx.coroutines.sync.withLock
 enum class RunKind {
     Analyze, CategorizeOnly, Resort,
 
+    /** The plan a Save wrote (Plan 3 Task 14): move the binned files it changed. */
+    SaveMoves,
+
     /** Bin Files (Plan 3): check, plan and move the open project's sorted files. */
     BinFiles,
 

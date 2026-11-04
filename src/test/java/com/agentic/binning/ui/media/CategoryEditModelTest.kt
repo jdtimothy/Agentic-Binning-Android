@@ -20,6 +20,61 @@ class CategoryEditModelTest {
 
     private fun row(d: CategoryEditDraft, id: Long) = ui(d).rows.single { it.id == id }
 
+    // Turtle Beach holds 3 binned files, Beach Scenes 2; the others none.
+    private val binned = mapOf(1L to 3, 2L to 2)
+
+    private fun binnedUi(d: CategoryEditDraft) = categoryEditUi(cats, counts, d, binned)
+
+    /** 2b state 5a: the footer says what a Save does to files. */
+    @Test
+    fun note_saysHowManyBinnedFilesMoveNow() {
+        assertNull("no edits, nothing to say", binnedUi(CategoryEditDraft()).note)
+        val renamed = CategoryEditDraft().startRename(1, cats).editTo("Sea Turtles").finishRename(cats)
+        assertEquals("Saving moves 3 binned files right away, one at a time. Other files move at the next Bin Files.", binnedUi(renamed).note)
+    }
+
+    @Test
+    fun note_noBinnedFiles_saysOnlyTheDatabaseChanges() {
+        val renamed = CategoryEditDraft().startRename(3, cats).editTo("Party").finishRename(cats)
+        assertEquals("Only the database changes. Files move at the next Bin Files.", binnedUi(renamed).note)
+    }
+
+    @Test
+    fun note_oneFile_isSingular() {
+        val renamed = CategoryEditDraft().startRename(1, cats).editTo("Sea Turtles").finishRename(cats)
+        assertEquals(
+            "Saving moves 1 binned file right away, one at a time. Other files move at the next Bin Files.",
+            categoryEditUi(cats, counts, renamed, mapOf(1L to 1)).note,
+        )
+    }
+
+    /** A merge moves only the dropped category's files, unless the kept one is renamed too. */
+    @Test
+    fun note_merge_countsWhatMoves() {
+        val merged = CategoryEditDraft().tick(1).tick(2).keep(2).merge()
+        assertEquals("Saving moves 3 binned files right away, one at a time. Other files move at the next Bin Files.", binnedUi(merged).note)
+        val alsoRenamed = merged.startRename(2, cats).editTo("Coast").finishRename(cats)
+        assertEquals("Saving moves 5 binned files right away, one at a time. Other files move at the next Bin Files.", binnedUi(alsoRenamed).note)
+    }
+
+    /** 2b state 5b: each choice in the merge box says what it does to files. */
+    @Test
+    fun mergeBox_saysWhatEachChoiceMoves() {
+        val options = binnedUi(CategoryEditDraft().tick(1).tick(3)).mergeBox!!.options
+        assertEquals("No files move now. Luau files go into the Turtle Beach folder at the next Bin Files.", options[0].detail)
+        assertEquals("3 binned files move from the Turtle Beach folder into a new Luau folder when you save.", options[1].detail)
+
+        val both = binnedUi(CategoryEditDraft().tick(1).tick(2)).mergeBox!!.options
+        assertEquals("2 binned files move into the Turtle Beach folder when you save.", both[0].detail)
+        assertEquals("3 binned files move into the Beach Scenes folder when you save.", both[1].detail)
+    }
+
+    @Test
+    fun mergeBox_nothingBinned_saysNoFilesMove() {
+        val options = ui(CategoryEditDraft().tick(1).tick(2)).mergeBox!!.options
+        assertEquals(listOf("No files move now.", "No files move now."), options.map { it.detail })
+    }
+
     @Test
     fun untouched_listsEveryCategory_andSaveIsOff() {
         val u = ui(CategoryEditDraft())

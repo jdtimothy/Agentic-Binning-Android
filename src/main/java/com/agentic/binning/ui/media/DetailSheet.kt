@@ -206,7 +206,7 @@ private fun ColumnScope.DetailContent(sheet: DetailSheetState, vm: ProjectMediaV
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button("Cancel", null, ButtonStyle.Secondary, onClick = vm::onCloseDetail)
             Button(
-                "Save",
+                ui.saveLabel,
                 null,
                 ButtonStyle.Primary,
                 Modifier.weight(1f),
@@ -224,6 +224,7 @@ private fun Media(sheet: DetailSheetState) {
         when (ui.badge) {
             StatusBadge.Waiting -> MediaBadge(MediaIcons.Clock, "Waiting to be categorized", Alignment.TopStart)
             StatusBadge.Sorted -> MediaBadge(null, "Sorted", Alignment.TopStart)
+            StatusBadge.Binned -> MediaBadge(MediaIcons.FolderCheck, "Binned", Alignment.TopStart)
         }
     }
 }
@@ -455,7 +456,7 @@ private fun ColumnScope.PickerContent(picker: PickerUi, actions: PickerActions) 
             Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(MediaIcons.Info, contentDescription = null, tint = tokens.sub, modifier = Modifier.padding(top = 1.dp).size(14.dp))
                 Text(
-                    "Only the database changes now. The files move at the next Bin Files. Moved items count as set by you.",
+                    picker.note.orEmpty(),
                     color = tokens.sub,
                     fontSize = 12.sp,
                 )

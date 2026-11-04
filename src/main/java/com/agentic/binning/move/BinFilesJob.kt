@@ -33,6 +33,9 @@ interface BinStore : MoveStore {
     /** Files in category folders the user chose to leave (B5): the folder check skips them from now on. */
     suspend fun leaveFiles(paths: List<String>, at: Long)
 
+    /** These items' files are not at their targets: ready to bin until a run puts them there. */
+    suspend fun markReady(ids: List<Long>)
+
     /** Folders a finished step put a file in: the only ones (with `Copied from` folders) ever removed (B12). */
     suspend fun binnedFolders(): List<String>
 }
@@ -114,6 +117,28 @@ class BinFilesJob(
             return MoveOutcome.NothingToMove(plan.inPlace.size)
         }
         return execute(runId, MoveKind.Bin, control, onProgress)
+    }
+
+    /**
+     * A Save's plan (Plan 3 Task 14): for those of [ids] that are binned and whose target changed, writes
+     * a run to start after the edit commits, and returns it. Null when no file has to move. Call in the
+     * edit's transaction, so the edit and its plan are one: a crash either way resumes or changes nothing.
+     * Items not binned only change in the database; their files move at the next Bin Files.
+     */
+    suspend fun planSave(ids: Collection<Long>): Long? {
+        val items = store.binItems()
+        val wanted = ids.toSet()
+        val binned = items.filter { it.id in wanted && it.status == ItemStatus.Binned }.mapTo(HashSet()) { it.id }
+        if (binned.isEmpty()) return null
+        val categories = store.categoryNames()
+        val onDisk = FolderCheck.categoryFiles(root, categories.values, files::listFiles)
+        val plan = BinPlanner.plan(root, items, categories, onDisk.toSet(), files::exists, only = binned)
+        if (plan.steps.isEmpty()) return null
+        val bytes = plan.steps.associate { it.itemId to files.size(it.source) }
+        val runId = store.writeRun(MoveKind.Save, clock(), plan.steps, bytes, emptyList(), plan.becameMissing)
+        // A Save stopped half way must not hide behind "All files binned".
+        store.markReady(plan.steps.map { it.itemId })
+        return runId
     }
 
     /** Finishes the open run [runId] (B3); a paused one waits for [control] to resume. */
