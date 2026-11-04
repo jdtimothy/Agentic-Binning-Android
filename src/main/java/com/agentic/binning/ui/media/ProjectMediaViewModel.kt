@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.agentic.binning.db.CategoryEntity
 import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
+import com.agentic.binning.move.MoveProgress
 import com.agentic.binning.pipeline.PipelinePhase
+import com.agentic.binning.projectmedia.ActiveJob
 import com.agentic.binning.projectmedia.CategoryChoice
 import com.agentic.binning.projectmedia.CategoryNames
 import com.agentic.binning.projectmedia.EditResult
@@ -290,6 +292,9 @@ const val DETAIL_AFTER_ANALYSIS = "Details open once this item is analyzed"
 /** Shown when Bin Files is on: binning arrives with Plan 3. */
 const val BIN_FILES_LATER = "Bin Files comes in a later version"
 
+/** While files move (Bin Files or a Save), every edit waits (2b state 6, Q11). */
+const val EDITS_WAIT = "Edits wait until the files have moved"
+
 /** What the user has picked on the screen; reset when the open project changes. */
 private data class Picks(
     val query: String = "",
@@ -373,6 +378,8 @@ class ProjectMediaViewModel(
     source: Flow<MediaSource?>,
     phase: Flow<PipelinePhase?>,
     private val onCategorizeNow: () -> Unit,
+    /** The move in progress (Plan 3), for the status line; null when no files move. */
+    move: Flow<MoveProgress?> = flowOf(null),
     private val resort: ResortActions? = null,
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val io: CoroutineDispatcher = Dispatchers.IO,
@@ -382,6 +389,7 @@ class ProjectMediaViewModel(
     private val scope = scope ?: viewModelScope
     private val picks = MutableStateFlow(Picks())
     private val phaseNow = phase.distinctUntilChanged().stateIn(this.scope, SharingStarted.Eagerly, null)
+    private val moveNow = move.distinctUntilChanged().stateIn(this.scope, SharingStarted.Eagerly, null)
     private val session = MutableStateFlow<DetailSession?>(null)
     private val categorySession = MutableStateFlow<CategoryEditSession?>(null)
     private val resortSession = MutableStateFlow<ResortSession?>(null)
@@ -433,8 +441,8 @@ class ProjectMediaViewModel(
     }
 
     val state: StateFlow<MediaUiState> =
-        combine(loaded, picks, phaseNow, combine(session, categorySession, resortSession, ::Sheets)) { l, p, ph, s ->
-            build(l, p, ph, s)
+        combine(loaded, picks, combine(phaseNow, moveNow, ::Pair), combine(session, categorySession, resortSession, ::Sheets)) { l, p, ph, s ->
+            build(l, p, ph.first, ph.second, s)
         }
         .stateIn(this.scope, SharingStarted.Eagerly, MediaUiState.None)
 
@@ -552,6 +560,7 @@ class ProjectMediaViewModel(
     }
 
     fun onSaveDetail() {
+        if (refuseWhileMoving()) return
         val s = session.value ?: return
         val src = current ?: return
         if (s.saving || !detailUi(s.detail, s.draft, zone).saveEnabled) return
@@ -580,6 +589,7 @@ class ProjectMediaViewModel(
      * A paused run picks the item up only after Resume, and the toast says so.
      */
     fun onRetryFailed() {
+        if (refuseWhileMoving()) return
         val s = session.value ?: return
         val src = current ?: return
         if (s.saving) return
@@ -608,6 +618,7 @@ class ProjectMediaViewModel(
     fun onSetByHandBack() = updateSession { it.copy(manual = false, draft = DetailDraft.of(it.detail), picker = null, error = null) }
 
     fun onSaveByHand() {
+        if (refuseWhileMoving()) return
         val s = session.value ?: return
         val src = current ?: return
         val request = setByHandRequest(s.detail, s.draft) ?: return
@@ -626,6 +637,7 @@ class ProjectMediaViewModel(
     fun onCancelRemove() = updateSession { it.copy(confirmRemove = false) }
 
     fun onConfirmRemove() {
+        if (refuseWhileMoving()) return
         val s = session.value ?: return
         val src = current ?: return
         session.value = null
@@ -675,6 +687,7 @@ class ProjectMediaViewModel(
     }
 
     private fun saveMove() {
+        if (refuseWhileMoving()) return
         val move = picks.value.move ?: return
         val src = current ?: return
         val ids = selectedIds()
@@ -740,8 +753,8 @@ class ProjectMediaViewModel(
 
     /** Edit on the categories row: the Category Edit sheet, off while a run is in progress. */
     fun onOpenCategoryEdit() {
-        if (state.value.busyReason != null) {
-            _messages.tryEmit(EDIT_BUSY)
+        state.value.busyReason?.let {
+            _messages.tryEmit(if (it == EDITS_WAIT) it else EDIT_BUSY)
             return
         }
         categorySession.value = CategoryEditSession()
@@ -845,6 +858,13 @@ class ProjectMediaViewModel(
         }
     }
 
+    /** True (and says why) while files move: every Save, Remove and Retry waits (2b state 6, Q11). */
+    private fun refuseWhileMoving(): Boolean {
+        if (phaseNow.value?.isMoving != true) return false
+        _messages.tryEmit(EDITS_WAIT)
+        return true
+    }
+
     fun onBinFiles() {
         val s = state.value
         _messages.tryEmit(s.binReason ?: BIN_FILES_LATER)
@@ -852,11 +872,11 @@ class ProjectMediaViewModel(
 
     private fun Set<Long>.toggle(id: Long) = if (id in this) this - id else this + id
 
-    private fun build(l: Loaded, p: Picks, phase: PipelinePhase?, sheets: Sheets): MediaUiState {
+    private fun build(l: Loaded, p: Picks, phase: PipelinePhase?, move: MoveProgress?, sheets: Sheets): MediaUiState {
         val src = l.source ?: return MediaUiState.None
         val d = sheets.detail
         val c = sheets.categoryEdit
-        val job = activeJobOf(phase)
+        val job = activeJobOf(phase, move)
         val counts = mediaCountsOf(l.all, { it.status }) { isWaiting(it.status, it.categoryId, it.categorySetByUser) }
         val filter = filterOf(p.chip, p.kind, p.shot, p.day)
         // The base of the chip counts: everything but the chip.
@@ -963,7 +983,11 @@ class ProjectMediaViewModel(
             noMatchText = noMatch,
             status = mediaStatus(counts, job),
             binReason = binFilesBlockedReason(counts, job),
-            busyReason = if (job != null) RESORT_BUSY else null,
+            busyReason = when (job) {
+                null -> null
+                is ActiveJob.Binning, is ActiveJob.Saving -> EDITS_WAIT
+                else -> RESORT_BUSY
+            },
             selection = selection,
             allVisibleSelected = selection != null && tiles.isNotEmpty() && tiles.all { it.id in selection },
             empty = empty,

@@ -4,6 +4,9 @@ import com.agentic.binning.db.CategoryEntity
 import com.agentic.binning.db.ItemEntity
 import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
+import com.agentic.binning.move.MoveKind
+import com.agentic.binning.move.MovePhase
+import com.agentic.binning.move.MoveProgress
 import com.agentic.binning.pipeline.PipelinePhase
 import com.agentic.binning.projectmedia.CategoryChoice
 import com.agentic.binning.projectmedia.EditResult
@@ -164,6 +167,7 @@ class ProjectMediaViewModelTest {
     private val source = FakeSource()
     private val sources = MutableStateFlow<MediaSource?>(source)
     private val phase = MutableStateFlow<PipelinePhase?>(PipelinePhase.Idle)
+    private val move = MutableStateFlow<MoveProgress?>(null)
     private var categorizeCalls = 0
     private var settingsChoice = SortingModelChoice.Lfm3_1_7B
     private val unavailable = mutableMapOf<SortingModelChoice, String>()
@@ -173,6 +177,7 @@ class ProjectMediaViewModelTest {
     private fun TestScope.vm() = ProjectMediaViewModel(
         source = sources,
         phase = phase,
+        move = move,
         onCategorizeNow = { categorizeCalls++ },
         resort = object : ResortActions {
             override suspend fun settingsChoice() = this@ProjectMediaViewModelTest.settingsChoice
@@ -1208,5 +1213,35 @@ class ProjectMediaViewModelTest {
         val ui = vm.state.value.resort!!.ui
         assertFalse(ui.rows.first { it.choice == SortingModelChoice.Claude }.unavailable)
         assertTrue(ui.enabled)
+    }
+
+    /** Plan 3 (Q11, 2b state 6): while files move, the status line follows the move and edits wait. */
+    @Test
+    fun movingFiles_showsProgressAndHoldsEdits() = runTest {
+        val vm = vm()
+        val messages = mutableListOf<String>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.messages.toList(messages) }
+        phase.value = PipelinePhase.Moving
+        move.value = MoveProgress(MoveKind.Bin, done = 12, total = 248, current = "A.jpg", phase = MovePhase.Moving, paused = false)
+        advanceUntilIdle()
+
+        val s = vm.state.value
+        assertEquals("Binning · 13 of 248 files", s.status.text)
+        assertEquals(EDITS_WAIT, s.busyReason)
+        assertEquals("Bin Files is running", s.binReason)
+
+        vm.onResort()
+        vm.onOpenCategoryEdit()
+        vm.onBinFiles()
+        advanceUntilIdle()
+        assertEquals(listOf(EDITS_WAIT, EDITS_WAIT, "Bin Files is running"), messages)
+        assertNull(vm.state.value.categoryEdit)
+        assertNull(vm.state.value.resort)
+
+        phase.value = PipelinePhase.MovingPaused
+        move.value = move.value!!.copy(done = 37, paused = true)
+        advanceUntilIdle()
+        assertEquals("Bin Files paused · 37 of 248 files", vm.state.value.status.text)
+        assertEquals(EDITS_WAIT, vm.state.value.busyReason)
     }
 }
