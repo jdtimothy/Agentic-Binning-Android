@@ -84,7 +84,7 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
 /* ---------- The phone ---------- */
 .ph {
   --bg: #06070B; --bgfade: rgba(6, 7, 11, 0.88); --glass: rgba(24, 27, 36, 0.55); --glass2: var(--glass);
-  --sheet: var(--glass); --border: rgba(255, 255, 255, 0.13); --hi: rgba(255, 255, 255, 0.20);
+  --sheet: rgba(72, 78, 96, 0.55); --well: rgba(10, 12, 18, 0.46); --wellwarn: rgba(52, 36, 12, 0.62); --border: rgba(255, 255, 255, 0.13); --hi: rgba(255, 255, 255, 0.20);
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.45); --tshadow: 0 6px 18px rgba(0, 0, 0, 0.35);
   --text: #F4F6FA; --sub: rgba(226, 232, 244, 0.72); --chip: rgba(255, 255, 255, 0.08); --chip2: rgba(255, 255, 255, 0.12);
   --accent: #6CB6FF; --on-accent: #04121F; --ink: #8CC6FF; --asoft: rgba(108, 182, 255, 0.18);
@@ -98,7 +98,7 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
 }
 .ph.light {
   --bg: #E8ECF2; --bgfade: rgba(232, 236, 242, 0.88); --glass: rgba(255, 255, 255, 0.58); --glass2: var(--glass);
-  --sheet: var(--glass); --border: rgba(255, 255, 255, 0.85); --hi: rgba(255, 255, 255, 1);
+  --sheet: var(--glass); --well: var(--chip); --wellwarn: var(--wsoft); --border: rgba(255, 255, 255, 0.85); --hi: rgba(255, 255, 255, 1);
   --shadow: 0 12px 32px rgba(40, 52, 80, 0.16); --tshadow: 0 6px 18px rgba(40, 52, 80, 0.18);
   --text: #0E1116; --sub: #4A5263; --chip: rgba(20, 28, 45, 0.06); --chip2: rgba(255, 255, 255, 0.78);
   --accent: #0A63D1; --on-accent: #FFFFFF; --ink: #0A55B5; --asoft: rgba(10, 99, 209, 0.12);
@@ -250,8 +250,8 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
 .picker .ph3 { color: var(--sub); }
 .hint { font-size: 12px; color: var(--sub); padding: 0 2px; }
 .err { font-size: 12px; color: var(--danger); padding: 0 2px; }
-.callout { border-radius: 16px; padding: 12px 14px; background: var(--chip); font-size: 13px; display: flex; gap: 10px; align-items: flex-start; }
-.callout.warn { background: var(--wsoft); }
+.callout { border-radius: 16px; padding: 12px 14px; background: var(--well); font-size: 13px; display: flex; gap: 10px; align-items: flex-start; }
+.callout.warn { background: var(--wellwarn); }
 .callout.warn svg { color: var(--warn); }
 .callout svg { margin-top: 1px; color: var(--ink); }
 .callout b { font-weight: 600; }
@@ -343,7 +343,7 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
 .job .stopb { height: 34px; padding: 0 14px; border-radius: 17px; border: 0; background: var(--chip); color: var(--danger); font-weight: 600; font-size: 13px; flex: none; display: flex; align-items: center; gap: 6px; }
 .job .stopb[aria-disabled="true"] { color: var(--sub); }
 .job .banner { font-size: 12.5px; padding: 8px 10px; border-radius: 12px; background: var(--asoft); color: var(--ink); display: flex; gap: 8px; align-items: flex-start; }
-.facts { display: flex; flex-direction: column; border-radius: 18px; background: var(--chip); overflow: hidden; }
+.facts { display: flex; flex-direction: column; border-radius: 18px; background: var(--well); overflow: hidden; }
 .fact { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13.5px; }
 .fact:first-child { border-top: 0; }
 .fact svg { color: var(--ink); }
@@ -353,7 +353,7 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
 .fact .n { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--sub); }
 .big { font-size: 22px; font-weight: 700; line-height: 1.2; margin: 0; letter-spacing: -0.01em; }
 .big + p { margin: 4px 0 0; color: var(--sub); font-size: 13.5px; }
-.left { display: flex; flex-direction: column; border-radius: 18px; background: var(--chip); overflow: hidden; }
+.left { display: flex; flex-direction: column; border-radius: 18px; background: var(--well); overflow: hidden; }
 .left button { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border: 0; border-top: 1px solid var(--line); background: transparent; text-align: left; width: 100%; }
 .left button:first-child { border-top: 0; }
 .left .th { width: 40px; height: 40px; border-radius: 10px; overflow: hidden; flex: none; }
@@ -363,7 +363,7 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
 .left .lb small { font-size: 12px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .left .why { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 8px; background: var(--wsoft); color: var(--warn); flex: none; }
 .left .why.info { background: var(--asoft); color: var(--ink); }
-.paths { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-radius: 18px; background: var(--chip); overflow: hidden; }
+.paths { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-radius: 18px; background: var(--well); overflow: hidden; }
 .paths li { padding: 9px 14px; border-top: 1px solid var(--line); font-size: 12.5px; display: flex; flex-direction: column; gap: 1px; }
 .paths li:first-child { border-top: 0; }
 .paths code { font-family: var(--font-mono); font-size: 11.5px; overflow-wrap: anywhere; }
@@ -389,7 +389,7 @@ h1.pg { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; letter-s
     <p class="eyebrow">Agentic Binning · Plan 3 · mockups for review · Nov 4, 2026</p>
     <h1 class="pg">Bin Files</h1>
     <p>Clickable mockups of Bin Files on the Hawaii Photos sample project from the Plan 2b mockups, grown to 251 sorted items: 248 files to bin into 14 category folders, 1 failed clip and 2 missing photos. Each state is the same live phone in dark and light, in the look of <code>2026-10-31-plan-2b-project-media.html</code>; the progress card reuses 2b state 6 (Save in progress). Taps work inside every phone. Media are colored placeholders.</p>
-    <p>Revised after the owner's review: the progress card, sheets and dialogs now use the approved canvas's glass (55% dark, 58% light, 26px blur) rather than 2b's near-opaque panels; the status pills on the progress card are gone; the copy dialog updates only its bar.</p>
+    <p>Revised after the owner's review: the progress card, sheets and dialogs now use the approved canvas's glass (55% dark, 58% light, 26px blur) rather than 2b's near-opaque panels; in dark mode a sheet is the lighter glass and the cards inside it the darker; the status pills on the progress card are gone; the copy dialog updates only its bar.</p>
     <p>The decisions behind them are in <code>2026-11-04-plan-3-questions.md</code> next to this file. Each state names the question it shows. The mockups show the recommended answer to every open question, and the owner's answer where there is one (B3, B5, P8).</p>
     <nav aria-label="States"><ul class="index" id="index"></ul></nav>
   </header>
