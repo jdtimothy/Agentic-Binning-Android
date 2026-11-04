@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: drafted Nov 4, 2026 by a cloud session (no phone) on `plan-3-binning`, after merging `main` @ `738cfad` (PRs #22, #23). Tasks 1–9 and 11–13, and Task 10's code, are done in the cloud (JVM tests green, 693 in all; device tests written, not yet run on the phone). Tasks 14–17 and the phone halves of 4, 5, 10 and 12–13 are next.** The owner answered B1–B6, B9, B10, B12, Q2, Q11 and P8 on Nov 4 (see "Product decisions"); B7, B8 and B11 are open until the owner reviews the mockups. No UI is built until its mockup is approved. Cloud progress and every ruling are in `docs/superpowers/notes/plan-3-cloud-handoff.md`.
+**Status: drafted Nov 4, 2026 by a cloud session (no phone) on `plan-3-binning`, after merging `main` @ `738cfad` (PRs #22, #23). Tasks 1–9 and 11–13, and Task 10's code, are done in the cloud (JVM tests green, 693 in all; device tests written, not yet run on the phone). Tasks 14–17 and the phone halves of 4, 5, 10 and 12–13 are next.** The owner answered B1–B6, B9, B10, B12, Q2, Q11 and P8 on Nov 4 (see "Product decisions"); B7 and B8 were approved on Nov 3 local time; B11 is open until its phone check. No UI is built until its mockup is approved. Cloud progress and every ruling are in `docs/superpowers/notes/plan-3-cloud-handoff.md`.
+
+**Phone progress (branch `plan-3-phone`):** merged to `main` as PR #24 before this work. All device tests written in the cloud passed on SM-S948U1: `MoveDaoTest` 9, `ProjectDatabaseMigrationTest` 6, `MoveFilesDeviceTest` 4, `SortDaoTest` 25, `ProjectMediaRepositoryTest` 22, `ProjectDatabaseTest` 7, `ProjectOpenRemoveTest` 10. Maui migrated from v3 to v4 on the phone with its data and paths unchanged. Backups of all six projects' v3 databases are on the PC in `../avb-db-backups/pre-schema-v4/`.
 
 **Goal:** **Bin Files** moves every sorted item's file to `<project>/<Category>/<friendly name>.<original extension>`, and a **Save** that renames, re-categorizes or merges something already binned moves its files the same way, right away. No file is ever lost or overwritten, every run is resumable after a crash, and the category folders are checked before and after.
 
@@ -31,7 +33,7 @@
 - **Another project's files are never moved** (P8). Files another project holds are copied in, never taken.
 - **One job at a time.** Bin Files and Save moves are `JobKind.Binning` under `ModelArbiter`, refused with a reason while any run is in progress, never queued. While files move, Add media, switching or removing the open project, Resume analysis, Re-sort, Categorize now and every Save are off with their reason (Q11).
 - **Schema v4 only through `AutoMigration(3, 4)`**, with the exported `schemas/.../4.json`, its hash in `PROJECT_DB_IDENTITY_HASHES`, and a `MigrationTestHelper` test.
-- **No UI before its mockup is approved.** B7 (confirm) and B8 (report) are open.
+- **No UI before its mockup is approved.** B7 (confirm, state 1) and B8 (report, states 3 and 4) are approved.
 - **No Claude API calls.** Nothing here is model-facing.
 - **Device tests run by direct instrumentation**, never `connectedDebugAndroidTest` (see "Device tests").
 
@@ -85,10 +87,15 @@ Full text, choices and reasons: `docs/superpowers/mockups/2026-11-04-plan-3-ques
 - **Q11. The user may leave the screen** while files move.
 - **P8. Media another project holds** (owner's own design): any file inside another project's folder (listed or not, found by `.binning/project.db`) or held by a listed project by hash or path. Add a folder and Pick photos and videos show one notice naming the projects and counts, with **Cancel** (the rest of the batch is still added) and **Copy media files**, which copies them, checked, into `<project>/Copied from <other project>/` with progress in the notice. Copies are ordinary items afterwards and are binned like any other.
 
+### Decided Nov 3, 2026, local time (owner, on the PC session)
+
+- **B7. A confirm sheet before Bin Files**, as in mockup state 1.
+- **B8. The report as drawn** in mockup states 3 and 4.
+- **Every open of an older database makes the backup**, not only Open project: `openProjectDatabase` copies it to `project.db.v<N>.bak` first, so a listed project opening at launch, or another listed project opened during an add, is covered too (`ffd2e05`).
+- **The end-to-end test sorts with LFM3-1.7B.** Settings is switched from Claude for the test and switched back afterwards; no paid call.
+
 ### Open
 
-- **B7.** A confirm sheet before Bin Files (recommended: yes, mockup state 1). Blocks Task 16's confirm sheet only.
-- **B8.** What the report lists, and where it stays (recommended: as in the questions document, mockup states 3 and 4). Blocks Task 16's report only; Task 8 computes the data either way.
 - **B11.** MediaStore after a move: scan both paths after each step (recommended). What Gallery and both pickers show is checked in Task 17, and the confirm sheet's Gallery line depends on it.
 
 ---
@@ -206,7 +213,7 @@ All under `src/main/java/com/agentic/binning/` unless noted. Tests mirror it und
 - [x] **Step 2: Implement**; build to export `4.json`; add its hash to `PROJECT_DB_IDENTITY_HASHES` (`ProjectSchemaTest` checks it).
 - [x] **Step 3:** `./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest`. Expected: BUILD SUCCESSFUL; `ProjectSchemaTest` passes with v4.
 - [x] **Step 4: Commit** `feat(db): schema v4 for moves and removed files`.
-- [ ] **Step 5 (phone):** run `MoveDaoTest` and `ProjectDatabaseMigrationTest`. Expected: OK.
+- [x] **Step 5 (phone):** run `MoveDaoTest` and `ProjectDatabaseMigrationTest`. Expected: OK.
 
 **Done Nov 4** (`d70568b`, `recordReverted` added in `f7d4e71`): v4 hash `e2915b6307ad16155355e32e657395f2`; `ProjectSchemaTest` passes. `MoveDaoTest` (9) and `ProjectDatabaseMigrationTest.migrate3To4_*` (2): **written, not yet run on the phone**.
 
