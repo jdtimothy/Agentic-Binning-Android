@@ -20,14 +20,18 @@ Jetpack Compose app (package `com.agentic.binning`). Plans live under
   authenticated Claude request passed on the phone on Nov 3 (Maui, 35 items;
   `docs/superpowers/notes/2026-11-01-plan-2a-phone-recheck.md`). Keep LFM3-1.7B
   selected and never make a paid Claude call without the owner. A network that blocks api.anthropic.com makes Claude report "No connection".
-- **Plan 2b** (Project Media, editing, Re-sort, and Task 6A: Open project and
-  Edit/× on Current projects) is in progress:
-  `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Tasks 1–14,
-  16–17, 6A and the one-word category rule are in `main`; Task 15 is on
-  `feat/plan-2b-task-15`. Every task is done. Its "Product decisions" section holds
-  every owner decision (none open). Mockups are in `docs/superpowers/mockups/` (open the HTML
+- **Plan 2b** (Project Media, editing, Re-sort, the failed item sheet, and
+  Task 6A: Open project and Edit/× on Current projects) is done and merged
+  into `main`, phone checks included:
+  `docs/superpowers/plans/2026-10-31-plan-2b-project-media.md`. Its "Product
+  decisions" section holds every owner decision; "Left for Plan 3" lists what
+  binning inherits. Mockups are in `docs/superpowers/mockups/` (open the HTML
   files in a browser; GitHub doesn't render them).
-- **Plan 3** (binning: moving files) is not started.
+- **Plan 3** (binning: moving files) is being planned on `plan-3-binning` by a
+  cloud session, from `docs/superpowers/plan-3-brief.md`.
+- After release the owner will try other sorting models; LFM3-1.7B's odd
+  calls (file-type categories, self-talk descriptions) are expected of a
+  small model.
 
 Reference copies of the useful GenieX sample code live in
 `docs/reference/sample/` (`GgufVisionConfig.kt.txt`, `MediaUtil.kt.txt`,
