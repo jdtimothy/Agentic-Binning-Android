@@ -72,11 +72,13 @@ class RegistrarTest {
         others: List<ProjectItemLookup> = emptyList(),
         hash: (File) -> String = { "hash-${it.name}" },
         clock: () -> Long = { 42L },
+        findProject: (File) -> ProjectFolder? = { null },
     ) = Registrar(
         thisProject = thisRef,
         itemDao = store,
         otherProjects = others,
         registry = registry,
+        findProject = findProject,
         hash = { f -> hashCalls++; hash(f) },
         metadata = { meta },
         clock = clock,
@@ -214,4 +216,65 @@ class RegistrarTest {
         kind = ItemKind.Photo, takenAt = null, durationMs = null, width = null, height = null,
         status = ItemStatus.Pending, addedAt = 1L,
     )
+
+    // ---------------------------------------------------------------- P8 (Plan 3 Task 15)
+
+    /** A project taken off the list still owns its folder: found by its database, not the registry. */
+    @Test fun fileInAnUnlistedProjectFolder_isHeld() = runTest {
+        val folder = File(tmp.root, "Old Trip")
+        val r = registrar(findProject = { f -> if (f.path.startsWith(folder.path)) ProjectFolder(folder, "Old Trip") else null })
+
+        val outcome = r.register(listOf(candidate("a.jpg", folder))).toList().single().last
+
+        assertEquals(RegistrationOutcome.HeldByOtherProject(File(folder, "a.jpg").absolutePath, "Old Trip", listed = false), outcome)
+        assertTrue(store.items.isEmpty())
+        assertEquals("no hashing for a file it won't add", 0, hashCalls)
+    }
+
+    @Test fun fileInThisProjectsOwnFolder_isNotHeld() = runTest {
+        val own = File(thisRef.path)
+        val r = registrar(findProject = { ProjectFolder(own, "This Project") })
+        val outcome = r.register(listOf(candidate("a.jpg", own))).toList().single().last
+        assertTrue("was $outcome", outcome is RegistrationOutcome.Added)
+    }
+
+    @Test fun fileHeldByAListedProject_isHeldAndListed() = runTest {
+        val r = registrar(others = listOf(FakeLookup("La Jolla Trip", hashes = setOf("hash-a.jpg"))))
+        val outcome = r.register(listOf(candidate("a.jpg"))).toList().single().last
+        assertEquals(RegistrationOutcome.HeldByOtherProject(File(mediaDir, "a.jpg").absolutePath, "La Jolla Trip", listed = true), outcome)
+    }
+
+    @Test fun sharedFiles_registerNothingUntilCopied() = runTest {
+        val r = registrar(others = listOf(FakeLookup("La Jolla Trip", hashes = setOf("hash-a.jpg"))))
+        r.register(listOf(candidate("a.jpg"), candidate("b.jpg"))).toList()
+        assertEquals(listOf("b.jpg"), store.items.map { it.originalName })
+    }
+
+    /** "A copy has the same hash as the other project's file, but no file of this project." */
+    @Test fun aCopy_isAnOrdinaryItemThoughAnotherProjectHasTheSameHash() = runTest {
+        val r = registrar(others = listOf(FakeLookup("La Jolla Trip", hashes = setOf("hash-a.jpg"))))
+        val copy = candidate("a.jpg", File(thisRef.path, "Copied from La Jolla Trip"))
+
+        assertTrue(r.registerCopy(copy))
+
+        val item = store.items.single()
+        assertEquals(copy.file.absolutePath, item.originalPath)
+        assertEquals(copy.file.absolutePath, item.currentPath)
+        assertEquals(ItemStatus.Pending, item.status)
+    }
+
+    /** The copier has just checked the file by SHA-256: it isn't read a fifth time. */
+    @Test fun aCopy_withItsHashKnown_isNotHashedAgain() = runTest {
+        val r = registrar()
+        assertTrue(r.registerCopy(candidate("a.jpg", File(thisRef.path, "Copied from X")), contentHash = "known"))
+        assertEquals("known", store.items.single().contentHash)
+        assertEquals(0, hashCalls)
+    }
+
+    @Test fun aCopyOfSomethingThisProjectHolds_isRefused() = runTest {
+        val r = registrar()
+        r.register(listOf(candidate("a.jpg"))).toList()
+        assertEquals(false, r.registerCopy(candidate("a.jpg", File(thisRef.path, "Copied from X"))))
+        assertEquals(1, store.items.size)
+    }
 }

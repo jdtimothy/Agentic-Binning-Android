@@ -25,6 +25,10 @@ import com.agentic.binning.settings.MediaPickerChoice
 import com.agentic.binning.settings.SortingModelChoice
 import com.agentic.binning.ui.analyze.AnalyzeScreen
 import com.agentic.binning.ui.analyze.AnalyzeViewModel
+import com.agentic.binning.pipeline.paced
+import com.agentic.binning.ui.project.ProjectSheetOverlay
+import com.agentic.binning.ui.media.BinFilesViewModel
+import com.agentic.binning.ui.media.BinPipelineView
 import com.agentic.binning.ui.media.ProjectMediaScreen
 import com.agentic.binning.ui.media.ProjectMediaViewModel
 import com.agentic.binning.ui.media.RepositoryMediaSource
@@ -71,6 +75,9 @@ private suspend fun saveApiKey(block: suspend () -> Unit): Boolean = try {
     Log.e("MainActivity", "Failed to save or remove the API key (${e.javaClass.simpleName})")
     false
 }
+
+/** A move can change its file every few milliseconds: the UI reads it at most this often, so a name can be read. */
+private const val MOVE_UI_GAP_MS = 250L
 
 class MainActivity : ComponentActivity() {
     override fun onResume() {
@@ -132,16 +139,27 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    val binViewModel = viewModel {
+                        BinFilesViewModel(
+                            view = graph.pipeline.state
+                                .map { BinPipelineView(it.phase, it.moveProgress, it.moveEnded, it.moveOutcome, it.moveResumedFrom) }
+                                .distinctUntilChanged()
+                                .paced(MOVE_UI_GAP_MS),
+                            actions = graph.currentProject.map { open -> open?.let(graph::binActions) },
+                        )
+                    }
+
                     val mediaViewModel = viewModel {
                         ProjectMediaViewModel(
                             source = graph.currentProject.map { open ->
-                                open?.let { RepositoryMediaSource(it) { graph.startAnalysisAfterRetry(it) } }
+                                open?.let { RepositoryMediaSource(it, { graph.startAnalysisAfterRetry(it) }, graph.saveMoveHooks(it)) }
                             },
                             phase = graph.pipeline.state.map { it.phase },
-                            move = graph.pipeline.state.map { it.moveProgress },
+                            move = graph.pipeline.state.map { it.moveProgress }.distinctUntilChanged().paced(MOVE_UI_GAP_MS),
                             onCategorizeNow = {
                                 graph.currentProject.value?.let { graph.startAnalysis(it.ref, RunKind.CategorizeOnly) }
                             },
+                            onBinFiles = binViewModel::onBinFiles,
                             resort = object : ResortActions {
                                 override suspend fun settingsChoice() = graph.settings.settings.first().sortingModel
                                 override suspend fun unavailable(choice: SortingModelChoice) = graph.sortingUnavailable(choice)
@@ -160,17 +178,20 @@ class MainActivity : ComponentActivity() {
                                 onOpenSettings = { openSettings(Screen.Analyze) },
                                 onOpenProjectSheet = projectSheet::open,
                                 onOpenMedia = { screen = Screen.Media },
+                                overlay = { ProjectSheetOverlay(projectSheet) },
                             )
                             ProjectSheetHost(projectSheet)
                         }
                         Screen.Media -> {
                             ProjectMediaScreen(
                                 vm = mediaViewModel,
+                                bin = binViewModel,
                                 onBack = { screen = Screen.Analyze },
                                 onOpenSettings = { openSettings(Screen.Media) },
                                 // The empty project's buttons are the project sheet's own pickers.
                                 onAddFolder = projectSheet::onPickFolder,
                                 onPickFiles = projectSheet::onPickFiles,
+                                overlay = { ProjectSheetOverlay(projectSheet) },
                             )
                             ProjectSheetHost(projectSheet)
                         }

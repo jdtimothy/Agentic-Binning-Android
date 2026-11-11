@@ -97,7 +97,7 @@ private fun ModelCard(row: ResortModelRow, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clip(CardShape)
-            .background(tokens.field)
+            .background(tokens.choiceCard)
             .border(1.dp, if (row.selected) tokens.accent else tokens.line, CardShape)
             .selectable(selected = row.selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -152,7 +152,7 @@ private fun KeepEditsRow(checked: Boolean, text: String, onToggle: () -> Unit) {
 private fun Panel(icon: ImageVector, title: String, lines: List<String>) {
     val tokens = LocalGlassTokens.current
     Column(
-        Modifier.fillMaxWidth().background(tokens.chip, CardShape).padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().background(tokens.well, CardShape).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {

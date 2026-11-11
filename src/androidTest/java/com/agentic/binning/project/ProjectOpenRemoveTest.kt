@@ -16,7 +16,6 @@ import com.agentic.binning.db.ProjectDatabase
 import com.agentic.binning.db.ProjectMetaEntity
 import com.agentic.binning.db.openProjectDatabase
 import java.io.File
-import java.nio.file.Files
 import java.security.MessageDigest
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -174,7 +173,6 @@ class ProjectOpenRemoveTest {
         val decision = decide(ProjectDatabaseProbe.probe(dbFile))
         assertEquals(DatabaseDecision.Open(backupFromVersion = 2), decision)
         val backup = ProjectOpenRules.backupFile(dbFile, 2)
-        Files.copy(dbFile.toPath(), backup.toPath())
 
         val db = openProjectDatabase(context, dbFile)
         try {

@@ -51,8 +51,8 @@ import com.agentic.binning.ui.theme.LocalGlassTokens
 
 /**
  * Edit categories (plan 2b Task 14, mockup states 5a and 5b): rename inline with the clash check,
- * or tick two to merge and choose the name that survives. Save applies every staged change at once.
- * In 2b no category has a folder yet, so the mockup's file consequences don't show.
+ * or tick two to merge and choose the name that survives. Save applies every staged change at once,
+ * and moves the binned files of what it renames or merges (Plan 3).
  */
 @Composable
 fun CategoryEditSheet(state: CategoryEditState, actions: CategoryEditActions) {
@@ -71,7 +71,7 @@ fun CategoryEditSheet(state: CategoryEditState, actions: CategoryEditActions) {
                 lineHeight = 18.sp,
             )
             ui.mergeBox?.let { MergeBoxView(it, actions) }
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.chip)) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.well)) {
                 ui.rows.forEachIndexed { i, row ->
                     if (i > 0) HorizontalDivider(color = tokens.line)
                     CategoryRow(row, actions)
@@ -81,6 +81,12 @@ fun CategoryEditSheet(state: CategoryEditState, actions: CategoryEditActions) {
         HorizontalDivider(color = tokens.line)
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             state.error?.let { Text(it, Modifier.padding(horizontal = 4.dp), color = tokens.danger, fontSize = 12.sp) }
+            ui.note?.let {
+                Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(MediaIcons.Info, contentDescription = null, tint = tokens.sub, modifier = Modifier.padding(top = 1.dp).size(14.dp))
+                    Text(it, color = tokens.sub, fontSize = 12.sp, lineHeight = 16.sp)
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button("Cancel", null, ButtonStyle.Secondary, onClick = actions::onClose)
                 Button(ui.saveLabel, null, ButtonStyle.Primary, Modifier.weight(1f), enabled = ui.canSave && !state.saving, onClick = actions::onSave)
@@ -179,7 +185,7 @@ private fun CategoryRow(row: CategoryEditRow, actions: CategoryEditActions) {
                 )
                 val error = row.editError
                 Text(
-                    error ?: "No folder yet; only the database changes",
+                    error ?: row.editHint,
                     color = if (error != null) tokens.danger else tokens.sub,
                     fontSize = 12.sp,
                 )

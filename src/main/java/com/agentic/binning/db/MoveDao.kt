@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.agentic.binning.move.BinItem
 import com.agentic.binning.move.MoveStore
+import kotlinx.coroutines.flow.Flow
 
 data class CategoryName(val id: Long, val name: String)
 
@@ -24,6 +25,9 @@ abstract class MoveDao : MoveStore {
 
     @Query("UPDATE item SET status = 'Missing' WHERE id IN (:ids)")
     protected abstract suspend fun markMissing(ids: List<Long>)
+
+    @Query("UPDATE item SET status = 'Sorted' WHERE id IN (:ids)")
+    abstract suspend fun markSorted(ids: List<Long>)
 
     /**
      * Writes a run and every step in one transaction before anything moves, with the items found in
@@ -53,6 +57,10 @@ abstract class MoveDao : MoveStore {
 
     @Query("SELECT * FROM move_run WHERE finishedAt IS NOT NULL ORDER BY id DESC LIMIT 1")
     abstract suspend fun lastFinishedRun(): MoveRunEntity?
+
+    /** The latest finished run's folder check as it changes: false when it found something; null with no run or no check. */
+    @Query("SELECT checkOk FROM move_run WHERE finishedAt IS NOT NULL ORDER BY id DESC LIMIT 1")
+    abstract fun observeLastCheckOk(): Flow<Boolean?>
 
     @Query("SELECT * FROM move_step WHERE runId = :runId ORDER BY id")
     abstract override suspend fun steps(runId: Long): List<MoveStepEntity>
@@ -112,9 +120,17 @@ abstract class MoveDao : MoveStore {
 
     @Query(
         "UPDATE move_run SET state = :state, finishedAt = :finishedAt, message = :message, " +
-            "removedFolders = :removedFolders WHERE id = :runId",
+            "removedFolders = :removedFolders, checkOk = :checkOk WHERE id = :runId",
     )
-    abstract suspend fun finishRun(runId: Long, state: String, finishedAt: Long, message: String?, removedFolders: String?)
+    abstract suspend fun finishRun(runId: Long, state: String, finishedAt: Long, message: String?, removedFolders: String?, checkOk: Boolean?)
+
+    /** The newest finished run whose report the user hasn't closed (B8). */
+    @Query("SELECT * FROM move_run WHERE finishedAt IS NOT NULL AND reportClosed = 0 ORDER BY id DESC LIMIT 1")
+    abstract suspend fun unreadRun(): MoveRunEntity?
+
+    /** Closes this run's report and any older one still open: only the newest is ever shown. */
+    @Query("UPDATE move_run SET reportClosed = 1 WHERE id <= :runId")
+    abstract suspend fun closeReport(runId: Long)
 
     @Query("SELECT DISTINCT dest FROM move_step WHERE state IN ('Done', 'Verified')")
     protected abstract suspend fun finishedDestinations(): List<String>
@@ -136,7 +152,7 @@ abstract class MoveDao : MoveStore {
     @Query("DELETE FROM removed_file WHERE path IN (:paths)")
     abstract suspend fun dropRemoved(paths: List<String>)
 
-    @Query("SELECT id, status, categoryId, friendlyName, currentPath, originalName FROM item ORDER BY id")
+    @Query("SELECT id, status, categoryId, friendlyName, currentPath, originalName, failureReason FROM item ORDER BY id")
     abstract suspend fun binItems(): List<BinItem>
 
     @Query("SELECT id, name FROM category ORDER BY id")

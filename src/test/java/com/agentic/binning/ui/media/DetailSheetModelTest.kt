@@ -24,7 +24,7 @@ class DetailSheetModelTest {
         description: String? = "Two fire dancers.",
     ) = ItemDetail(
         item = ItemEntity(
-            id = 5, contentHash = "h", originalPath = "/storage/emulated/0/DCIM/Camera/IMG_1.jpg", originalName = "IMG_1.jpg",
+            id = 5, contentHash = "h", originalPath = "/storage/emulated/0/DCIM/Camera/IMG_1.jpg", originalName = if (kind == ItemKind.Video) "IMG_1.mp4" else "IMG_1.jpg",
             currentPath = "/storage/emulated/0/DCIM/Camera/IMG_1.jpg", kind = kind, takenAt = 1_784_000_000_000,
             durationMs = if (kind == ItemKind.Video) 42_000 else null, width = 4000, height = 3000, status = status,
             categoryId = categoryId, friendlyName = name, nameSetByUser = nameSet, categorySetByUser = categorySet, addedAt = 0,
@@ -40,6 +40,37 @@ class DetailSheetModelTest {
     )
 
     private fun ui(d: ItemDetail, draft: DetailDraft = DetailDraft.of(d)) = detailUi(d, draft, ZoneOffset.UTC)
+
+    private fun binned() = detail(status = ItemStatus.Binned).let { d ->
+        d.copy(item = d.item.copy(currentPath = "/storage/emulated/0/Agentic Binning/Trip/Fire Performance/Fire Dance.jpg"))
+    }
+
+    /** 2b state 3: a binned file's sheet says where it is and that Save moves it. */
+    @Test
+    fun binned_saysWhereItIsAndThatSaveMovesIt() {
+        val d = binned()
+        val u = ui(d)
+        assertEquals(StatusBadge.Binned, u.badge)
+        assertEquals("Binned in the Fire Performance folder as Fire Dance.jpg. If you change the name or category, Save moves the file right away.", u.callout.text)
+        assertEquals("Save", u.saveLabel)
+
+        val edited = ui(d, DetailDraft.of(d).copy(name = "New name"))
+        assertEquals("Binned in the Fire Performance folder as Fire Dance.jpg. Saving moves or renames this file right away.", edited.callout.text)
+        assertEquals("Save and move file", edited.saveLabel)
+    }
+
+    @Test
+    fun notBinned_keepsPlainSave() {
+        val d = detail()
+        assertEquals("Save", ui(d, DetailDraft.of(d).copy(name = "New name")).saveLabel)
+    }
+
+    /** The planner keeps the original's extension; the hint must not promise another. */
+    @Test
+    fun nameHint_usesTheFilesOwnExtension() {
+        val d = detail().let { it.copy(item = it.item.copy(originalName = "IMG_1.HEIC")) }
+        assertTrue(ui(d).nameHint.startsWith("File name when binned: ${d.item.friendlyName}.HEIC"))
+    }
 
     @Test
     fun untouched_isFromSorting_andSaveIsOff() {

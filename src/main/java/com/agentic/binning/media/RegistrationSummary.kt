@@ -4,6 +4,9 @@ import java.text.NumberFormat
 import java.util.Locale
 
 /** Running totals of a registration run, rendered as the one-line summary in the project sheet. */
+/** A file another project holds, left out of a batch until the user chooses to copy it (P8). */
+data class HeldFile(val path: String, val project: String, val listed: Boolean)
+
 data class RegistrationSummary(
     val added: Int = 0,
     val duplicates: Int = 0,
@@ -12,12 +15,14 @@ data class RegistrationSummary(
     val unreadable: Int = 0,
     /** Picked items that never became candidates (unresolvable or unsupported); shown as unreadable. */
     val skipped: Int = 0,
+    /** Each file another project holds, for the notice that offers to copy them (P8). */
+    val held: List<HeldFile> = emptyList(),
 ) {
     operator fun plus(outcome: RegistrationOutcome): RegistrationSummary = when (outcome) {
         is RegistrationOutcome.Added -> copy(added = added + 1)
         is RegistrationOutcome.DuplicateInProject -> copy(duplicates = duplicates + 1)
         is RegistrationOutcome.HeldByOtherProject ->
-            copy(heldByProject = heldByProject + (outcome.projectName to (heldByProject[outcome.projectName] ?: 0) + 1))
+            copy(heldByProject = heldByProject + (outcome.projectName to (heldByProject[outcome.projectName] ?: 0) + 1), held = held + HeldFile(outcome.path, outcome.projectName, outcome.listed))
         is RegistrationOutcome.Unreadable -> copy(unreadable = unreadable + 1)
     }
 

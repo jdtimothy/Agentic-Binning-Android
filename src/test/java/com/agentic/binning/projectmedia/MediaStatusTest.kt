@@ -49,6 +49,25 @@ class MediaStatusTest {
         assertEquals(MediaTone.Quiet, s.tone)
     }
 
+    /**
+     * Owner's ruling (Nov 10): while the last folder check found something, Bin Files stays on with
+     * nothing to bin, so it can run the check and show the unknown-files sheet.
+     */
+    @Test fun allBinned_lastCheckFailed_binFilesRunsTheCheck() {
+        val c = MediaCounts(total = 41, failed = 1, binned = 40)
+        val s = mediaStatus(c, null, checkFolders = true)
+        assertEquals("All files binned · check the folders", s.text)
+        assertTrue(s.binFilesEnabled)
+        assertEquals(MediaTone.Ready, s.tone)
+        assertNull(binFilesBlockedReason(c, null, checkFolders = true))
+        // Still off while a job runs or something waits; the check comes with the next Bin Files then.
+        assertFalse(mediaStatus(c, ActiveJob.Sorting, checkFolders = true).binFilesEnabled)
+        assertFalse(mediaStatus(c.copy(pending = 1), null, checkFolders = true).binFilesEnabled)
+        assertEquals("Bin Files waits for analysis to finish", binFilesBlockedReason(c.copy(pending = 1), null, checkFolders = true))
+        // With files ready, Bin Files is on anyway and its run checks first: no extra words.
+        assertEquals("3 files ready to bin · 1 failed", mediaStatus(c.copy(readyToBin = 3), null, checkFolders = true).text)
+    }
+
     @Test fun anyJob_disablesBinFiles() {
         val c = MediaCounts(total = 40, readyToBin = 34, binned = 6)
         assertEquals("Analyzing 12 left", mediaStatus(c.copy(pending = 11, analyzing = 1), ActiveJob.Analysis).text)

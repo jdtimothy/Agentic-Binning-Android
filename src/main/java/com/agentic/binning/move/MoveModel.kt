@@ -71,7 +71,18 @@ data class MoveProgress(
     val current: String?,
     val phase: MovePhase?,
     val paused: Boolean,
+    /** The folder the file in progress comes from, by name; null between files. */
+    val from: String? = null,
+    /** The folder the file in progress goes to, by name; null between files. */
+    val to: String? = null,
+    /** The file a paused run moves next. */
+    val next: String? = null,
+    /** The last files that moved, oldest first (at most two). */
+    val recent: List<MovedFile> = emptyList(),
 )
+
+/** A file the run finished moving, for the progress card. */
+data class MovedFile(val name: String, val folder: String)
 
 /** How a run ended, or why it didn't start. */
 sealed interface MoveOutcome {

@@ -100,10 +100,14 @@ data class MediaStatus(
  * The status line and Bin Files state for Project Media. Bin Files is enabled only when files are
  * waiting to move, nothing is pending, analyzing or waiting to be categorized, and no job runs.
  * Failed and missing items never block it. The line shows at most two facts so it fits two lines.
+ *
+ * [checkFolders]: the last run's folder check found something. Bin Files then stays on with nothing to
+ * bin, as a run with nothing to move still checks the folders and shows what it found (owner, Nov 10).
  */
-fun mediaStatus(counts: MediaCounts, job: ActiveJob?): MediaStatus {
+fun mediaStatus(counts: MediaCounts, job: ActiveJob?, checkFolders: Boolean = false): MediaStatus {
     val c = counts
-    val enabled = job == null && c.readyToBin > 0 && c.pending == 0 && c.analyzing == 0 && c.waiting == 0
+    val checkOnly = checkFolders && c.readyToBin == 0
+    val enabled = job == null && (c.readyToBin > 0 || checkOnly) && c.pending == 0 && c.analyzing == 0 && c.waiting == 0
     fun running(text: String) = MediaStatus(text, MediaTone.Running, null, false, c.readyToBin)
 
     when (job) {
@@ -133,6 +137,7 @@ fun mediaStatus(counts: MediaCounts, job: ActiveJob?): MediaStatus {
     val (second, action) = when {
         c.pending > 0 -> "${c.pending} waiting to analyze" to null
         c.waiting > 0 -> "${c.waiting} waiting to be categorized" to StatusAction.CategorizeNow
+        checkOnly -> "check the folders" to null
         c.failed > 0 && c.missing > 0 -> "${c.failed} failed, ${c.missing} missing" to null
         c.failed > 0 -> "${c.failed} failed" to null
         c.missing > 0 -> "${c.missing} missing" to null
@@ -151,7 +156,7 @@ fun mediaStatus(counts: MediaCounts, job: ActiveJob?): MediaStatus {
  * Why Bin Files is off, for the toast a tap on it shows; null when it is on (Q12). The same order
  * as [mediaStatus]: a running job first, then what blocks it, then nothing to move.
  */
-fun binFilesBlockedReason(counts: MediaCounts, job: ActiveJob?): String? {
+fun binFilesBlockedReason(counts: MediaCounts, job: ActiveJob?, checkFolders: Boolean = false): String? {
     val c = counts
     return when {
         job is ActiveJob.Binning -> "Bin Files is running"
@@ -159,6 +164,7 @@ fun binFilesBlockedReason(counts: MediaCounts, job: ActiveJob?): String? {
         job != null -> "Bin Files is available when analysis is stopped or done"
         c.pending > 0 || c.analyzing > 0 -> "Bin Files waits for analysis to finish"
         c.waiting > 0 -> "Bin Files waits for ${items(c.waiting)} to be categorized"
+        c.readyToBin == 0 && checkFolders -> null
         c.readyToBin == 0 -> if (c.binned > 0) "All files are binned" else "Nothing to bin yet"
         else -> null
     }

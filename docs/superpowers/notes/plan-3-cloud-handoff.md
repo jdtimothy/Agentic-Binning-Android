@@ -1,5 +1,7 @@
 # Plan 3 cloud handoff
 
+> Historical: the cloud session's ledger. The work was finished on the PC; the plan's status line and "Rulings made on the PC" are current. Its "Not built" and "Questions still open" no longer hold.
+
 Ledger of the cloud session that planned and started Plan 3 on
 `plan-3-binning` (Nov 4, 2026, no phone attached). Each entry is a ruling
 (`Ruling: what — why — cost if wrong`) or a finished task

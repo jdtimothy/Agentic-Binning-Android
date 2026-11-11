@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.agentic.binning.AppGraph
 import com.agentic.binning.db.ItemTotals
+import com.agentic.binning.media.HeldFile
 import com.agentic.binning.media.MediaUris
 import com.agentic.binning.media.RegistrationProgress
 import com.agentic.binning.media.RegistrationSummary
@@ -42,6 +43,7 @@ import kotlinx.coroutines.withContext
 
 private const val TAG = "ProjectSheet"
 private const val ADDING_IN_PROGRESS = "Wait for adding to finish"
+private const val WAITS_FOR_MOVE = "This waits until the files have moved"
 
 private fun createErrorMessage(t: Throwable): String = when (t) {
     is ProjectExistsException -> "A project folder with that name already exists"
@@ -71,7 +73,7 @@ private sealed interface HeldMedia {
  * [rememberProjectSheetController] and show it with [ProjectSheetHost].
  */
 @Stable
-class ProjectSheetController(private val graph: AppGraph, private val scope: CoroutineScope) : ProjectSheetActions {
+class ProjectSheetController(private val graph: AppGraph, private val scope: CoroutineScope) : ProjectSheetActions, SharedNoticeActions {
     var visible by mutableStateOf(false)
         private set
     private var page by mutableStateOf(SheetPage.Main)
@@ -84,6 +86,19 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
     private var registrationSummary by mutableStateOf<String?>(null)
     private var registering by mutableStateOf(false)
     private var creating by mutableStateOf(false)
+
+    /** The notice for media another project holds (P8), over everything until it is answered. */
+    internal var notice by mutableStateOf<SharedNoticeState?>(null)
+        private set
+    private var heldFiles = emptyList<HeldFile>()
+    private var heldBatchAdded = 0
+
+    /** Q11: while files move, nothing is added and the open project stays open. */
+    private fun refuseWhileMoving(): Boolean {
+        if (!graph.pipeline.state.value.phase.isMoving) return false
+        if (page == SheetPage.NewProject) createError = WAITS_FOR_MOVE else switchError = WAITS_FOR_MOVE
+        return true
+    }
 
     // Current projects (plan 2b Task 6A).
     private var editing by mutableStateOf(false)
@@ -206,11 +221,48 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
     private fun pickTarget(): PickFor = if (page == SheetPage.NewProject) PickFor.NewProject else PickFor.Current
 
     override fun onPickFolder() {
+        if (refuseWhileMoving()) return
         if (!creating) launchFolderPicker(pickTarget())
     }
 
     override fun onPickFiles() {
+        if (refuseWhileMoving()) return
         if (!creating) launchFilesPicker(pickTarget())
+    }
+
+    override fun onCopyHeld() {
+        val files = heldFiles
+        if (files.isEmpty()) return
+        if (graph.pipeline.state.value.phase.isMoving) {
+            notice = SharedNoticeState.Done(sharedWaitsForMoveUi(files, heldBatchAdded))
+            heldFiles = emptyList()
+            return
+        }
+        notice = SharedNoticeState.Copying(files.size, 0f)
+        registering = true
+        scope.launch {
+            try {
+                val result = graph.copyHeld(files) { done, total -> notice = SharedNoticeState.Copying(total, done.toFloat() / total) }
+                notice = SharedNoticeState.Done(sharedDoneUi(result, heldBatchAdded))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to copy media", e)
+                notice = SharedNoticeState.Done(SharedNoticeUi("Could not copy the files", listOf("Nothing was lost. Pick them again to try once more.")))
+            } finally {
+                registering = false
+                heldFiles = emptyList()
+            }
+        }
+    }
+
+    override fun onCancelHeld() {
+        notice = SharedNoticeState.Done(sharedCancelledUi(heldFiles, heldBatchAdded))
+        heldFiles = emptyList()
+    }
+
+    override fun onNoticeOk() {
+        notice = null
     }
 
     override fun onNewProject() {
@@ -228,6 +280,7 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
             switchError = ADDING_IN_PROGRESS
             return
         }
+        if (refuseWhileMoving()) return
         launchFolderPicker(PickFor.OpenProject)
     }
 
@@ -241,6 +294,7 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
     override fun onRemove(ref: ProjectRef) {
         if (registering || creating) return
         switchError = null
+        if (refuseWhileMoving()) return
         if (graph.isRunning(ref)) confirmRemove = ref else remove(ref)
     }
 
@@ -315,6 +369,7 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
             switchError = ADDING_IN_PROGRESS
             return
         }
+        if (refuseWhileMoving()) return
         scope.launch {
             try {
                 graph.openProject(ref)
@@ -342,6 +397,7 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
             createError = ADDING_IN_PROGRESS
             return
         }
+        if (refuseWhileMoving()) return
         creating = true
         val requested = name
         val media = held
@@ -397,11 +453,22 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
     /** Runs one registration, mirroring its progress and result into the sheet state. */
     private fun runRegistration(add: suspend ((RegistrationProgress) -> Unit) -> RegistrationSummary) {
         if (registering) return
+        // A picker can come back after a run started: nothing is added while files move (Q11).
+        if (refuseWhileMoving()) return
         registering = true
         registrationSummary = null
         scope.launch {
             try {
-                registrationSummary = add { registration = it }.text()
+                val summary = add { registration = it }
+                registrationSummary = summary.text()
+                if (summary.held.isNotEmpty()) {
+                    heldFiles = summary.held
+                    heldBatchAdded = summary.added
+                    val project = graph.currentProject.value?.ref?.name.orEmpty()
+                    notice = SharedNoticeState.Asking(sharedAskUi(summary.held, summary.added, project))
+                    // The notice draws in the screen's window, under a sheet's own.
+                    visible = false
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -413,6 +480,13 @@ class ProjectSheetController(private val graph: AppGraph, private val scope: Cor
             }
         }
     }
+}
+
+/** The project sheet and the notice for media another project holds, drawn over the screen. */
+@Composable
+fun ProjectSheetOverlay(controller: ProjectSheetController) {
+    ProjectSheetContent(controller)
+    controller.notice?.let { SharedNoticeOverlay(it, controller) }
 }
 
 @Composable
@@ -468,6 +542,14 @@ fun ProjectSheetHost(controller: ProjectSheetController) {
             }
         }
     }
+}
+
+/**
+ * The project sheet, drawn in the screen's window so its glass really blurs the screen. Call it from the
+ * screen's overlay, inside its haze; [ProjectSheetHost] keeps the pickers, which must outlive the sheet.
+ */
+@Composable
+private fun ProjectSheetContent(controller: ProjectSheetController) {
     if (!controller.visible) return
 
     val open by controller.currentProject.collectAsState()

@@ -12,11 +12,12 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
+import com.agentic.binning.project.ProjectOpenRules
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 
 /** Room's schema version of the project database; every change needs a migration, never a destructive one. */
-const val PROJECT_DB_VERSION = 4
+const val PROJECT_DB_VERSION = 5
 
 @Database(
     entities = [
@@ -40,6 +41,8 @@ const val PROJECT_DB_VERSION = 4
         AutoMigration(from = 2, to = 3),
         // v4: move_step and move_run columns, and the removed_file table (Plan 3).
         AutoMigration(from = 3, to = 4),
+        // v5: move_run's report columns, so a report survives a restart (Plan 3, B8).
+        AutoMigration(from = 4, to = 5),
     ],
 )
 abstract class ProjectDatabase : RoomDatabase() {
@@ -73,9 +76,13 @@ interface ProjectMetaDao {
  * Opens (creating if needed) the per-project database at [dbFile]. The folder lives on FUSE-backed
  * shared storage, so the journal mode is TRUNCATE rather than WAL. Room's annotations only cover
  * FTS3/4, so the FTS5 table is created by raw SQL in onCreate; its rowid is the item id.
+ *
+ * An older file is backed up first, whichever way it is being opened, because Room upgrades it on
+ * first use and the upgrade is one-way. That is file I/O, so call this off the main thread.
  */
-fun openProjectDatabase(context: Context, dbFile: File): ProjectDatabase =
-    Room.databaseBuilder<ProjectDatabase>(context.applicationContext, dbFile.absolutePath)
+fun openProjectDatabase(context: Context, dbFile: File): ProjectDatabase {
+    ProjectOpenRules.backupIfOlder(dbFile, PROJECT_DB_VERSION)
+    return Room.databaseBuilder<ProjectDatabase>(context.applicationContext, dbFile.absolutePath)
         .setDriver(BundledSQLiteDriver())
         .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
         .addCallback(object : RoomDatabase.Callback() {
@@ -88,3 +95,4 @@ fun openProjectDatabase(context: Context, dbFile: File): ProjectDatabase =
             }
         })
         .build()
+}

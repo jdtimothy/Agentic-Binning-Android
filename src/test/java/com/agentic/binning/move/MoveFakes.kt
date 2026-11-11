@@ -74,7 +74,13 @@ class FakeMoveFiles : MoveFiles {
         return hash(src.content)
     }
 
-    override fun sha256(path: String) = hash(files.getValue(key(path)!!).content)
+    /** Full reads of a file for a hash, beyond the one a copy makes as it goes. */
+    var sha256Calls = 0
+
+    override fun sha256(path: String): String {
+        sha256Calls++
+        return hash(files.getValue(key(path)!!).content)
+    }
 
     override fun delete(path: String): Boolean {
         before("delete", path)

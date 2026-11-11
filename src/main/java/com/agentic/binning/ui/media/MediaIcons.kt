@@ -73,5 +73,24 @@ internal object MediaIcons {
 
     val Remove: ImageVector = AnalyzeIcons.icon("remove", 2f, "M4 12a8 8 0 1 0 16 0a8 8 0 1 0-16 0", "M8 12h8")
 
+    val Disk: ImageVector = AnalyzeIcons.icon("disk", 2f, "M5 6h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z", "M7 14h.01M11 14h6")
+
+    val Copy: ImageVector = AnalyzeIcons.icon(
+        "copy",
+        2f,
+        "M10 8h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z",
+        "M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2",
+    )
+
+    val Tag: ImageVector = AnalyzeIcons.icon("tag", 2f, "M3 12V4h8l10 10-8 8z", "M7.5 8.5h.01")
+
+    val Trash: ImageVector = AnalyzeIcons.icon("trash", 2f, "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13")
+
+    val Shield: ImageVector = AnalyzeIcons.icon("shield", 2f, "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z", "M9 12l2 2 4-4")
+
+    val Stop: ImageVector = AnalyzeIcons.icon("stop", 2f, "M8 6h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z")
+
+    val Pause: ImageVector = AnalyzeIcons.icon("pause", 2.6f, "M9 5v14M15 5v14")
+
     val Info: ImageVector = AnalyzeIcons.icon("info", 2f, "M4 12a8 8 0 1 0 16 0a8 8 0 1 0-16 0", "M12 11v5M12 8v.01")
 }

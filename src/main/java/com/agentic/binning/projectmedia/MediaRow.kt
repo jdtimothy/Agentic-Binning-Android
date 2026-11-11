@@ -36,4 +36,7 @@ sealed interface EditResult {
     data class Clash(val existing: String) : EditResult
     data object InvalidName : EditResult
     data object NotFound : EditResult
+
+    /** The edit would move files while another run is going: nothing changed (Q11). */
+    data class Busy(val reason: String) : EditResult
 }

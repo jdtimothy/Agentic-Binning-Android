@@ -85,6 +85,9 @@ class ProjectMediaViewModelTest {
         ),
     )
 
+    /** The last run's folder check found something. */
+    private val checkFailed = MutableStateFlow(false)
+
     private inner class FakeSource : MediaSource {
         val queries = mutableListOf<String?>()
         override val projectName = "Hawaii Photos"
@@ -99,6 +102,8 @@ class ProjectMediaViewModelTest {
         }
 
         override fun categories(): Flow<List<CategoryEntity>> = this@ProjectMediaViewModelTest.categories
+
+        override fun folderCheckFailed(): Flow<Boolean> = this@ProjectMediaViewModelTest.checkFailed
 
         override fun image(row: MediaRow): File = File(row.currentPath)
 
@@ -174,11 +179,14 @@ class ProjectMediaViewModelTest {
     private val resortRequests = mutableListOf<ResortRequest>()
     private var resortResult: ResortStart = ResortStart.Started
 
+    private var binRequests = 0
+
     private fun TestScope.vm() = ProjectMediaViewModel(
         source = sources,
         phase = phase,
         move = move,
         onCategorizeNow = { categorizeCalls++ },
+        onBinFiles = { binRequests++ },
         resort = object : ResortActions {
             override suspend fun settingsChoice() = this@ProjectMediaViewModelTest.settingsChoice
             override suspend fun unavailable(choice: SortingModelChoice) = this@ProjectMediaViewModelTest.unavailable[choice]
@@ -420,6 +428,25 @@ class ProjectMediaViewModelTest {
         assertEquals(setOf(5L), vm.state.value.selection)
     }
 
+    /** A Bin Files sheet's row opens the item's own sheet, even when the filters hide its tile. */
+    @Test
+    fun onOpenItem_opensAnItemTheGridDoesNotShow() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onKind(ItemKind.Video)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.tiles.none { it.id == 4L || it.id == 1L })
+
+        vm.onOpenItem(4)
+        advanceUntilIdle()
+        assertTrue("a failed item opens the failed sheet", vm.state.value.failed != null)
+
+        vm.onCloseDetail()
+        vm.onOpenItem(1)
+        advanceUntilIdle()
+        assertTrue("a sorted item opens its detail sheet", vm.state.value.sheet != null)
+    }
+
     @Test
     fun dock_followsCountsAndTheRunningJob() = runTest {
         val messages = mutableListOf<String>()
@@ -452,9 +479,31 @@ class ProjectMediaViewModelTest {
         rows.value = rows.value.map { if (it.status == ItemStatus.Analyzed) it.copy(status = ItemStatus.Sorted, categoryId = 1) else it }
         advanceUntilIdle()
         assertTrue(vm.state.value.status.binFilesEnabled)
+        assertEquals("a Bin Files that is off asks nothing", 0, binRequests)
+        val toasts = messages.size
         vm.onBinFiles()
         advanceUntilIdle()
-        assertEquals(BIN_FILES_LATER, messages.last())
+        assertEquals(1, binRequests)
+        assertEquals("no toast when it is on", toasts, messages.size)
+    }
+
+    /** Owner's ruling (Nov 10): a failed folder check keeps Bin Files on with nothing to bin, to show what it found. */
+    @Test
+    fun allBinned_lastCheckFailed_binFilesStaysOn() = runTest {
+        rows.value = rows.value.filter { it.status != ItemStatus.Failed }.map { it.copy(status = ItemStatus.Binned, categoryId = 1) }
+        val vm = vm()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.status.binFilesEnabled)
+        assertEquals("All files are binned", vm.state.value.binReason)
+
+        checkFailed.value = true
+        advanceUntilIdle()
+        assertEquals("All files binned · check the folders", vm.state.value.status.text)
+        assertTrue(vm.state.value.status.binFilesEnabled)
+        assertNull(vm.state.value.binReason)
+        vm.onBinFiles()
+        advanceUntilIdle()
+        assertEquals(1, binRequests)
     }
 
     @Test
@@ -1213,6 +1262,100 @@ class ProjectMediaViewModelTest {
         val ui = vm.state.value.resort!!.ui
         assertFalse(ui.rows.first { it.choice == SortingModelChoice.Claude }.unavailable)
         assertTrue(ui.enabled)
+    }
+
+    /** 2b state 4: the bulk picker says what happens to binned files. */
+    @Test
+    fun bulkMove_noteSaysWhetherFilesMoveNow() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileLongPress(1)
+        vm.onBulkMove()
+        advanceUntilIdle()
+        assertEquals(
+            "Only the database changes now. The files move at the next Bin Files. Moved items count as set by you.",
+            vm.state.value.move?.note,
+        )
+
+        rows.value = rows.value.map { if (it.id == 1L) it.copy(status = ItemStatus.Binned) else it }
+        advanceUntilIdle()
+        assertEquals(
+            "1 of them is binned; its file moves right away. The others move at the next Bin Files. Moved items count as set by you.",
+            vm.state.value.move?.note,
+        )
+    }
+
+    /** 2b state 4: Remove says a binned file stays in its category folder. */
+    @Test
+    fun bulkRemove_saysWhatStaysInACategoryFolder() = runTest {
+        rows.value = rows.value.map { if (it.id == 1L) it.copy(status = ItemStatus.Binned) else it }
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileLongPress(1)
+        vm.onTileClick(2)
+        vm.onBulkRemove()
+        advanceUntilIdle()
+        assertEquals(
+            "The files stay on your phone where they are now. The project forgets their analysis, names and categories. " +
+                "1 of them is in a category folder and stays there. You can add them again later.",
+            vm.state.value.removeSelected?.body,
+        )
+    }
+
+    /** A Save that would move files while analysis runs is refused with its reason (never queued). */
+    @Test
+    fun saveRefusedWhileBusy_saysWhyAndKeepsTheSheet() = runTest {
+        val vm = vm()
+        advanceUntilIdle()
+        vm.onTileClick(1)
+        advanceUntilIdle()
+        vm.onDetailName("New name")
+        advanceUntilIdle()
+        source.saveResult = EditResult.Busy("Saving moves this file, so it waits until analysis is done")
+
+        vm.onSaveDetail()
+        advanceUntilIdle()
+
+        assertEquals("Saving moves this file, so it waits until analysis is done", vm.state.value.sheet?.error)
+        assertFalse(vm.state.value.sheet!!.saving)
+    }
+
+    /** B10: Re-sort reaches binned items, so a fully binned project still has something to re-sort. */
+    @Test
+    fun resort_countsBinnedItems() = runTest {
+        rows.value = listOf(row(1, status = ItemStatus.Binned), row(2, status = ItemStatus.Binned, categorySet = true))
+        val vm = vm()
+        advanceUntilIdle()
+
+        vm.onResort()
+        advanceUntilIdle()
+
+        val ui = vm.state.value.resort!!.ui
+        assertTrue("was: ${ui.intro}", ui.intro.startsWith("Sorts 1 analyzed item again"))
+        assertTrue(ui.enabled)
+    }
+
+    /** State 2: Select is greyed while files move, like Re-sort and Edit; analysis doesn't hold it. */
+    @Test
+    fun movingFiles_holdSelect() = runTest {
+        val vm = vm()
+        val messages = mutableListOf<String>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.messages.toList(messages) }
+        phase.value = PipelinePhase.Moving
+        advanceUntilIdle()
+
+        vm.onStartSelect()
+        vm.onTileLongPress(1)
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.selection)
+        assertEquals(listOf(EDITS_WAIT, EDITS_WAIT), messages)
+
+        phase.value = PipelinePhase.Idle
+        advanceUntilIdle()
+        vm.onStartSelect()
+        advanceUntilIdle()
+        assertEquals(emptySet<Long>(), vm.state.value.selection)
     }
 
     /** Plan 3 (Q11, 2b state 6): while files move, the status line follows the move and edits wait. */

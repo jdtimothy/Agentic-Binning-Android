@@ -49,11 +49,13 @@ fun GlassSurface(
     modifier: Modifier = Modifier,
     shape: Shape,
     strong: Boolean = false,
+    /** A tint other than the theme's regular or strong glass. */
+    fill: Color? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val tokens = LocalGlassTokens.current
     val haze = LocalHazeState.current
-    val fill = if (strong) tokens.glassStrong else tokens.glass
+    val tint = fill ?: if (strong) tokens.glassStrong else tokens.glass
     val highlight = tokens.highlight
 
     Box(
@@ -71,7 +73,7 @@ fun GlassSurface(
                     Modifier
                 },
             )
-            .background(fill)
+            .background(tint)
             .drawWithContent {
                 drawContent()
                 // 1 dp top inner highlight, fading out towards the corners.

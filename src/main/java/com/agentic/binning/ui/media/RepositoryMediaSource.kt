@@ -10,6 +10,7 @@ import com.agentic.binning.projectmedia.ItemDetail
 import com.agentic.binning.projectmedia.MediaFilter
 import com.agentic.binning.projectmedia.MediaRow
 import com.agentic.binning.projectmedia.ProjectMediaRepository
+import com.agentic.binning.projectmedia.SaveMoveHooks
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -23,8 +24,9 @@ private const val TAG = "ProjectMedia"
 class RepositoryMediaSource(
     private val project: OpenProject,
     onRetry: suspend () -> Unit = {},
+    saveMoves: SaveMoveHooks? = null,
 ) : MediaSource {
-    private val repository = ProjectMediaRepository(project.db, onRetry, projectDir = project.ref.path)
+    private val repository = ProjectMediaRepository(project.db, onRetry, projectDir = project.ref.path, saveMoves = saveMoves)
     private val thumbs = ProjectFolders.thumbsDir(File(project.ref.path))
 
     override val projectName: String get() = project.ref.name
@@ -35,6 +37,9 @@ class RepositoryMediaSource(
 
     override fun categories(): Flow<List<CategoryEntity>> =
         repository.observeCategories().catch { e -> Log.w(TAG, "Categories of ${project.ref.name} stopped", e) }
+
+    override fun folderCheckFailed(): Flow<Boolean> =
+        repository.observeFolderCheckFailed().catch { e -> Log.w(TAG, "Folder check of ${project.ref.name} stopped", e) }
 
     override fun image(row: MediaRow): File = File(thumbs, "${row.id}.jpg").takeIf(File::isFile) ?: File(row.currentPath)
 

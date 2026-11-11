@@ -214,6 +214,8 @@ deleted before the next one starts).
 
 ## B7. Confirm before Bin Files?
 
+**Status: approved Nov 3, 2026, local time: (a), a confirm sheet** (state 1).
+
 - a. **A confirm sheet** (state 1): "Bin 248 files", into how many folders,
   where they come from ("from Camera 210 · Download 38"), where they go
   (`Agentic Binning/Hawaii Photos`), what stays (1 failed, 2 missing), and one
@@ -229,6 +231,8 @@ DCIM/Camera, and there is no undo (Non-goals). Save moves don't get a confirm:
 their sheets already say "Save and move 3 files" (2b states 3b, 5a, 5b).
 
 ## B8. What the report lists
+
+**Status: approved Nov 3, 2026, local time, as drawn** (states 3 and 4).
 
 Shown when a run ends (state 3), and again when the user comes back if they
 left (Q11), until they close it.
@@ -351,6 +355,8 @@ leave one file in two projects.
 and leave items shared with another listed project out of Bin Files.
 
 ## B11. MediaStore after a move, and what Gallery and the pickers show
+
+**Status: checked on the phone Nov 3-4, 2026.** One row at the new path and none at the old; `_id` and `date_modified` kept; the Camera album's count drops; the category folder is an album; a Favourite survives; re-picking says "already in this project". Not checked: Gallery's Revert, and the Android photo picker.
 
 Spec: "After a move, notify MediaStore (scan the new path, remove the old
 one)." Proposed: after each step, `MediaScannerConnection.scanFile` on both

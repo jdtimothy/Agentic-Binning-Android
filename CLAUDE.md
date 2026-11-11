@@ -27,15 +27,13 @@ Jetpack Compose app (package `com.agentic.binning`). Plans live under
   decisions" section holds every owner decision; "Left for Plan 3" lists what
   binning inherits. Mockups are in `docs/superpowers/mockups/` (open the HTML
   files in a browser; GitHub doesn't render them).
-- **Plan 3** (binning: moving files) is on `plan-3-binning` (draft PR):
-  `docs/superpowers/plans/2026-11-04-plan-3-binning.md`. Questions and the
-  owner's Nov 4 answers: `docs/superpowers/mockups/2026-11-04-plan-3-questions.md`
-  (B7, B8, B11 open); mockups: `2026-11-04-plan-3-binning.html`. The move
-  engine, schema v4, the Binning job and resume are built and JVM-tested in
-  the cloud; no Plan 3 UI yet and no device test has run. Read
-  `docs/superpowers/notes/plan-3-cloud-handoff.md` first: **back up every
-  project's `project.db` before installing this branch** (schema v4; `main`
-  can't open it), and start Bin Files over adb only on test projects.
+- **Plan 3** (binning: moving files) is built and checked on the phone on
+  `plan-3-phone`: `docs/superpowers/plans/2026-11-04-plan-3-binning.md`, with
+  its rulings; questions and answers in
+  `docs/superpowers/mockups/2026-11-04-plan-3-questions.md`; mockups in
+  `2026-11-04-plan-3-binning.html`. Schema v5 is one-way: an older build can't
+  open a migrated project. Run Bin Files only on test projects with fresh test
+  media, never Hawaii Photos or Maui: there is no undo.
 - After release the owner will try other sorting models; LFM3-1.7B's odd
   calls (file-type categories, self-talk descriptions) are expected of a
   small model.
@@ -79,6 +77,28 @@ scripting taps. Native crashes: `adb logcat -d -b crash`, then grep for
   com.agentic.binning.test/androidx.test.runner.AndroidJUnitRunner`.
 - The vision layer logs the prompt as sent and every reply's profile under the
   `VisionModel` tag (`adb logcat -s VisionModel:D`).
+
+## Moving files on the phone
+
+- This phone has no cross-window blur (`ro.surface_flinger.supports_background_blur=0`):
+  a sheet or dialog in its own window can't show glass. Every sheet and dialog but
+  Settings' one confirm draws in the screen's window (`GlassSheet`, `GlassDialog`).
+- Test moves with files you made: a Bin Files moves files out of their folders.
+  Check `select currentPath from item` before starting, and compare `sha256sum`
+  of every file before and after. Moves take about 50 ms each, so pause a run from
+  the shell in a loop on the source folder's count, with `am start-service`
+  `.pipeline.AnalysisService -a com.agentic.binning.action.PAUSE_ANALYSIS` under `run-as`.
+- `uiautomator dump` fails while the Analyze screen animates. Look before tapping by
+  coordinates there: on Settings the same spot is the Keep screen on row.
+- After "Add a folder" the project sheet can still be open: a tap meant for the bottom
+  bar lands on the last Current projects row and switches project. Dump before tapping.
+- Stop a run at an exact point with a loop that runs on the phone (`adb shell` a script
+  that spins on the folder's count, then `run-as ... STOP_ANALYSIS`); a loop on the PC
+  is too slow for 50 ms moves. In a PC `while read` loop give `adb shell` `< /dev/null`,
+  or it swallows the loop's input.
+- The phone's Settings can have Claude selected: a test add makes a paid call. Read
+  it first (`sorting_model` in `files/datastore/settings.preferences_pb`, under
+  `run-as`), and match only that key, since the API key's record is beside it.
 
 ## Test media and the end-to-end run
 

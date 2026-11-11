@@ -26,13 +26,16 @@ import com.agentic.binning.db.SortRunEntity
 import com.agentic.binning.db.UncategorizedItem
 import com.agentic.binning.db.openProjectDatabase
 import com.agentic.binning.media.Candidate
+import com.agentic.binning.media.HeldFile
+import com.agentic.binning.media.ProjectFinder
+import com.agentic.binning.media.SharedCopier
+import com.agentic.binning.media.SharedCopyResult
 import com.agentic.binning.media.ItemStoreLookup
 import com.agentic.binning.media.MediaMetadataReader
 import com.agentic.binning.media.MediaScanner
 import com.agentic.binning.media.MediaUris
 import com.agentic.binning.media.ProjectItemLookup
 import com.agentic.binning.media.Registrar
-import com.agentic.binning.media.RegistrationOutcome
 import com.agentic.binning.media.RegistrationProgress
 import com.agentic.binning.media.RegistrationSummary
 import com.agentic.binning.model.ClaudeTextModel
@@ -47,10 +50,23 @@ import com.agentic.binning.model.VisionModel
 import com.agentic.binning.model.VisionModelException
 import com.agentic.binning.model.VisionProfile
 import com.agentic.binning.db.RoomBinStore
+import com.agentic.binning.db.outsideThisTransaction
 import com.agentic.binning.move.BinFilesJob
 import com.agentic.binning.move.MediaStoreNotifier
 import com.agentic.binning.move.MoveNotifier
-import com.agentic.binning.move.MoveReport
+import com.agentic.binning.move.formatBytes
+import com.agentic.binning.media.RegistrationOutcome
+import com.agentic.binning.pipeline.MOVE_WAITS_FOR_ADD
+import com.agentic.binning.pipeline.SAVE_BUSY
+import com.agentic.binning.pipeline.SAVE_WAITS_FOR_ADD
+import java.util.concurrent.atomic.AtomicInteger
+import com.agentic.binning.projectmedia.SaveMoveHooks
+import com.agentic.binning.ui.media.BinActions
+import com.agentic.binning.ui.media.UnknownFileFacts
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import com.agentic.binning.move.RealMoveFiles
 import com.agentic.binning.pipeline.AnalysisEngine
 import com.agentic.binning.pipeline.FileMover
@@ -99,7 +115,6 @@ import com.agentic.binning.sorting.SortBudgets
 import com.agentic.binning.ui.settings.NEED_KEY_TEXT
 import com.agentic.binning.ui.settings.specOf
 import java.io.File
-import java.nio.file.Files
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -296,6 +311,7 @@ class AppGraph(val context: Context) {
                     val bin = binFilesJob(pipelineProject())
                     when (job) {
                         MoveJob.BinFiles -> bin.binFiles(control, onProgress)
+                        is MoveJob.Save -> bin.resume(job.runId, control, onProgress)
                         is MoveJob.Resume -> bin.resume(job.runId, control, onProgress)
                     }
                 }
@@ -316,7 +332,7 @@ class AppGraph(val context: Context) {
     private fun binFilesJob(project: OpenProject): BinFilesJob {
         binJob?.takeIf { it.first === project }?.let { return it.second }
         val job = BinFilesJob(
-            store = RoomBinStore(project.db, ::sharedWithOtherProjects),
+            store = RoomBinStore(project.db) { paths -> sharedWithOtherProjects(project.ref, paths) },
             files = moveFiles,
             notifier = moveNotifier,
             projectDir = project.ref.path,
@@ -327,17 +343,17 @@ class AppGraph(val context: Context) {
 
     /**
      * Which of [paths] another listed project also holds (P8's follow-on ruling: copied, never moved).
-     * Opens each other project's database that exists and closes it again.
+     * Opens each other project's database that exists and closes it again. A Save asks from inside its
+     * transaction, so this leaves that transaction behind: see [outsideThisTransaction].
      */
-    private suspend fun sharedWithOtherProjects(paths: List<String>): Set<String> = withContext(Dispatchers.IO) {
-        val current = pipelineProject().ref
+    private suspend fun sharedWithOtherProjects(current: ProjectRef, paths: List<String>): Set<String> = outsideThisTransaction {
         val opened = mutableListOf<ProjectDatabase>()
         try {
             val others = registry.list().filter { !ProjectRegistry.samePath(it.path, current.path) }.mapNotNull { ref ->
                 val dbFile = ProjectFolders.databaseFile(File(ref.path))
                 if (!dbFile.isFile) null else openProjectDatabase(context, dbFile).also { opened += it }
             }
-            if (others.isEmpty()) return@withContext emptySet()
+            if (others.isEmpty()) return@outsideThisTransaction emptySet()
             paths.chunked(500).flatMap { chunk -> others.flatMap { db -> db.items().findByPaths(chunk).map { it.currentPath } } }.toSet()
         } finally {
             withContext(NonCancellable) { opened.forEach { it.close() } }
@@ -352,14 +368,82 @@ class AppGraph(val context: Context) {
     fun binFiles(ref: ProjectRef): MoveStart {
         if (pipelineTarget != ref) return MoveStart.Refused(MOVE_NOT_OPEN)
         if (pipeline.state.value.phase.isRunning) return MoveStart.Refused(MOVE_BUSY)
+        if (addsRunning.get() > 0) return MoveStart.Refused(MOVE_WAITS_FOR_ADD)
         return if (startAnalysis(ref, RunKind.BinFiles)) MoveStart.Started else MoveStart.Refused(MOVE_NOT_STARTED)
     }
 
-    /** The report of the open project's last finished move run, or null (B8's layout is open). */
-    suspend fun lastMoveReport(): MoveReport? = withContext(Dispatchers.IO) {
-        val open = _currentProject.value ?: return@withContext null
-        val run = open.db.moves().lastFinishedRun() ?: return@withContext null
-        binFilesJob(open).report(run.id)
+    /** Registrations and copies in progress: files don't start moving under them (Q11). */
+    private val addsRunning = AtomicInteger(0)
+
+    /** A Save's file moves for [project] (Plan 3 Task 14): the plan is written with the edit, then run here. */
+    fun saveMoveHooks(project: OpenProject): SaveMoveHooks = object : SaveMoveHooks {
+        override fun blockedReason() = when {
+            pipeline.state.value.phase.isRunning -> SAVE_BUSY
+            addsRunning.get() > 0 -> SAVE_WAITS_FOR_ADD
+            else -> null
+        }
+
+        override suspend fun plan(ids: Collection<Long>) = binFilesJob(project).planSave(ids)
+
+        override suspend fun started(runId: Long) {
+            try {
+                AnalysisService.start(context, project.ref, RunKind.SaveMoves, moveRunId = runId)
+            } catch (e: IllegalStateException) { // ForegroundServiceStartNotAllowedException
+                Log.w(TAG, "Save's moves deferred until the app is back in the foreground", e)
+                deferredStart = DeferredStart(project.ref, RunKind.ResumeMove)
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Save's moves refused", e)
+                deferredStart = DeferredStart(project.ref, RunKind.ResumeMove)
+            }
+        }
+    }
+
+    /** Bin Files for [project], as the UI drives it (Plan 3 Task 16). */
+    fun binActions(project: OpenProject): BinActions = object : BinActions {
+        override val projectName = project.ref.name
+        override val projectPath = project.ref.path
+
+        private fun isOpen() = _currentProject.value === project
+
+        override suspend fun preview() = if (isOpen()) binFilesJob(project).preview() else null
+
+        override fun start() = binFiles(project.ref)
+
+        override fun pause() = pipeline.pause()
+
+        override fun resume() = pipeline.resume()
+
+        override fun stop() = stopAnalysis()
+
+        override suspend fun unreadReport() = if (isOpen()) binFilesJob(project).unreadReport() else null
+
+        override suspend fun closeReport(runId: Long) {
+            if (isOpen()) binFilesJob(project).closeReport(runId)
+        }
+
+        override suspend fun facts(path: String): UnknownFileFacts {
+            val file = File(path)
+            val added = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()).format(Instant.ofEpochMilli(file.lastModified()).atZone(ZoneId.systemDefault()))
+            return UnknownFileFacts(added, formatBytes(file.length()))
+        }
+
+        override suspend fun leave(paths: List<String>) {
+            if (isOpen()) binFilesJob(project).leave(paths)
+        }
+
+        override suspend fun add(paths: List<String>): Set<String> {
+            if (!isOpen()) return emptySet()
+            val candidates = paths.map(::File).filter { it.isFile }.mapNotNull { file -> MediaScanner.kindOf(file)?.let { Candidate(file, it) } }
+            val added = HashSet<String>()
+            register(
+                project,
+                candidates,
+                paths.size - candidates.size,
+                { progress -> (progress.last as? RegistrationOutcome.Added)?.let { added += it.path } },
+                ::startAnalysisAfterAdd,
+            )
+            return added
+        }
     }
 
     /**
@@ -525,7 +609,7 @@ class AppGraph(val context: Context) {
                 when {
                     deferred == null -> resumeAnalysisIfPending(open)
                     // A refused move start: the open run (if any) is resumed; a Bin Files tap is not repeated.
-                    deferred.kind == RunKind.BinFiles || deferred.kind == RunKind.ResumeMove -> resumeAnalysisIfPending(open)
+                    deferred.kind == RunKind.BinFiles || deferred.kind == RunKind.SaveMoves || deferred.kind == RunKind.ResumeMove -> resumeAnalysisIfPending(open)
                     else -> launcher.retryDeferred(open.ref, runFlags(open), deferred.kind)
                 }
             } catch (e: Exception) {
@@ -596,7 +680,7 @@ class AppGraph(val context: Context) {
             pipeline.stopAndReset()
             deferredStart = null
         }
-        val db = openProjectDatabase(context, dbFile)
+        val db = withContext(Dispatchers.IO) { openProjectDatabase(context, dbFile) }
         val stored = try {
             if (db.meta().get() == null) {
                 check(!existingOnly) { "An existing project database has no project_meta row" }
@@ -651,7 +735,8 @@ class AppGraph(val context: Context) {
      * is the `.binning` folder). A listed folder just switches to its entry. Otherwise the database
      * is probed read-only first ([ProjectDatabaseProbe]); a missing, unreadable, foreign or newer one
      * is refused with nothing changed on disk, an older one is copied to `project.db.v<N>.bak` before
-     * Room upgrades it, and the saved analysis opens as it is, never recreated.
+     * Room upgrades it ([openProjectDatabase] does that on every open), and the saved analysis opens
+     * as it is, never recreated.
      */
     suspend fun openExistingProject(picked: File): OpenExistingResult {
         val dir = ProjectOpenRules.projectDir(picked)
@@ -667,12 +752,6 @@ class AppGraph(val context: Context) {
         return when (val decision = ProjectOpenRules.decide(facts, PROJECT_DB_VERSION, PROJECT_DB_IDENTITY_HASHES)) {
             is DatabaseDecision.Refused -> OpenExistingResult.Refused(decision.reason.message)
             is DatabaseDecision.Open -> openRefusingFailures {
-                decision.backupFromVersion?.let { version ->
-                    withContext(Dispatchers.IO) {
-                        val backup = ProjectOpenRules.backupFile(dbFile, version)
-                        Files.copy(dbFile.toPath(), backup.toPath()) // fails rather than overwrite
-                    }
-                }
                 val ref = ProjectRef(ProjectOpenRules.listedName(facts, dir), ProjectRegistry.canonical(dir.path))
                 openProject(ref, existingOnly = true)
             }
@@ -844,9 +923,54 @@ class AppGraph(val context: Context) {
         return register(project, candidates, skipped, onProgress, onRegistered)
     }
 
-    private fun scanExclusions(current: ProjectRef): Set<String> {
-        val otherFolders = registry.list().filter { it.path != current.path }.map { File(it.path).canonicalPath }
-        return (otherFolders + ProjectFolders.binningDir(File(current.path)).canonicalPath).toSet()
+    /** Only this project's own workings: another project's files are found and offered for copying (P8). */
+    private fun scanExclusions(current: ProjectRef): Set<String> = setOf(ProjectFolders.binningDir(File(current.path)).canonicalPath)
+
+    /**
+     * Copy media files (P8): checked copies of [held] in `Copied from <project>/`, added as ordinary
+     * items of the open project and then analyzed. The other projects' files are only read.
+     */
+    suspend fun copyHeld(held: List<HeldFile>, onProgress: (done: Int, total: Int) -> Unit): SharedCopyResult {
+        val project = checkNotNull(_currentProject.value) { "No project is open" }
+        addsRunning.incrementAndGet()
+        val result = try {
+            withContext(Dispatchers.IO) {
+            val registrar = Registrar(
+                thisProject = project.ref,
+                itemDao = project.db.items(),
+                otherProjects = emptyList(),
+                registry = registry,
+                metadata = MediaMetadataReader::read,
+                clock = System::currentTimeMillis,
+            )
+            SharedCopier(moveFiles, project.ref.path).copy(
+                held,
+                isKnown = { hash -> project.db.items().findByHashes(listOf(hash)).isNotEmpty() },
+                register = { path, hash ->
+                    val file = File(path)
+                    val added = MediaScanner.kindOf(file)?.let { registrar.registerCopy(Candidate(file, it), hash) } ?: false
+                    if (added) {
+                        moveNotifier.moved(null, path)
+                        project.db.moves().dropRemoved(listOf(path))
+                    }
+                    added
+                },
+                onProgress = onProgress,
+            )
+            }
+        } finally {
+            addsRunning.decrementAndGet()
+        }
+        if (result.copied > 0) {
+            try {
+                startAnalysisAfterAdd(project)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "After-copy step failed", e)
+            }
+        }
+        return result
     }
 
     private suspend fun register(
@@ -857,6 +981,7 @@ class AppGraph(val context: Context) {
         onRegistered: suspend (OpenProject) -> Unit,
     ): RegistrationSummary {
         val opened = mutableListOf<ProjectDatabase>()
+        addsRunning.incrementAndGet()
         try {
             val lookups = withContext(Dispatchers.IO) { openOtherProjects(project.ref, opened) }
             val registrar = Registrar(
@@ -864,6 +989,7 @@ class AppGraph(val context: Context) {
                 itemDao = project.db.items(),
                 otherProjects = lookups,
                 registry = registry,
+                findProject = ProjectFinder(ownDir = File(project.ref.path))::projectContaining,
                 metadata = MediaMetadataReader::read,
                 clock = System::currentTimeMillis,
             )
@@ -886,6 +1012,7 @@ class AppGraph(val context: Context) {
             }
             return summary
         } finally {
+            addsRunning.decrementAndGet()
             withContext(NonCancellable + Dispatchers.IO) { opened.forEach { it.close() } }
         }
     }
