@@ -4,7 +4,7 @@ All notable changes to Agentic Binning are listed here. The project uses
 [Semantic Versioning](https://semver.org/) — see the Versioning section of
 the [README](README.md).
 
-## [1.0.0] — Unreleased
+## [1.0.0] — 2026-11-11
 
 First public release.
 
