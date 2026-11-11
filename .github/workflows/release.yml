@@ -55,6 +55,7 @@ jobs:
           name: app-release-apk
           path: build/outputs/apk/release/*.apk
           if-no-files-found: error
+          retention-days: 7
 
       - name: Attach the APK to the GitHub Release (tag builds only)
         if: startsWith(github.ref, 'refs/tags/')
