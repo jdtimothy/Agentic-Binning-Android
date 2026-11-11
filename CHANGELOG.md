@@ -17,4 +17,6 @@ First public release.
 - Re-sort and edit categories after analysis.
 - The model downloads from Hugging Face on first use; analysis is fully
   on-device and offline after that.
-- Optional cloud analysis with Claude (bring your own Anthropic API key).
+- Optional cloud sorting help with Claude: refines categories using only
+  the local model's text (names, descriptions, tags) — photos and videos
+  never leave the device (bring your own Anthropic API key).
