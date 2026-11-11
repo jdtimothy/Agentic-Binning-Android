@@ -20,8 +20,27 @@ android {
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
 
+    // Release signing for CI (GitHub Actions). The workflow decodes the
+    // keystore from a repository secret into KEYSTORE_FILE and passes the
+    // passwords via env. When those variables are absent (local builds,
+    // contributors), release builds stay unsigned and nothing changes.
+    signingConfigs {
+        release {
+            def ksFile = System.getenv('KEYSTORE_FILE')
+            if (ksFile) {
+                storeFile file(ksFile)
+                storePassword System.getenv('KEYSTORE_PASSWORD')
+                keyAlias System.getenv('KEY_ALIAS')
+                keyPassword System.getenv('KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (System.getenv('KEYSTORE_FILE')) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
