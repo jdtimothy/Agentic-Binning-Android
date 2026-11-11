@@ -1,8 +1,8 @@
 # Agentic Binning
 
-**Your photos and videos, understood and sorted by an AI that lives on your phone.**
+**Your photos and videos, analyzed and sorted by a local AI Vision Language Model**
 
-If you shoot a lot of photos and video — trips, family events, video projects — you know the problem: a folder full of files named `20260924_133728.jpg`, and no easy way to remember what's what or find anything later. Agentic Binning fixes that. You point it at a project folder, and an AI model running entirely on your phone's NPU looks at every photo and video, gives each one a plain, friendly name (like "Sea Turtle Swimming"), writes a short description, and tags it with a category and shot type. When you're ready, tap **Bin Files** and everything is moved into tidy category folders — Sunsets, Wildlife, Waves, and so on. Later, you can search your whole project with a word like "turtle" and get matching media instantly. Your photos and videos never leave your phone: the AI runs on-device, so it works offline, it's fast (about 32 tokens per second), and your media stays yours.
+If you shoot a lot of photos and video — trips, family events, video projects — you know the problem: a folder full of files named `20260924_133728.jpg`, and no easy way to remember what's what or find anything later. Agentic Binning fixes that. You point it at a project folder or select media from your gallery, and an AI model running entirely on your phone's NPU looks at every photo and video, gives each one a plain, friendly name (like "Sea Turtle Swimming"), writes a short description, and tags it with a category and shot type. When you're ready, tap **Bin Files** and everything is moved into tidy category folders — Sunsets, Wildlife, Waves, and so on. Later, you can search your whole project with a word like "turtle" and get matching media instantly. Your photos and videos never leave your phone: the AI runs on-device, so it works offline, it's fast, and your media stays on-device.
 
 ## See it in action
 
@@ -24,7 +24,7 @@ The first time you analyze something, the app downloads the model from Hugging F
 
 ### Optional: cloud help with sorting
 
-The local model always does the looking — that part never changes. If you want sharper categories, you can optionally let a cloud model (Claude, by Anthropic) help with the *categorizing and sorting* step. It works only from the text the local model already wrote — the names, descriptions, and tags for each file — and uses that text to improve the accuracy of the categories.
+The local model always analyzes your footage. If you want improved sorting and categories, you can optionally let a cloud model API(Claude, by Anthropic) help with the *categorizing and sorting* step. It works only from the text the local model already wrote — the names, descriptions, and tags for each file — and uses that text to improve the accuracy of the categories.
 
 **Your photos and videos are never sent to the cloud.** Only those short text summaries are, and only if you turn the feature on and supply your own Anthropic API key. With it off, nothing leaves the phone at all.
 
@@ -32,7 +32,7 @@ The local model always does the looking — that part never changes. If you want
 
 - A phone with a **Snapdragon 8 Elite Gen 5** or **Snapdragon 8 Elite Gen 6** — the on-device model runs on these chips' NPU, and only these. Other devices are not supported at this time.
 - A Wi-Fi or data connection the first time you analyze, so the app can download the model. After that, analysis is fully offline.
-- A project folder of photos and/or videos to sort.
+- A project folder or gallery of photos and/or videos to sort.
 
 ## Verified devices
 
@@ -79,8 +79,8 @@ The version lives in `build.gradle` (`versionName` / `versionCode`), releases ar
 
 ## Privacy, in plain terms
 
-- Analysis happens entirely on your phone. Your photos and videos are never uploaded, tracked, or phoned home — not by the local model, and not by the optional cloud feature either.
-- The app asks for access only to the folders you pick.
+- Analysis happens entirely on your phone. Your photos and videos are never uploaded.
+- The app asks for access only to the folders or media that you pick.
 - The optional cloud sorting help is off by default and uses your own API key. If you turn it on, the only thing sent is the text the local model wrote (names, descriptions, and tags) — never your actual photos or videos.
 
 ## License
