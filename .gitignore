@@ -22,3 +22,7 @@ ui.xml
 
 # Project-local Hermes notes
 /IDEA.md
+
+# Release signing keystore — never commit
+*.jks
+*.keystore
