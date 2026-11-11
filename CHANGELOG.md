@@ -1,0 +1,20 @@
+# Changelog
+
+All notable changes to Agentic Binning are listed here. The project uses
+[Semantic Versioning](https://semver.org/) — see the Versioning section of
+the [README](README.md).
+
+## [1.0.0] — Unreleased
+
+First public release.
+
+- Pick a project folder of photos and videos and analyze every item
+  on-device with LFM3-VL-2B running on the Snapdragon NPU via GenieX —
+  each file gets a friendly name, a short description, tags, a category,
+  and a shot type.
+- **Bin Files**: move analyzed media into category subfolders in one tap.
+- Search a project by keyword, and filter by category or by photo/video.
+- Re-sort and edit categories after analysis.
+- The model downloads from Hugging Face on first use; analysis is fully
+  on-device and offline after that.
+- Optional cloud analysis with Claude (bring your own Anthropic API key).
