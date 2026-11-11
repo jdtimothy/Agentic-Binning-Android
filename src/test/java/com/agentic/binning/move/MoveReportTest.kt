@@ -71,6 +71,18 @@ class MoveReportTest {
         assertEquals("Saved. 2 files moved and checked.", r.headline)
     }
 
+    /** A Save that only copied a file another project holds says so, as its fact line does. */
+    @Test fun save_onlyCopied_saysCopied() {
+        val r = MoveReport.of(run(RunState.Done, kind = MoveKind.Save), listOf(step(1, StepState.Done, keep = true)), emptyList())
+        assertEquals("Saved. 1 file copied and checked.", r.headline)
+    }
+
+    @Test fun save_movedAndCopied_namesBoth() {
+        val steps = listOf(step(1, StepState.Done), step(2, StepState.Done), step(3, StepState.Done, keep = true))
+        val r = MoveReport.of(run(RunState.Done, kind = MoveKind.Save), steps, emptyList())
+        assertEquals("Saved. 2 files moved and 1 copied, all checked.", r.headline)
+    }
+
     /** "You stopped it after Fire Knife Spin.mp4": the last file that actually moved. */
     @Test fun lastMoved_isTheLastDoneFile() {
         val steps = listOf(step(1, StepState.Done, dest = "$p/Beach/A.jpg"), step(2, StepState.Done, dest = "$p/Beach/B.jpg"), step(3, StepState.Planned))

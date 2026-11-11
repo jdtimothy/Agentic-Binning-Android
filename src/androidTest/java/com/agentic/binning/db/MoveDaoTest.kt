@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.agentic.binning.move.RunState
 import com.agentic.binning.move.StepState
 import java.io.File
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -111,6 +112,19 @@ class MoveDaoTest {
         assertEquals(second, db.moves().openRun()?.id)
         assertEquals("Turtle Beach", db.moves().run(first)?.removedFolders)
         assertEquals(first, db.moves().lastFinishedRun()?.id)
+    }
+
+    /** The newest finished run's folder check, which keeps Bin Files on while it found something. */
+    @Test fun lastCheckOk_followsTheNewestFinishedRun() = runTest {
+        val a = addItem("a")
+        assertNull(db.moves().observeLastCheckOk().first())
+        val first = db.moves().writeRun(run(), listOf(step(a, "/a", "/p/B/A.jpg")), emptyList(), emptyList())
+        db.moves().finishRun(first, RunState.Done.name, 9L, null, null, false)
+        assertEquals(false, db.moves().observeLastCheckOk().first())
+        val open = db.moves().writeRun(run(), emptyList(), emptyList(), emptyList())
+        assertEquals("a run still going doesn't count", false, db.moves().observeLastCheckOk().first())
+        db.moves().finishRun(open, RunState.Done.name, 10L, null, null, true)
+        assertEquals(true, db.moves().observeLastCheckOk().first())
     }
 
     /** B8: the newest finished run's report is unread until closed; closing it closes older ones too. */

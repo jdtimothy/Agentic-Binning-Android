@@ -51,8 +51,8 @@ import com.agentic.binning.ui.theme.LocalGlassTokens
 
 /**
  * Edit categories (plan 2b Task 14, mockup states 5a and 5b): rename inline with the clash check,
- * or tick two to merge and choose the name that survives. Save applies every staged change at once.
- * In 2b no category has a folder yet, so the mockup's file consequences don't show.
+ * or tick two to merge and choose the name that survives. Save applies every staged change at once,
+ * and moves the binned files of what it renames or merges (Plan 3).
  */
 @Composable
 fun CategoryEditSheet(state: CategoryEditState, actions: CategoryEditActions) {
@@ -185,7 +185,7 @@ private fun CategoryRow(row: CategoryEditRow, actions: CategoryEditActions) {
                 )
                 val error = row.editError
                 Text(
-                    error ?: "No folder yet; only the database changes",
+                    error ?: row.editHint,
                     color = if (error != null) tokens.danger else tokens.sub,
                     fontSize = 12.sp,
                 )

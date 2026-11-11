@@ -53,7 +53,11 @@ data class MoveReport(
             val folders = done.map { it.dest.substringBeforeLast('/').lowercase(Locale.ROOT) }.distinct().size
             val still = steps.count { !StepState.of(it.state).isFinal }
             val headline = when {
-                state == RunState.Done && kind == MoveKind.Save -> "Saved. ${files(done.size)} moved and checked."
+                state == RunState.Done && kind == MoveKind.Save -> when {
+                    shared == 0 -> "Saved. ${files(moved)} moved and checked."
+                    moved == 0 -> "Saved. ${files(shared)} copied and checked."
+                    else -> "Saved. ${files(moved)} moved and $shared copied, all checked."
+                }
                 state == RunState.Done && done.isEmpty() && inPlace > 0 ->
                     "Nothing to move. ${files(inPlace)} ${if (inPlace == 1) "was" else "were"} already in place."
                 state == RunState.Done && done.isEmpty() -> "Nothing to move."

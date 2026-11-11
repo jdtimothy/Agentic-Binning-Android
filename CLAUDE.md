@@ -90,6 +90,12 @@ scripting taps. Native crashes: `adb logcat -d -b crash`, then grep for
   `.pipeline.AnalysisService -a com.agentic.binning.action.PAUSE_ANALYSIS` under `run-as`.
 - `uiautomator dump` fails while the Analyze screen animates. Look before tapping by
   coordinates there: on Settings the same spot is the Keep screen on row.
+- After "Add a folder" the project sheet can still be open: a tap meant for the bottom
+  bar lands on the last Current projects row and switches project. Dump before tapping.
+- Stop a run at an exact point with a loop that runs on the phone (`adb shell` a script
+  that spins on the folder's count, then `run-as ... STOP_ANALYSIS`); a loop on the PC
+  is too slow for 50 ms moves. In a PC `while read` loop give `adb shell` `< /dev/null`,
+  or it swallows the loop's input.
 - The phone's Settings can have Claude selected: a test add makes a paid call. Read
   it first (`sorting_model` in `files/datastore/settings.preferences_pb`, under
   `run-as`), and match only that key, since the API key's record is beside it.

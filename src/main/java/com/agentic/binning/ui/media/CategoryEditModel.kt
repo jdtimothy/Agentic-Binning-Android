@@ -95,7 +95,11 @@ data class CategoryEditRow(
     val editValue: String,
     val editError: String?,
     val canFinish: Boolean,
+    /** The line under the rename field (2b state 5a): whether a Save renames a folder. */
+    val editHint: String = NO_FOLDER,
 )
+
+private const val NO_FOLDER = "No folder yet; only the database changes"
 
 data class KeepOption(val id: Long, val label: String, val detail: String, val selected: Boolean)
 
@@ -160,6 +164,7 @@ fun categoryEditUi(cats: List<CategoryEntity>, counts: Map<Long, Int>, d: Catego
             editValue = if (d.editing == c.id) d.editValue else "",
             editError = if (d.editing == c.id) error else null,
             canFinish = d.editing == c.id && d.canFinish(cats),
+            editHint = if ((binned[c.id] ?: 0) > 0) "Renames the ${c.name} folder when you save" else NO_FOLDER,
         )
     }
     val box = if (d.ticked.size == 2) {

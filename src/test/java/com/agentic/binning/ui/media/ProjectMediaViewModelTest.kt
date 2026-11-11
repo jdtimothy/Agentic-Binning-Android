@@ -85,6 +85,9 @@ class ProjectMediaViewModelTest {
         ),
     )
 
+    /** The last run's folder check found something. */
+    private val checkFailed = MutableStateFlow(false)
+
     private inner class FakeSource : MediaSource {
         val queries = mutableListOf<String?>()
         override val projectName = "Hawaii Photos"
@@ -99,6 +102,8 @@ class ProjectMediaViewModelTest {
         }
 
         override fun categories(): Flow<List<CategoryEntity>> = this@ProjectMediaViewModelTest.categories
+
+        override fun folderCheckFailed(): Flow<Boolean> = this@ProjectMediaViewModelTest.checkFailed
 
         override fun image(row: MediaRow): File = File(row.currentPath)
 
@@ -480,6 +485,25 @@ class ProjectMediaViewModelTest {
         advanceUntilIdle()
         assertEquals(1, binRequests)
         assertEquals("no toast when it is on", toasts, messages.size)
+    }
+
+    /** Owner's ruling (Nov 10): a failed folder check keeps Bin Files on with nothing to bin, to show what it found. */
+    @Test
+    fun allBinned_lastCheckFailed_binFilesStaysOn() = runTest {
+        rows.value = rows.value.filter { it.status != ItemStatus.Failed }.map { it.copy(status = ItemStatus.Binned, categoryId = 1) }
+        val vm = vm()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.status.binFilesEnabled)
+        assertEquals("All files are binned", vm.state.value.binReason)
+
+        checkFailed.value = true
+        advanceUntilIdle()
+        assertEquals("All files binned · check the folders", vm.state.value.status.text)
+        assertTrue(vm.state.value.status.binFilesEnabled)
+        assertNull(vm.state.value.binReason)
+        vm.onBinFiles()
+        advanceUntilIdle()
+        assertEquals(1, binRequests)
     }
 
     @Test

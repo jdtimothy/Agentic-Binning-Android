@@ -71,6 +71,9 @@ interface MediaSource {
 
     fun categories(): Flow<List<CategoryEntity>>
 
+    /** Whether the last run's folder check found something, so Bin Files stays on to show it (owner, Nov 10). */
+    fun folderCheckFailed(): Flow<Boolean> = flowOf(false)
+
     /** The tile's picture: the thumbnail once it is written, else the file. Called off the main thread. */
     fun image(row: MediaRow): File
 
@@ -363,6 +366,8 @@ private data class Loaded(
     val searched: Boolean,
     val categories: List<CategoryEntity>,
     val images: Map<Long, File>,
+    /** The last run's folder check found something. */
+    val checkFolders: Boolean = false,
 )
 
 /**
@@ -435,8 +440,8 @@ class ProjectMediaViewModel(
         } else {
             val all = src.rows(null)
             val found = fts.flatMapLatest { q -> if (q == null) all.map { it to false } else src.rows(q).map { it to true } }
-            combine(all, found, src.categories()) { a, (f, searched), c ->
-                Loaded(src, a, f, searched, c, f.associate { it.id to src.image(it) })
+            combine(all, found, src.categories(), src.folderCheckFailed()) { a, (f, searched), c, check ->
+                Loaded(src, a, f, searched, c, f.associate { it.id to src.image(it) }, check)
             }.flowOn(io).onEach { latestCategories = it.categories }
         }
     }
@@ -1008,8 +1013,8 @@ class ProjectMediaViewModel(
             resultText = resultText,
             tiles = tiles,
             noMatchText = noMatch,
-            status = mediaStatus(counts, job),
-            binReason = binFilesBlockedReason(counts, job),
+            status = mediaStatus(counts, job, l.checkFolders),
+            binReason = binFilesBlockedReason(counts, job, l.checkFolders),
             busyReason = when (job) {
                 null -> null
                 is ActiveJob.Binning, is ActiveJob.Saving -> EDITS_WAIT

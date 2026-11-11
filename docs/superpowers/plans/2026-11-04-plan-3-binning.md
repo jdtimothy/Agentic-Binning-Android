@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: built, and checked on the phone, on branch `plan-3-phone`; not yet merged.** Tasks 1-13 were built in a cloud session (`docs/superpowers/notes/plan-3-cloud-handoff.md`), the rest on the PC with the phone attached. 834 JVM tests and 92 device tests pass on SM-S948U1. Left: B11's Gallery Revert and the Android photo picker (owner's look).
+**Status: built, and checked on the phone, on branch `glass-sheets` (PR #25, which holds `plan-3-phone`); not yet merged. The review's fixes passed on the phone on Nov 10, and four small issues found then are fixed (see "Checked on the phone after the review").** Tasks 1-13 were built in a cloud session (`docs/superpowers/notes/plan-3-cloud-handoff.md`), the rest on the PC with the phone attached. 834 JVM tests and 92 device tests pass on SM-S948U1. Left: B11's Gallery Revert and the Android photo picker (owner's look).
 
 **Goal:** **Bin Files** moves every sorted item's file to `<project>/<Category>/<friendly name>.<original extension>`, and a **Save** that renames, re-categorizes or merges something already binned moves its files the same way, right away. No file is ever lost or overwritten, every run is resumable after a crash, and the category folders are checked before and after.
 
@@ -117,7 +117,7 @@ Full text, choices and reasons: `docs/superpowers/mockups/2026-11-04-plan-3-ques
 
 ### Rulings from the review of PR #25
 
-All nine findings are fixed with tests. The phone checks are still to do: findings 1, 2, 3 and 4 on a test project, and the device tests, including the two below that couldn't be watched failing on the PC.
+All nine findings are fixed with tests, and checked on the phone on Nov 10 (below).
 
 1. **A report's button moves only what it promises.** A stopped Save's button is Bin Files and opens the confirm sheet, since its run covered only what was edited. A stopped Bin Files carries on with no second confirm only if its count still matches; otherwise it asks.
 2. **The confirm sheet names the project's real folder**, not `Agentic Binning/<name>`: a project can be opened from anywhere.
@@ -128,6 +128,24 @@ All nine findings are fixed with tests. The phone checks are still to do: findin
 7. **A copy reads each file twice: once to copy, once to check.** So a file this project already holds is found after copying, which costs a temp copy of it. Rare, and cheaper than hashing every large video first.
 8. **The Bin Files preview works out what can move once**, not once per item.
 9. **The open project's own database isn't probed** for a name nobody reads.
+
+### Checked on the phone after the review (Nov 10)
+
+On `glass-sheets` at `dd3da3e`, SM-S948U1, with test projects "R4 Check" (opened from `Documents/R4 Elsewhere`) and "R4 Other", and 20 fresh word-card photos in `DCIM/avb-r4`. Every project database was pulled to `build/backup-2026-11-10/` first.
+
+- **Device tests:** 93 pass (`db/*`, `MoveFilesDeviceTest`, `ProjectOpenRemoveTest`, `ProjectMediaRepositoryTest`; the model tests were left out). The two never watched failing were broken on purpose and failed as they should: with `outsideThisTransaction` calling its block directly, `OtherDatabasesDeviceTest` read this project's rows from the other database (`[/p/both.jpg, /p/only-here.jpg]`); with the plan failure rethrown, `save_planFails_rollsTheEditBack` failed. Restored, both pass.
+- **Finding 1:** Bin Files stopped after 8 of 20 (Stop sent from the shell on the source folder's count); the report's "Bin 12 files" carried on with no confirm, as the count matched. A category rename (Food → Meals, 9 files) stopped after 5; "Saving stopped" offered Bin Files, which opened the confirm sheet ("Bin 4 files into 1 folder") and moved nothing until confirmed. The empty Food folder was removed.
+- **Finding 2:** the confirm sheet read "Into Documents/R4 Elsewhere/".
+- **Finding 3:** a shared binned path can't be made through the app any more (`ProjectFinder` finds a project's folder whether or not it is listed), so R4 Other was given an item at R4 Check's `Transportation/Blue Bus Text.jpg` by hand. Renaming it in R4 Check copied it to `Red Bus.jpg` and left the original ("0 moved, 1 copied from another project"); renaming an unshared item moved it, no copy.
+- **Finding 4:** with `stray_new.jpg`, `stray_notes.txt`, a renamed duplicate of an item and R4 Other's file on the unknown-files sheet, Add to project added only `stray_new.jpg`; the other three stayed with only Leave them, which went on to bin 2 files.
+- Every item's SHA-256 matched its file at `currentPath` after each run; the only files that aren't items are the three left.
+
+**Found while checking, fixed the same day** (860 JVM tests and 94 device tests pass; A, B and C watched on the phone, D by its tests, as a shared Save needs the hand-made state):
+
+- **A. The category rename hint said "No folder yet; only the database changes" for every category**, a 2b line. A category with binned files now says "Renames the <name> folder when you save", the line 2b's mockup state 5a already had (`CategoryEditRow.editHint`).
+- **B. "The next Bin Files shows what" pointed at a disabled button** when every item was binned. **Owner's ruling (Nov 10): while the last finished run's folder check found something, Bin Files stays on with nothing to bin**; the line reads "All files binned · check the folders", the button shows no count, and a tap skips the confirm sheet (nothing moves, as B9 already allowed) and runs only the check, which opens the unknown-files sheet. Leave them or Add to project then runs a check that passes, and Bin Files goes back off. `MoveDao.observeLastCheckOk` feeds `mediaStatus(…, checkFolders)`.
+- **C. A stopped Save's callout said "Bin Files stopped."** under the title "Saving stopped"; it now names the Save, storage-full and failed callouts included.
+- **D. A Save that only copied said "1 file moved and checked"**; it now says "1 file copied and checked", or "2 files moved and 1 copied, all checked".
 
 ---
 

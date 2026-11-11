@@ -25,6 +25,15 @@ class CategoryEditModelTest {
 
     private fun binnedUi(d: CategoryEditDraft) = categoryEditUi(cats, counts, d, binned)
 
+    /** 2b state 5a's rename line: a category with binned files has a folder, which a Save renames. */
+    @Test
+    fun renameHint_saysWhetherThereIsAFolder() {
+        val d = CategoryEditDraft().startRename(1, cats)
+        assertEquals("Renames the Turtle Beach folder when you save", binnedUi(d).rows.single { it.id == 1L }.editHint)
+        val luau = CategoryEditDraft().startRename(3, cats)
+        assertEquals("No folder yet; only the database changes", binnedUi(luau).rows.single { it.id == 3L }.editHint)
+    }
+
     /** 2b state 5a: the footer says what a Save does to files. */
     @Test
     fun note_saysHowManyBinnedFilesMoveNow() {

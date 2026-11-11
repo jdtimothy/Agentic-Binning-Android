@@ -319,6 +319,15 @@ class BinModelsTest {
         assertTrue(ui.confirmFirst)
     }
 
+    /** The callout names the run the title names: a Save, not Bin Files. */
+    @Test fun stoppedSave_calloutSaysSaving() {
+        val save = report(state = RunState.Stopped, moved = 1, stillToMove = 2).copy(kind = MoveKind.Save)
+        assertEquals("Saving stopped.", reportUi(save).callout?.bold)
+        assertEquals("You stopped it after Fire Knife Spin.mp4. Press Bin Files to move the rest.", reportUi(save).callout?.text)
+        assertEquals("Saving stopped: storage is full.", reportUi(save.copy(message = "Storage is full. Free up 3.1 GB and press Bin Files again.")).callout?.bold)
+        assertEquals("Saving stopped: something went wrong.", reportUi(save.copy(state = RunState.Failed, message = "a.jpg broke")).callout?.bold)
+    }
+
     @Test fun stoppedBinFiles_promisesItsCount() {
         val ui = reportUi(report(state = RunState.Stopped, moved = 37, stillToMove = 211))
         assertFalse(ui.confirmFirst)

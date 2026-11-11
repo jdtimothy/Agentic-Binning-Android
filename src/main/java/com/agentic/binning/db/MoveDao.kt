@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.agentic.binning.move.BinItem
 import com.agentic.binning.move.MoveStore
+import kotlinx.coroutines.flow.Flow
 
 data class CategoryName(val id: Long, val name: String)
 
@@ -56,6 +57,10 @@ abstract class MoveDao : MoveStore {
 
     @Query("SELECT * FROM move_run WHERE finishedAt IS NOT NULL ORDER BY id DESC LIMIT 1")
     abstract suspend fun lastFinishedRun(): MoveRunEntity?
+
+    /** The latest finished run's folder check as it changes: false when it found something; null with no run or no check. */
+    @Query("SELECT checkOk FROM move_run WHERE finishedAt IS NOT NULL ORDER BY id DESC LIMIT 1")
+    abstract fun observeLastCheckOk(): Flow<Boolean?>
 
     @Query("SELECT * FROM move_step WHERE runId = :runId ORDER BY id")
     abstract override suspend fun steps(runId: Long): List<MoveStepEntity>

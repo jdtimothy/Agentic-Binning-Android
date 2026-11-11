@@ -80,6 +80,9 @@ class ProjectMediaRepository(
         mediaCountsOf(grid, { it.status }, ::waiting)
     }
 
+    /** Whether the last run's folder check found something: Bin Files then stays on to show it. */
+    fun observeFolderCheckFailed(): Flow<Boolean> = db.moves().observeLastCheckOk().map { it == false }
+
     /** Every category in id order, for the chips row (its lock marks the user's). */
     fun observeCategories(): Flow<List<CategoryEntity>> = db.sort().observeCategories()
 

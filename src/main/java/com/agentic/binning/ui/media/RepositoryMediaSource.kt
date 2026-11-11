@@ -38,6 +38,9 @@ class RepositoryMediaSource(
     override fun categories(): Flow<List<CategoryEntity>> =
         repository.observeCategories().catch { e -> Log.w(TAG, "Categories of ${project.ref.name} stopped", e) }
 
+    override fun folderCheckFailed(): Flow<Boolean> =
+        repository.observeFolderCheckFailed().catch { e -> Log.w(TAG, "Folder check of ${project.ref.name} stopped", e) }
+
     override fun image(row: MediaRow): File = File(thumbs, "${row.id}.jpg").takeIf(File::isFile) ?: File(row.currentPath)
 
     override suspend fun detail(id: Long): ItemDetail? = repository.detail(id)

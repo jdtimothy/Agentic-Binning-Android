@@ -236,11 +236,14 @@ private fun stoppedReport(r: MoveReport): ReportUi {
     val total = r.moved + r.copiedShared
     val storage = r.state == RunState.Stopped && r.message != null
     val failed = r.state != RunState.Stopped
+    val save = r.kind == MoveKind.Save
+    // The callout names the run the title names.
+    val stopped = if (save) "Saving stopped" else "Bin Files stopped"
     val callout = when {
-        storage -> CalloutUi(r.message.orEmpty().removePrefix(STORAGE_PREFIX), bold = "Bin Files stopped: storage is full.", warn = true)
-        failed -> CalloutUi(r.message.orEmpty().trimEnd('.') + ".", bold = "Bin Files stopped: something went wrong.", warn = true)
-        r.lastMoved == null -> CalloutUi("You stopped it before any file moved. Press Bin Files to move them.", bold = "Bin Files stopped.", warn = true)
-        else -> CalloutUi("You stopped it after ${r.lastMoved}. Press Bin Files to move the rest.", bold = "Bin Files stopped.", warn = true)
+        storage -> CalloutUi(r.message.orEmpty().removePrefix(STORAGE_PREFIX), bold = "$stopped: storage is full.", warn = true)
+        failed -> CalloutUi(r.message.orEmpty().trimEnd('.') + ".", bold = "$stopped: something went wrong.", warn = true)
+        r.lastMoved == null -> CalloutUi("You stopped it before any file moved. Press Bin Files to move them.", bold = "$stopped.", warn = true)
+        else -> CalloutUi("You stopped it after ${r.lastMoved}. Press Bin Files to move the rest.", bold = "$stopped.", warn = true)
     }
     val movedSub = if (total == 1) "The 1 moved file is in place" else "The $total moved files are all in place"
     val facts = buildList {
@@ -249,9 +252,8 @@ private fun stoppedReport(r: MoveReport): ReportUi {
         checkFact(r.checkOk, if (total == 0) "Nothing missing or extra" else movedSub)?.let(::add)
     }
     val again = storage || failed
-    val save = r.kind == MoveKind.Save
     return ReportUi(
-        title = if (save) "Saving stopped" else "Bin Files stopped",
+        title = stopped,
         headline = null,
         sub = null,
         callout = callout,

@@ -542,7 +542,8 @@ private fun Dock(state: MediaUiState, vm: ProjectMediaViewModel, onAnalyze: () -
                     val content = if (on) tokens.onAccent else tokens.sub
                     Icon(MediaIcons.FolderCheck, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
                     Text("Bin Files", color = content, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    if (on) {
+                    // With nothing to bin, an enabled Bin Files only checks the folders: no count.
+                    if (on && status.readyToBin > 0) {
                         Text(
                             "${status.readyToBin}",
                             Modifier.background(Color.Black.copy(alpha = 0.16f), RoundedCornerShape(10.dp)).padding(horizontal = 7.dp, vertical = 1.dp),
