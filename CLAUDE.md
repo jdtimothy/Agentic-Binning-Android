@@ -27,8 +27,9 @@ Jetpack Compose app (package `com.agentic.binning`). Plans live under
   decisions" section holds every owner decision; "Left for Plan 3" lists what
   binning inherits. Mockups are in `docs/superpowers/mockups/` (open the HTML
   files in a browser; GitHub doesn't render them).
-- **Plan 3** (binning: moving files) is built and checked on the phone on
-  `plan-3-phone`: `docs/superpowers/plans/2026-11-04-plan-3-binning.md`, with
+- **Plan 3** (binning: moving files) is done and merged into `main` (PR #25,
+  Nov 10), phone checks included:
+  `docs/superpowers/plans/2026-11-04-plan-3-binning.md`, with
   its rulings; questions and answers in
   `docs/superpowers/mockups/2026-11-04-plan-3-questions.md`; mockups in
   `2026-11-04-plan-3-binning.html`. Schema v5 is one-way: an older build can't
