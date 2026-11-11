@@ -4,6 +4,11 @@ All notable changes to Agentic Binning are listed here. The project uses
 [Semantic Versioning](https://semver.org/) — see the Versioning section of
 the [README](README.md).
 
+## [1.0.1] — 2026-11-11
+
+- New launcher icon: a carousel of media cards — an ocean wave, a sunset,
+  and a rainforest — with adaptive and themed (monochrome) variants.
+
 ## [1.0.0] — 2026-11-11
 
 First public release.
