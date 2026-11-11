@@ -24,7 +24,7 @@ The first time you analyze something, the app downloads the model from Hugging F
 
 ### Optional: cloud help with sorting
 
-The local model always analyzes your footage. If you want improved sorting and categories, you can optionally let a cloud model API(Claude, by Anthropic) help with the *categorizing and sorting* step. It works only from the text the local model already wrote — the names, descriptions, and tags for each file — and uses that text to improve the accuracy of the categories.
+The local model always analyzes your footage. If you want improved sorting and categories, you can optionally let a cloud model API (Claude, by Anthropic) help with the *categorizing and sorting* step. It works only from the text the local model already wrote — the names, descriptions, and tags for each file — and uses that text to improve the accuracy of the categories.
 
 **Your photos and videos are never sent to the cloud.** Only those short text summaries are, and only if you turn the feature on and supply your own Anthropic API key. With it off, nothing leaves the phone at all.
 
@@ -53,7 +53,7 @@ Or build it yourself — see below.
 You need:
 
 - **JDK 17**
-- The **Android SDK** (the project targets SDK 35), with `ANDROID_HOME` set or a `local.properties` file pointing at it
+- The **Android SDK** (the app builds against SDK 35 and targets SDK 34), with `ANDROID_HOME` set or a `local.properties` file pointing at it
 
 Then:
 

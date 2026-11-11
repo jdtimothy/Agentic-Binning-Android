@@ -59,7 +59,8 @@ at build time; none are vendored in this repository.
 | Kotlin and kotlinx (coroutines, serialization) | Apache License 2.0 |
 | Coil 3 (image/video loading) | Apache License 2.0 |
 | Haze | Apache License 2.0 |
-| Anthropic Java SDK (optional cloud analysis) | See the license in the SDK's project repository |
+| Anthropic Java SDK (optional cloud sorting) | MIT License |
+| OkHttp (used by the Anthropic Java SDK) | Apache License 2.0 |
 | JUnit, AndroidX Test (tests only) | Apache License 2.0 / EPL 1.0 |
 
 The Apache License 2.0 text is available at

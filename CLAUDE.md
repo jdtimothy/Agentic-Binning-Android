@@ -10,6 +10,13 @@ on the phone (batch sizes, sampling, `maxTokens`, video frame format, the media
 interleaving workaround) plus the target architecture and schema. Its gotchas
 checklist is the review list for any model-facing change.
 
+## Repository
+
+The GitHub repo is `jdtimothy/Agentic-Binning-Android` (public). `main` is
+protected: every change goes through a pull request, and only the owner merges
+and pushes `v*` tags (a tag push builds and signs a release). Never push to
+`main` or push a tag; open a PR and leave merging to the owner.
+
 ## Current state
 
 Jetpack Compose app (package `com.agentic.binning`). Plans live under
