@@ -7,11 +7,11 @@ If you shoot a lot of photos and video — trips, family events, video projects 
 ## See it in action
 
 <p>
-  <img src="docs/images/analysis.gif" width="260" alt="The on-device model scanning a photo and writing its description">
+  <img src="docs/images/video-analysis-waves.gif" width="260" alt="The on-device model analyzing a video of waves crashing against a rocky shore, writing its description and timestamped actions">
   <img src="docs/images/category-filter.gif" width="260" alt="Browsing a project and filtering by category">
 </p>
 
-*Left: the local model scanning each file and writing its description, live on the NPU. Right: browsing the sorted project and filtering by category.*
+*Left: the local model analyzing a video clip live on the NPU — description, timestamped actions, and tags. Right: browsing the sorted project and filtering by category.*
 
 ## How it works
 
