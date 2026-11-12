@@ -4,6 +4,18 @@ All notable changes to Agentic Binning are listed here. The project uses
 [Semantic Versioning](https://semver.org/) — see the Versioning section of
 the [README](README.md).
 
+## [1.0.3] — 2026-11-12
+
+- Swipe left or right through the cards on the Analyze screen to review
+  each clip's saved description, actions, and tags.
+- Keep the selected clip in view while analysis continues, with a
+  **Follow analysis** button to return to the active clip. Long descriptions,
+  actions, and tags remain scrollable up and down inside the Description card.
+- Video actions now use moments chosen from visible changes across the clip,
+  with times taken from the sampled frames instead of guessed by the model.
+  Repeated descriptions are removed, and quiet clips can have no actions.
+  Small events can still be missed; existing saved analyses are unchanged.
+
 ## [1.0.2] — 2026-11-11
 
 - Fixed the themed (monochrome) launcher icon: replaced the original
