@@ -34,7 +34,9 @@ class ActionTimesComparisonTest {
         val model = GenieXVisionModel(ModelCatalog.LFM3_VL_2B)
         val reports = JSONArray()
         try {
+            val loadStart = System.nanoTime()
             model.load(16)
+            val loadMs = (System.nanoTime() - loadStart) / 1_000_000
             val clips = listOf("20260919_120531.mp4" to 35003L, "20260919_121906.mp4" to 36705L, "20260920_174506.mp4" to 47362L)
             for ((index, clip) in clips.withIndex()) {
                 val source = File("/sdcard/Movies/action-times-step1", clip.first)
@@ -57,7 +59,7 @@ class ActionTimesComparisonTest {
                     override suspend fun counts() = ItemCounts(0, 0, 0)
                     override suspend fun save(itemId: Long, result: AnalysisResult, raw: String, modelId: String, profile: VisionProfile) {
                         reports.put(JSONObject().put("clip", source.name).put("durationMs", clip.second)
-                            .put("promptVersion", AnalysisPrompt.PROMPT_VERSION).put("analysis", JSONObject(raw))
+                            .put("promptVersion", AnalysisPrompt.PROMPT_VERSION).put("modelLoadMs", loadMs).put("analysis", JSONObject(raw))
                             .put("frameTimesMs", JSONArray(prepared!!.frameTimesMs))
                             .put("frameChanges", JSONArray(prepared!!.frameChanges)))
                     }

@@ -98,6 +98,37 @@ stopwatch), so those figures are **not a like-for-like throughput baseline**.
 Run both builds through the same harness before drawing speed conclusions.
 Existing Step 1 exact raw actions/frame positions remain in the adjacent note.
 
+## Matched main-versus-feature speed benchmark
+
+Subsequently ran both versions on the phone with the same harness and timing
+boundaries, two runs per version in feature/main/main/feature order. Main was
+built from detached worktree `bcb9b61`, with only the comparison test added and
+its new-only `frameChanges` reporting removed. Production main code was unchanged.
+Both debug builds used the same isolated package, source clips, 16-frame cap,
+model downloads and NPU. There were 60-second rests before the later runs.
+Each instrumentation invocation completed `OK (1 test)`.
+
+Timing covers frame preparation, description, all action calls, in-memory result
+assembly and cleanup. It excludes model load, sorting, real database/disk save
+and UI rendering. These are pipeline timings, not end-to-end user-interface times.
+
+| Clip | Main mean (2 runs) | Feature mean (2 runs) |
+| --- | ---: | ---: |
+| `20260919_120531.mp4` | 16.0245 s | 19.3075 s |
+| `20260919_121906.mp4` | 18.4340 s | 22.9830 s |
+| `20260920_174506.mp4` | 19.3295 s | 21.8510 s |
+| **Three-clip total mean** | **53.7880 s** | **64.1415 s** |
+
+Main totals: 53.653 s and 53.923 s. Feature totals: 62.975 s and 65.308 s.
+**Feature took 10.3535 s longer on average, or 19.25% more time than main.**
+This small repeated coastal-clip benchmark favors main; it is not a universal
+throughput claim. Model loads, measured separately, were 2.401/2.158 s on main
+and 2.507/2.425 s on feature. No paid Claude calls or release-app replacement.
+DND restored and read back as zero; isolated package was left on feature build.
+
+Raw local evidence: `speed-main-{1,2}.json` and `speed-feature-{1,2}.json` in the
+scratch directory above. The harness now records `modelLoadMs` separately.
+
 ## Repeat without replacing the release
 
 ```bash
