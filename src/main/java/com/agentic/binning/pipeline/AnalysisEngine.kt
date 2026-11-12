@@ -1,10 +1,14 @@
 package com.agentic.binning.pipeline
 
+import com.agentic.binning.analysis.ActionEntry
 import com.agentic.binning.analysis.AnalysisParser
 import com.agentic.binning.analysis.AnalysisResult
+import com.agentic.binning.analysis.MomentPrompt
+import com.agentic.binning.analysis.VideoMoments
 import com.agentic.binning.analysis.PartialAnalysis
 import com.agentic.binning.analysis.PreparedMedia
 import com.agentic.binning.db.ItemEntity
+import com.agentic.binning.db.ItemKind
 import com.agentic.binning.db.ItemStatus
 import com.agentic.binning.model.VisionModel
 import com.agentic.binning.model.VisionModelException
@@ -14,6 +18,8 @@ import java.io.IOException
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /** Turns an item into the images the model reads ([com.agentic.binning.analysis.MediaPreparer] in the app). Blocking. */
@@ -106,6 +112,7 @@ class AnalysisEngine(
         onFrame: (ready: Int, total: Int) -> Unit = { _, _ -> },
         onPartial: (PartialAnalysis) -> Unit,
     ): ItemOutcome {
+        val started = System.nanoTime()
         try {
             val media = try {
                 withContext(prepareContext) { preparer.prepare(item, maxFrames, onFrame) }
@@ -147,8 +154,23 @@ class AnalysisEngine(
                     else -> {
                         val result = AnalysisParser.parse(reply.text, item.kind)
                         if (result != null) {
-                            store.save(item.id, result, reply.text, model.modelId, reply.profile)
-                            return ItemOutcome.Analyzed(result)
+                            val finalResult = if (item.kind == ItemKind.Video) {
+                                val actions = try {
+                                    momentActions(item.id, media, result, onPartial) ?: return ItemOutcome.Cancelled
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: IllegalStateException) {
+                                    log.warn("Moment prompt assembly failed for item ${item.id}", e)
+                                    return fail(item, REASON_PROMPT)
+                                } catch (e: VisionModelException) {
+                                    log.warn("The vision model failed on a moment of item ${item.id}", e)
+                                    throw StopRunException(FailureReasons.MODEL_FAILED, e)
+                                }
+                                result.copy(actions = actions)
+                            } else result
+                            val raw = if (item.kind == ItemKind.Video) AnalysisParser.withActions(reply.text, finalResult.actions) else reply.text
+                            store.save(item.id, finalResult, raw, model.modelId, reply.profile)
+                            return ItemOutcome.Analyzed(finalResult)
                         }
                         reason = REASON_INVALID_JSON
                     }
@@ -157,7 +179,40 @@ class AnalysisEngine(
             return fail(item, reason)
         } finally {
             preparer.cleanup(item.id)
+            log.warn("Analysis item ${item.id} total ${(System.nanoTime() - started) / 1_000_000} ms", null)
         }
+    }
+
+    /** Null signals a user-stopped native call; coroutine cancellation still propagates. */
+    private suspend fun momentActions(
+        itemId: Long,
+        media: PreparedMedia,
+        result: AnalysisResult,
+        onPartial: (PartialAnalysis) -> Unit,
+    ): List<ActionEntry>? {
+        val actions = mutableListOf<ActionEntry>()
+        val aligned = media.frameChanges.size == media.imagePaths.size && media.frameTimesMs.size == media.imagePaths.size
+        val picked = if (aligned) VideoMoments.select(media.frameChanges) else emptyList()
+        log.warn("Moments item $itemId: frames $picked times ${media.frameTimesMs} changes ${media.frameChanges}", null)
+        for (frame in picked) {
+            var attempt = 0
+            while (attempt++ < MAX_ATTEMPTS) {
+                currentCoroutineContext().ensureActive()
+                val reply = model.describeMoment(media.imagePaths[frame])
+                lastProfile = reply.profile
+                log.warn("Moment item $itemId frame $frame time ${media.frameTimesMs[frame]} ms: ${reply.profile} ${reply.text}", null)
+                if (reply.profile.stopReason == STOP_USER) return null
+                if (reply.profile.stopReason == STOP_LENGTH) continue
+                MomentPrompt.clean(reply.text)?.let { phrase ->
+                    actions += ActionEntry(VideoMoments.timestamp(media.frameTimesMs[frame]), phrase)
+                    onPartial(PartialAnalysis(result.description, true, actions.toList(), result.tags))
+                }
+                break
+            }
+        }
+        val finalActions = VideoMoments.distinct(actions)
+        onPartial(PartialAnalysis(result.description, true, finalActions, result.tags))
+        return finalActions
     }
 
     private suspend fun fail(item: ItemEntity, reason: String): ItemOutcome.Failed {

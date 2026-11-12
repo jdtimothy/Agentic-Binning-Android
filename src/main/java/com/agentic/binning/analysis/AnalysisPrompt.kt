@@ -7,7 +7,8 @@ import com.agentic.binning.db.ItemKind
  * Changing any text here requires bumping [PROMPT_VERSION].
  */
 object AnalysisPrompt {
-    const val PROMPT_VERSION = "analysis-v2"
+    // v3: app-selected moment times replace the model's unreliable video timestamps.
+    const val PROMPT_VERSION = "analysis-v3"
     const val MAX_TOKENS_PHOTO = 400
     const val MAX_TOKENS_VIDEO = 520
 
@@ -15,7 +16,7 @@ object AnalysisPrompt {
         You catalogue a personal photo and video library. Look carefully and report only what is visible.
         Reply with one JSON object and nothing else, with these keys:
         "description": 1-3 plain sentences: the subject, the setting, and anything notable.
-        "actions": for a video, 2-5 entries {"t": "m:ss", "text": "what happens"} in time order, using the timestamps shown; for a photo, [].
+        "actions": always [].
         "tags": 5-10 short lowercase keywords for searching (subjects, setting, activity, time of day).
         "suggested_name": 2-5 words naming the shot, like "Sea lions on the rocks". No file extension, no date.
         "shot_type": "wide", "medium" or "close".
@@ -27,8 +28,8 @@ object AnalysisPrompt {
     }
 
     /**
-     * GBNF grammar constraining the reply to the JSON shape above: a video has 2-5 actions with
-     * `m:ss` times, a photo exactly `[]`; both have 3-10 tags. Uses llama.cpp's `{m,n}` repetition.
+     * Actions are fixed empty text for both kinds; the app adds video moments afterwards.
+     * No free whitespace before []: that choice caused token-limit whitespace loops on Windows.
      */
     fun grammar(kind: ItemKind): String = when (kind) {
         ItemKind.Photo -> GRAMMAR_PHOTO
@@ -36,7 +37,7 @@ object AnalysisPrompt {
     }
 
     private val ROOT = """
-        root    ::= "{" ws "\"description\":" ws str "," ws "\"actions\":" ws actions "," ws "\"tags\":" ws strs "," ws "\"suggested_name\":" ws str "," ws "\"shot_type\":" ws shot ws "}"
+        root    ::= "{" ws "\"description\":" ws str "," ws "\"actions\": []," ws "\"tags\":" ws strs "," ws "\"suggested_name\":" ws str "," ws "\"shot_type\":" ws shot ws "}"
     """.trimIndent()
 
     private val SHARED = """
@@ -46,16 +47,6 @@ object AnalysisPrompt {
         ws      ::= [ \t\n]*
     """.trimIndent()
 
-    private val VIDEO_ACTIONS = """
-        actions ::= "[" ws action ( "," ws action ){1,4} ws "]"
-        action  ::= "{" ws "\"t\":" ws ts "," ws "\"text\":" ws str ws "}"
-        ts      ::= "\"" [0-9] [0-9]? ":" [0-5] [0-9] "\""
-    """.trimIndent()
-
-    private val PHOTO_ACTIONS = """
-        actions ::= "[" ws "]"
-    """.trimIndent()
-
-    val GRAMMAR_VIDEO: String = listOf(ROOT, VIDEO_ACTIONS, SHARED).joinToString("\n")
-    val GRAMMAR_PHOTO: String = listOf(ROOT, PHOTO_ACTIONS, SHARED).joinToString("\n")
+    val GRAMMAR_VIDEO: String = listOf(ROOT, SHARED).joinToString("\n")
+    val GRAMMAR_PHOTO: String = GRAMMAR_VIDEO
 }

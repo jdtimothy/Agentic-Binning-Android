@@ -18,7 +18,7 @@ class AnalysisPromptTest {
 
     @Test fun grammar_and_prompt_mentionSameKeys() {
         val keys = Regex("\"(\\w+)\":").findAll(AnalysisPrompt.SYSTEM).map { it.groupValues[1] }.toSet()
-        assertEquals(setOf("description", "actions", "t", "text", "tags", "suggested_name", "shot_type"), keys)
+        assertEquals(setOf("description", "actions", "tags", "suggested_name", "shot_type"), keys)
         for (k in keys) {
             assertTrue("video grammar lacks $k", video.contains("\\\"$k\\\":"))
         }
@@ -33,12 +33,13 @@ class AnalysisPromptTest {
     }
 
     @Test fun grammar_perKindActions() {
-        assertEquals(""""[" ws action ( "," ws action ){1,4} ws "]"""", rule(video, "actions"))
-        assertEquals(""""{" ws "~"t~":" ws ts "," ws "~"text~":" ws str ws "}"""".replace('~', BS), rule(video, "action"))
-        assertEquals(""""~"" [0-9] [0-9]? ":" [0-5] [0-9] "~""""".replace('~', BS), rule(video, "ts"))
-        assertEquals(""""[" ws "]"""", rule(photo, "actions"))
-        assertNull(rule(photo, "action"))
-        assertNull(rule(photo, "ts"))
+        // v3: both calls fix actions empty; pipeline adds app-timed video moments.
+        assertEquals(video, photo)
+        for (g in listOf(video, photo)) {
+            assertNull(rule(g, "actions"))
+            assertNull(rule(g, "action"))
+            assertNull(rule(g, "ts"))
+        }
     }
 
     @Test fun grammar_tagsThreeToTen_bothKinds() {
@@ -52,15 +53,15 @@ class AnalysisPromptTest {
         val strRule = """str     ::= "~"" ( [^"~~~x7F~x00-~x1F] | "~~" ["~~/bfnrt] )* "~""""".replace('~', BS)
         val wsRule = "ws      ::= [ ~t~n]*".replace('~', BS)
         val shotRule = """shot    ::= "~"wide~"" | "~"medium~"" | "~"close~""""".replace('~', BS)
-        val rootRule = """root    ::= "{" ws "~"description~":" ws str "," ws "~"actions~":" ws actions "," ws "~"tags~":" ws strs "," ws "~"suggested_name~":" ws str "," ws "~"shot_type~":" ws shot ws "}"""".replace('~', BS)
+        val rootRule = """root    ::= "{" ws "~"description~":" ws str "," ws "~"actions~": []," ws "~"tags~":" ws strs "," ws "~"suggested_name~":" ws str "," ws "~"shot_type~":" ws shot ws "}"""".replace('~', BS)
         for (g in listOf(video, photo)) {
             assertTrue(g.lines().contains(strRule))
             assertTrue(g.lines().contains(wsRule))
             assertTrue(g.lines().contains(shotRule))
             assertTrue(g.lines().contains(rootRule))
         }
-        assertEquals(8, video.lines().size)
-        assertEquals(6, photo.lines().size)
+        assertEquals(5, video.lines().size)
+        assertEquals(5, photo.lines().size)
     }
 
     @Test fun instructions_perKind() {
@@ -69,7 +70,7 @@ class AnalysisPromptTest {
     }
 
     @Test fun tokenBudgets_andVersion() {
-        assertEquals("analysis-v2", AnalysisPrompt.PROMPT_VERSION)
+        assertEquals("analysis-v3", AnalysisPrompt.PROMPT_VERSION)
         assertEquals(400, AnalysisPrompt.MAX_TOKENS_PHOTO)
         assertEquals(520, AnalysisPrompt.MAX_TOKENS_VIDEO)
     }

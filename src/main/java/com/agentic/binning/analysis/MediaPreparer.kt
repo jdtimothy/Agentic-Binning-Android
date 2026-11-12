@@ -19,6 +19,8 @@ data class PreparedMedia(
     /** One per image for a video, in the same order; empty for a photo. */
     val frameTimesMs: List<Long>,
     val thumbnailPath: String,
+    /** Mean RGB change from the preceding prepared frame; first is zero. Empty for photos. */
+    val frameChanges: List<Double> = emptyList(),
 )
 
 class MediaDecodeException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -116,6 +118,8 @@ class MediaPreparer(private val workDir: File) {
                 ?: 0L
             val paths = ArrayList<String>()
             val times = ArrayList<Long>()
+            val changes = ArrayList<Double>()
+            var previous: IntArray? = null
             val sampleTimes = VideoTiming.sampleTimesMs(duration, maxFrames)
             for (t in sampleTimes) {
                 // OPTION_CLOSEST decodes the exact frame; CLOSEST_SYNC snaps to keyframes and can
@@ -129,6 +133,19 @@ class MediaPreparer(private val workDir: File) {
                     if (paths.isEmpty()) saveThumbnail(frame, thumb)
                     val file = File(dir, "f_$t.jpg")
                     saveSquare(frame, targetEdge, file)
+                    // Compare the exact padded JPEGs used by the model, including their colours.
+                    val decoded = android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+                        ?: throw MediaDecodeException("Cannot read prepared frame ${file.name}")
+                    val small = Bitmap.createScaledBitmap(decoded, 32, 32, true)
+                    val pixels = IntArray(32 * 32)
+                    try {
+                        small.getPixels(pixels, 0, 32, 0, 0, 32, 32)
+                    } finally {
+                        if (small !== decoded) small.recycle()
+                        decoded.recycle()
+                    }
+                    changes += previous?.let { VideoMoments.change(it, pixels) } ?: 0.0
+                    previous = pixels
                     paths += file.absolutePath
                     times += t
                     onFrame(paths.size, sampleTimes.size)
@@ -137,7 +154,7 @@ class MediaPreparer(private val workDir: File) {
                 }
             }
             if (paths.isEmpty()) throw MediaDecodeException("No frames could be read from ${source.name}")
-            return PreparedMedia(ItemKind.Video, paths, times, thumb.absolutePath)
+            return PreparedMedia(ItemKind.Video, paths, times, thumb.absolutePath, changes)
         } finally {
             retriever.release()
         }

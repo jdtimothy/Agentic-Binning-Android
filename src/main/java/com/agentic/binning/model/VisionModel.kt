@@ -33,6 +33,10 @@ interface VisionModel {
     /** Single-turn analysis of [media]; [onToken] receives each piece of the reply as it streams. */
     suspend fun generate(media: PreparedMedia, onToken: (String) -> Unit): VisionReply
 
+    /** Fresh single-image call describing one app-selected moment, with no clip context. */
+    suspend fun describeMoment(imagePath: String): VisionReply =
+        throw VisionModelException("Moment descriptions are not supported by $modelId")
+
     /** Asks a running [generate] to stop early (GenieX `stopStream`); its reply is then partial. */
     suspend fun cancel()
 

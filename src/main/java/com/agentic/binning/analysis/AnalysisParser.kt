@@ -41,6 +41,12 @@ object AnalysisParser {
     private const val MAX_TAGS = 10
     private const val MAX_NAME = 60
 
+    /** Stored raw JSON is the assembled analysis, including app-timed actions. */
+    fun withActions(raw: String, actions: List<ActionEntry>): String {
+        val obj = json.parseToJsonElement(raw.substring(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as JsonObject
+        return JsonObject(obj + ("actions" to json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(ActionEntry.serializer()), actions))).toString()
+    }
+
     fun parse(text: String, kind: ItemKind): AnalysisResult? {
         val start = text.indexOf('{')
         val end = text.lastIndexOf('}')
