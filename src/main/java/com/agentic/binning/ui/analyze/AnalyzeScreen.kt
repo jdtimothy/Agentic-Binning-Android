@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -76,7 +77,16 @@ fun AnalyzeScreen(
                     Spacer(Modifier.height(14.dp))
                     StatusRow(header, Modifier.padding(horizontal = 24.dp))
                     Spacer(Modifier.height(14.dp))
-                    CardCarousel(carousel, progress, onOpenProjectSheet, Modifier.fillMaxWidth().height(290.dp))
+                    CardCarousel(
+                        carousel, progress, onOpenProjectSheet,
+                        Modifier.fillMaxWidth().height(290.dp), onSelectCard = vm::selectCard,
+                    )
+                    if (carousel.reviewing && controls.canStop) {
+                        TextButton(
+                            onClick = vm::followAnalysis,
+                            modifier = Modifier.align(Alignment.CenterHorizontally).height(36.dp),
+                        ) { Text("Follow analysis") }
+                    }
                     Spacer(Modifier.height(12.dp))
                     LiveOutputCard(vm.output, Modifier.padding(horizontal = 16.dp).fillMaxWidth().weight(1f))
                     Spacer(Modifier.height(14.dp))

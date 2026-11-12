@@ -69,6 +69,13 @@ class AnalyzeMappingTest {
         assertEquals(-1, focusIndex(emptyList(), null))
     }
 
+    @Test fun reviewFocus_staysOnSelectedClipWhileAnalysisMovesOn() {
+        val cards = listOf(card(1, ItemStatus.Analyzed), card(2, ItemStatus.Analyzing), card(3, ItemStatus.Pending))
+        assertEquals(0, focusIndex(cards, liveId = 2, selectedId = 1))
+        assertEquals(0, focusIndex(cards, liveId = 3, selectedId = 1))
+        assertEquals(1, focusIndex(cards, liveId = 2, selectedId = 99))
+    }
+
     @Test fun liveFocus_isTheCurrentItem() {
         val cards = listOf(card(1, ItemStatus.Analyzed), card(2, ItemStatus.Analyzing), card(3, ItemStatus.Pending))
         assertEquals(1, focusIndex(cards, liveId = 2))

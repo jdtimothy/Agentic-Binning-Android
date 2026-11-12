@@ -60,7 +60,7 @@ fun badgeOf(card: CardItem): CardBadge? = when (card.status) {
 }
 
 /** [current] is the index of the centre card, or -1 when there are no cards; [projectPath] identifies the project. */
-data class CarouselState(val cards: List<CardItem>, val current: Int, val projectPath: String? = null) {
+data class CarouselState(val cards: List<CardItem>, val current: Int, val projectPath: String? = null, val reviewing: Boolean = false) {
     val focus: CardItem? get() = cards.getOrNull(current)
 }
 
@@ -258,11 +258,12 @@ private fun metaOf(item: ItemEntity, maxFrames: Int): String = when (item.kind) 
 }
 
 /**
- * The centre card: the item being analyzed; otherwise the last analyzed item, else the last item
- * that has been through analysis (Failed or Missing), else the first one.
+ * The centre card: the user's selected item while reviewing, otherwise the item being analyzed;
+ * then the last analyzed item, last Failed or Missing item, or the first one.
  */
-fun focusIndex(cards: List<CardItem>, liveId: Long?): Int {
+fun focusIndex(cards: List<CardItem>, liveId: Long?, selectedId: Long? = null): Int {
     if (cards.isEmpty()) return -1
+    selectedId?.let { id -> cards.indexOfFirst { it.id == id }.takeIf { it >= 0 }?.let { return it } }
     liveId?.let { id -> cards.indexOfFirst { it.id == id }.takeIf { it >= 0 }?.let { return it } }
     return cards.indexOfLast { it.isAnalyzed }.takeIf { it >= 0 }
         ?: cards.indexOfLast { it.isDone }.takeIf { it >= 0 }
