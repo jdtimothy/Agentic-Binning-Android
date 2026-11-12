@@ -1,9 +1,25 @@
-# Motion-timed actions: implementation and comparison
+# Find action moments throughout a video
+
+## In plain language
+
+Previously, the model could give events near the end of a video times near its
+beginning. This change lets the app choose moments from different parts of the
+clip by looking for visible changes between sampled frames. The model describes
+each chosen frame, and the app supplies that frame's known time instead of
+asking the model to guess it. Repeated descriptions are removed; a quiet clip
+can have no actions.
+
+The general description still uses frames spread across the whole video, not
+just the first frame. Existing saved analyses and the database format are unchanged.
+
+The new method is implemented and tested, but the wave clips below show that
+small events can still be missed and repeated descriptions can hide later
+moments. This is not a claim that every important event is now found.
 
 Branch: `feat/action-times-by-motion`, based on `7b065f4` (Step 1 evidence).
 Main remains unchanged at `bcb9b61`. Owner approved Step 2 after the phone check.
 
-## Behavior
+## Implementation details
 
 - Main analysis still sees every sampled frame across the whole video, using
   the unchanged sampling and interleaved timestamp layout. Only action generation
@@ -81,53 +97,6 @@ Run 1 selected sample positions (ms):
 Thresholds and heuristic deliberately match the brief/Windows reference rather
 than being tuned to this small test. The owner should compare varied clips
 (person leaving, a pan to a new subject, still scenes), not only repetitive surf.
-
-## Measured speed
-
-Elapsed times below include preparation, main generation, all moment calls,
-assembly and cleanup; exclude model load. Same test, different executions:
-
-| Clip | New run 1 | New final run |
-| --- | ---: | ---: |
-| `20260919_120531.mp4` | 17.649 s | 19.405 s |
-| `20260919_121906.mp4` | 21.984 s | 24.006 s |
-| `20260920_174506.mp4` | 20.804 s | 21.195 s |
-
-Step 1 recorded main generation intervals only (no preparation or whole-item
-stopwatch), so those figures are **not a like-for-like throughput baseline**.
-Run both builds through the same harness before drawing speed conclusions.
-Existing Step 1 exact raw actions/frame positions remain in the adjacent note.
-
-## Matched main-versus-feature speed benchmark
-
-Subsequently ran both versions on the phone with the same harness and timing
-boundaries, two runs per version in feature/main/main/feature order. Main was
-built from detached worktree `bcb9b61`, with only the comparison test added and
-its new-only `frameChanges` reporting removed. Production main code was unchanged.
-Both debug builds used the same isolated package, source clips, 16-frame cap,
-model downloads and NPU. There were 60-second rests before the later runs.
-Each instrumentation invocation completed `OK (1 test)`.
-
-Timing covers frame preparation, description, all action calls, in-memory result
-assembly and cleanup. It excludes model load, sorting, real database/disk save
-and UI rendering. These are pipeline timings, not end-to-end user-interface times.
-
-| Clip | Main mean (2 runs) | Feature mean (2 runs) |
-| --- | ---: | ---: |
-| `20260919_120531.mp4` | 16.0245 s | 19.3075 s |
-| `20260919_121906.mp4` | 18.4340 s | 22.9830 s |
-| `20260920_174506.mp4` | 19.3295 s | 21.8510 s |
-| **Three-clip total mean** | **53.7880 s** | **64.1415 s** |
-
-Main totals: 53.653 s and 53.923 s. Feature totals: 62.975 s and 65.308 s.
-**Feature took 10.3535 s longer on average, or 19.25% more time than main.**
-This small repeated coastal-clip benchmark favors main; it is not a universal
-throughput claim. Model loads, measured separately, were 2.401/2.158 s on main
-and 2.507/2.425 s on feature. No paid Claude calls or release-app replacement.
-DND restored and read back as zero; isolated package was left on feature build.
-
-Raw local evidence: `speed-main-{1,2}.json` and `speed-feature-{1,2}.json` in the
-scratch directory above. The harness now records `modelLoadMs` separately.
 
 ## Repeat without replacing the release
 
