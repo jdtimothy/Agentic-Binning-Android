@@ -88,15 +88,22 @@ class GenieXVisionModelTest {
         Log.i(TAG, "video reply ${reply.profile}: ${reply.text}")
         val result = AnalysisParser.parse(reply.text, ItemKind.Video)
         assertNotNull(reply.text, result)
-        assertTrue(reply.text, result!!.actions.isNotEmpty())
-        // Guaranteed by the video grammar: 2-5 actions, m:ss times, 3-10 tags.
-        assertTrue(reply.text, result.actions.size in 2..5)
-        assertTrue(reply.text, result.actions.all { it.t.matches(Regex("""\d{1,2}:[0-5]\d""")) })
+        assertTrue(reply.text, result!!.actions.isEmpty())
+        // v3: main call still sees every frame, but actions come from separate single-frame calls.
         assertTrue(reply.text, result.tags.size in 3..10)
         assertEquals(reply.text, tokens.toString())
         assertEquals("eos", reply.profile.stopReason)
         assertTrue(reply.profile.generatedTokens < AnalysisPrompt.MAX_TOKENS_VIDEO)
         model.release()
+    }
+
+    @Test fun moment_onNpu_returnsShortPhrase() = runBlocking {
+        model.load(maxFrames = 16)
+        val reply = model.describeMoment(photo.imagePaths.single())
+        Log.i(TAG, "moment reply ${reply.profile}: ${reply.text}")
+        assertEquals("eos", reply.profile.stopReason)
+        assertTrue(reply.profile.generatedTokens <= com.agentic.binning.analysis.MomentPrompt.MAX_TOKENS)
+        assertNotNull(reply.text, com.agentic.binning.analysis.MomentPrompt.clean(reply.text))
     }
 
     @Test fun preparer_photo_writesPaddedSquareAndUnpaddedThumbnail() {

@@ -2,6 +2,7 @@ package com.agentic.binning.model
 
 import android.util.Log
 import com.agentic.binning.analysis.AnalysisPrompt
+import com.agentic.binning.analysis.MomentPrompt
 import com.agentic.binning.analysis.PreparedMedia
 import com.agentic.binning.analysis.PromptAssembly
 import com.agentic.binning.analysis.VisionBudget
@@ -101,12 +102,22 @@ class GenieXVisionModel(
      * @throws IllegalStateException if the prompt cannot be assembled or its media markers do not
      * match the images.
      */
-    private suspend fun generateLocked(media: PreparedMedia, onToken: (String) -> Unit): VisionReply {
+    override suspend fun describeMoment(imagePath: String): VisionReply = lock.withLock {
+        withContext(Dispatchers.IO) {
+            generateLocked(
+                PreparedMedia(ItemKind.Photo, listOf(imagePath), emptyList(), imagePath),
+                {},
+                moment = true,
+            )
+        }
+    }
+
+    private suspend fun generateLocked(media: PreparedMedia, onToken: (String) -> Unit, moment: Boolean = false): VisionReply {
         val vlm = wrapper ?: throw VisionModelException("$modelId is not loaded")
         vlm.reset()
 
         val messages = arrayOf(
-            VlmChatMessage(role = "system", contents = listOf(VlmContent("text", AnalysisPrompt.SYSTEM))),
+            VlmChatMessage(role = "system", contents = listOf(VlmContent("text", if (moment) MomentPrompt.SYSTEM else AnalysisPrompt.SYSTEM))),
             VlmChatMessage(role = "user", contents = listOf(VlmContent("text", PromptAssembly.PLACEHOLDER))),
         )
         val templated = vlm.applyChatTemplate(messages, null, false).getOrElse {
@@ -116,7 +127,7 @@ class GenieXVisionModel(
             ItemKind.Photo -> PromptAssembly.photoMediaText()
             ItemKind.Video -> PromptAssembly.videoMediaText(media.frameTimesMs)
         }
-        val prompt = PromptAssembly.splice(templated.formattedText, mediaText, AnalysisPrompt.instruction(media.kind))
+        val prompt = PromptAssembly.splice(templated.formattedText, mediaText, if (moment) MomentPrompt.TEXT else AnalysisPrompt.instruction(media.kind))
         val markers = prompt.split(PromptAssembly.MEDIA_MARKER).size - 1
         check(markers == media.imagePaths.size) { "Prompt has $markers media markers for ${media.imagePaths.size} images" }
         Log.d(TAG, "prompt as sent (${prompt.length} chars): ${prompt.take(PROMPT_LOG_CHARS)}")
@@ -127,10 +138,10 @@ class GenieXVisionModel(
             topP = 1.0f
             minP = 1e-6f // 0 means "SDK default" in SamplerConfig; this turns min_p off in practice.
             repetitionPenalty = 1.1f
-            if (useGrammar) grammarString = AnalysisPrompt.grammar(media.kind)
+            if (useGrammar) grammarString = if (moment) MomentPrompt.GRAMMAR else AnalysisPrompt.grammar(media.kind)
         }
         val base = GenerationConfig().apply {
-            maxTokens = when (media.kind) {
+            maxTokens = if (moment) MomentPrompt.MAX_TOKENS else when (media.kind) {
                 ItemKind.Photo -> AnalysisPrompt.MAX_TOKENS_PHOTO
                 ItemKind.Video -> AnalysisPrompt.MAX_TOKENS_VIDEO
             }

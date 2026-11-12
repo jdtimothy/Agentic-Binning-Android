@@ -1,0 +1,6 @@
+// Optional side-by-side phone verification; leaves the release package and private data alone.
+// ./gradlew -I scripts/action-times-isolated.init.gradle assembleDebug assembleDebugAndroidTest
+// Models download through GenieX into this separate package; never copy model directories.
+gradle.projectsEvaluated {
+    rootProject.extensions.getByName('android').buildTypes.getByName('debug').applicationIdSuffix = '.actiontimes'
+}
