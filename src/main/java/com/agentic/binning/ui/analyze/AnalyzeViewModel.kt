@@ -18,6 +18,7 @@ import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -145,10 +146,18 @@ class AnalyzeViewModel(
 
     private class Focused(val project: OpenProject?, val carousel: CarouselState)
 
+    private data class ReviewSelection(val projectPath: String, val itemId: Long)
+    private val reviewSelection = MutableStateFlow<ReviewSelection?>(null)
+
     private val focused: StateFlow<Focused> = combine(
         cards,
         live.map { it?.currentItemId }.distinctUntilChanged(),
-    ) { pc, liveId -> Focused(pc.project, CarouselState(pc.cards, focusIndex(pc.cards, liveId), pc.project?.ref?.path)) }
+        reviewSelection,
+    ) { pc, liveId, selection ->
+        val selectedId = selection?.takeIf { it.projectPath == pc.project?.ref?.path }?.itemId
+        Focused(pc.project, CarouselState(pc.cards, focusIndex(pc.cards, liveId, selectedId), pc.project?.ref?.path,
+            reviewing = selectedId != null && pc.cards.any { it.id == selectedId }))
+    }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Focused(null, CarouselState(emptyList(), -1)))
 
     val carousel: StateFlow<CarouselState> = focused
@@ -176,7 +185,8 @@ class AnalyzeViewModel(
         combine(stoppedByUser, uncategorized, ::Pair),
     ) { (vision, sorting), pi, state, carousel, (stopped, uncategorized) ->
         val statuses = pi?.items.orEmpty().map { it.status }
-        val (text, tone) = statusOf(pi != null, statuses, state, carousel.focus, stopped, uncategorized)
+        val liveCard = carousel.cards.firstOrNull { it.id == state?.currentItemId }
+        val (text, tone) = statusOf(pi != null, statuses, state, liveCard, stopped, uncategorized)
         HeaderState(
             model = modelChipOf(state, vision, sorting),
             projectName = pi?.project?.ref?.name ?: currentProject.value?.ref?.name,
@@ -234,6 +244,15 @@ class AnalyzeViewModel(
     }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, EmptyOutput)
+
+    /** Selects only cards from the currently displayed project; does not pause the pipeline. */
+    fun selectCard(itemId: Long) {
+        val state = carousel.value
+        val path = state.projectPath ?: return
+        if (state.cards.any { it.id == itemId }) reviewSelection.value = ReviewSelection(path, itemId)
+    }
+
+    fun followAnalysis() { reviewSelection.value = null }
 
     fun stop() = stopAnalysis()
 

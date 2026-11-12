@@ -10,6 +10,15 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.ScrollAxisRange
+import androidx.compose.ui.semantics.horizontalScrollAxisRange
+import androidx.compose.ui.semantics.scrollBy
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -29,6 +38,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,9 +95,41 @@ fun CardCarousel(
     progress: State<CurrentProgress>,
     onAddMedia: () -> Unit,
     modifier: Modifier = Modifier,
+    onSelectCard: (Long) -> Unit = {},
 ) {
     val tokens = LocalGlassTokens.current
-    Box(modifier, contentAlignment = Alignment.TopCenter) {
+    val threshold = with(LocalDensity.current) { 48.dp.toPx() }
+    var drag by remember(state.projectPath) { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    fun moveBy(step: Int): Boolean {
+        val next = state.cards.getOrNull(state.current + step) ?: return false
+        onSelectCard(next.id)
+        return true
+    }
+    Box(
+        modifier
+            .semantics {
+                horizontalScrollAxisRange = ScrollAxisRange(
+                    value = { state.current.coerceAtLeast(0).toFloat() },
+                    maxValue = { state.cards.lastIndex.coerceAtLeast(0).toFloat() },
+                )
+                stateDescription = if (state.cards.isEmpty()) "No media" else "Clip ${state.current + 1} of ${state.cards.size}"
+                scrollBy { x, _ -> if (x == 0f) false else moveBy(if (x > 0) 1 else -1) }
+            }
+            .draggable(
+                state = rememberDraggableState { drag += it },
+                orientation = Orientation.Horizontal,
+                enabled = state.cards.size > 1,
+                onDragStarted = { drag = 0f },
+                onDragStopped = { velocity ->
+                    when {
+                        drag <= -threshold || velocity < -800f -> moveBy(1)
+                        drag >= threshold || velocity > 800f -> moveBy(-1)
+                    }
+                    drag = 0f
+                },
+            ),
+        contentAlignment = Alignment.TopCenter,
+    ) {
         if (state.cards.isEmpty()) {
             EmptyCard(onAddMedia)
             return@Box
